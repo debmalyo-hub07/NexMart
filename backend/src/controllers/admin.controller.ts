@@ -1,0 +1,186 @@
+import { Request, Response } from 'express';
+import { Order } from '../models/Order';
+import { Customer } from '../models/Customer';
+import { Product } from '../models/Product';
+import { DeliveryAssignment } from '../models/DeliveryAssignment';
+import { DeliveryAgent } from '../models/DeliveryAgent';
+import { Admin } from '../models/Admin';
+import { sendSuccess, sendNotFound, sendPaginated } from '../utils/response';
+import { parsePagination } from '../utils/helpers';
+
+export async function getAllProducts(req: Request, res: Response): Promise<void> {
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter: Record<string, unknown> = {};
+  if (req.query.q) {
+    const searchRegex = new RegExp(req.query.q as string, 'i');
+    filter.$or = [{ name: searchRegex }, { description: searchRegex }];
+  }
+
+  const [products, total] = await Promise.all([
+    Product.find(filter).sort('-createdAt').skip(skip).limit(limit).populate('category', 'name'),
+    Product.countDocuments(filter),
+  ]);
+
+  sendPaginated(res, products, total, page, limit);
+}
+
+export async function getDashboardStats(req: Request, res: Response): Promise<void> {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [
+    totalOrders, totalRevenue, totalUsers, totalProducts,
+    monthlyOrders, monthlyRevenue, pendingOrders, recentOrders,
+  ] = await Promise.all([
+    Order.countDocuments(),
+    Order.aggregate([{ $group: { _id: null, total: { $sum: '$total' } } }]),
+    Customer.countDocuments(),
+    Product.countDocuments({ isPublished: true }),
+    Order.countDocuments({ createdAt: { $gte: startOfMonth } }),
+    Order.aggregate([
+      { $match: { createdAt: { $gte: startOfMonth } } },
+      { $group: { _id: null, total: { $sum: '$total' } } },
+    ]),
+    Order.countDocuments({ orderStatus: { $in: ['placed', 'confirmed', 'processing'] } }),
+    Order.find().sort('-createdAt').limit(5).populate('customer', 'name email'),
+  ]);
+
+  sendSuccess(res, {
+    totalOrders,
+    totalRevenue: totalRevenue[0]?.total || 0,
+    totalUsers,
+    totalProducts,
+    monthlyOrders,
+    monthlyRevenue: monthlyRevenue[0]?.total || 0,
+    pendingOrders,
+    recentOrders,
+  });
+}
+
+export async function getAllOrders(req: Request, res: Response): Promise<void> {
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter: Record<string, unknown> = {};
+  if (req.query.status) filter.orderStatus = req.query.status;
+  if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
+
+  const [orders, total] = await Promise.all([
+    Order.find(filter).sort('-createdAt').skip(skip).limit(limit)
+      .populate('customer', 'name email phone')
+      .populate('deliveryAgent', 'name'),
+    Order.countDocuments(filter),
+  ]);
+
+  sendPaginated(res, orders, total, page, limit);
+}
+
+export async function getAllUsers(req: Request, res: Response): Promise<void> {
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter: Record<string, unknown> = {};
+  if (req.query.search) {
+    const s = new RegExp(req.query.search as string, 'i');
+    Object.assign(filter, { $or: [{ name: s }, { email: s }] });
+  }
+
+  const [users, total] = await Promise.all([
+    Customer.find(filter).select('-password').sort('-createdAt').skip(skip).limit(limit),
+    Customer.countDocuments(filter),
+  ]);
+  sendPaginated(res, users, total, page, limit);
+}
+
+export async function getDeliveryAgents(req: Request, res: Response): Promise<void> {
+  const agents = await DeliveryAgent.find({ status: 'approved' }).select('-password');
+  sendSuccess(res, agents);
+}
+
+export async function getAllAgents(req: Request, res: Response): Promise<void> {
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter: Record<string, unknown> = {};
+  if (req.query.status) filter.status = req.query.status;
+  if (req.query.search) {
+    const s = new RegExp(req.query.search as string, 'i');
+    Object.assign(filter, { $or: [{ name: s }, { email: s }] });
+  }
+
+  const [agents, total] = await Promise.all([
+    DeliveryAgent.find(filter).select('-password').sort('-createdAt').skip(skip).limit(limit),
+    DeliveryAgent.countDocuments(filter),
+  ]);
+
+  sendPaginated(res, agents, total, page, limit);
+}
+
+export async function assignDeliveryAgent(req: Request, res: Response): Promise<void> {
+  const { orderId, agentId } = req.params;
+
+  const [order, agent] = await Promise.all([
+    Order.findById(orderId),
+    DeliveryAgent.findOne({ _id: agentId, status: 'approved' }),
+  ]);
+
+  if (!order) { sendNotFound(res, 'Order not found'); return; }
+  if (!agent) { sendNotFound(res, 'Delivery agent not found'); return; }
+
+  order.deliveryAgent = agent._id;
+  order.orderStatus = 'shipped';
+  order.statusHistory.push({ status: 'shipped', timestamp: new Date(), updatedBy: agent._id } as typeof order.statusHistory[0]);
+  await order.save();
+
+  await DeliveryAssignment.findOneAndUpdate(
+    { order: orderId },
+    { order: orderId, agent: agentId, assignedAt: new Date(), status: 'assigned' },
+    { upsert: true, new: true }
+  );
+
+  sendSuccess(res, order, 'Delivery agent assigned');
+}
+
+export async function getRevenueAnalytics(req: Request, res: Response): Promise<void> {
+  const days = parseInt(req.query.days as string) || 30;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const [dailyRevenue, topProducts, ordersByStatus] = await Promise.all([
+    Order.aggregate([
+      { $match: { createdAt: { $gte: since }, paymentStatus: 'paid' } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, revenue: { $sum: '$total' }, orders: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+    Order.aggregate([
+      { $match: { createdAt: { $gte: since } } },
+      { $unwind: '$items' },
+      { $group: { _id: '$items.product', totalSold: { $sum: '$items.quantity' }, revenue: { $sum: '$items.totalPrice' } } },
+      { $sort: { revenue: -1 } },
+      { $limit: 10 },
+      { $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'product' } },
+      { $unwind: '$product' },
+      { $project: { name: '$product.name', slug: '$product.slug', totalSold: 1, revenue: 1 } },
+    ]),
+    Order.aggregate([
+      { $group: { _id: '$orderStatus', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  sendSuccess(res, { dailyRevenue, topProducts, ordersByStatus });
+}
+
+export async function updateAdminProfile(req: Request, res: Response): Promise<void> {
+  const { name, email } = req.body;
+  const adminId = (req as any).user.id;
+
+  // Check if email is already used by another admin
+  if (email) {
+    const existing = await Admin.findOne({ email, _id: { $ne: adminId } });
+    if (existing) {
+      res.status(400).json({ success: false, message: 'Email already in use by another admin', data: null });
+      return;
+    }
+  }
+
+  const updatedAdmin = await Admin.findByIdAndUpdate(
+    adminId,
+    { $set: { ...(name && { name }), ...(email && { email }) } },
+    { new: true, runValidators: true }
+  ).select('-password');
+
+  sendSuccess(res, updatedAdmin, 'Profile updated successfully');
+}

@@ -1,0 +1,70 @@
+# Dependency directories
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment files — NEVER commit these
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Test coverage
+coverage/
+.nyc_output/
+lcov.info
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Docker
+.docker/
+
+# Vercel
+.vercel/
+
+# Uploads (local dev only)
+uploads/
+
+# Invoice PDFs (stored in Cloudinary in prod)
+invoices/*.pdf
+
+# Redis dump
+dump.rdb

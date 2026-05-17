@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: nexmart_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: nexmart
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - nexmart
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexmart_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - nexmart
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexmart_backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - nexmart
+    volumes:
+      - ./backend/src:/app/src
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexmart_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - frontend/.env.local
+    depends_on:
+      - backend
+    networks:
+      - nexmart
+
+networks:
+  nexmart:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  redis_data:
