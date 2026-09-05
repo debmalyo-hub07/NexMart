@@ -57,7 +57,7 @@ cp .env.example .env
 # Brevo SMTP, Google OAuth, and the three JWT secrets + ADMIN_SECRET_KEY.
 ```
 
-> ⚠️ **Verify your Upstash URL resolves before starting** — if `UPSTASH_REDIS_REST_URL` points to a deleted database, every API request 500s (the global rate limiter calls Upstash on every request). Test: `nslookup <your-host>.upstash.io` should resolve.
+> ⚠️ **Verify your Upstash URL resolves before starting.** With a dead/unreachable Upstash database the API **degrades gracefully** (rate limiting, JWT blacklisting, failed-login lockouts, and caches fail open with loud logging; all endpoints still serve real data) — but full protection requires a live database. Test: `nslookup <your-host>.upstash.io` should resolve.
 
 ### 3. Start infrastructure (optional, for local MongoDB/Redis)
 

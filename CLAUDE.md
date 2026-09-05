@@ -395,7 +395,7 @@ Each item: the gap, the evidence, the acceptance criterion. Execute in order; P0
 | 7 ✅ | **Google OAuth configured, zero buttons.** | FIXED: "Continue with Google" on customer login/register. |
 | 8 ✅ | **Lenis + CustomCursor scoped wrong** — smooth-scroll hijack + cursor over admin tables and checkout. | FIXED: storefront-only mount (StorefrontLayout), providers.tsx double-mount removed, reduced-motion early-return, CSS scroll-behavior conflict removed. |
 
-> ⚠️ **Live smoke tests pending (2026-09-05):** the `UPSTASH_REDIS_REST_URL` in `.env` (`lucky-gobbler-82201.upstash.io`) no longer resolves in public DNS — the instance appears deleted/renamed. The global `generalLimit` middleware hits Upstash on every request, so the whole API 500s locally until the URL is fixed in `.env`. All code fixes verified by tsc/vitest/Next build + manual code review; run the smoke matrix (admin status PATCH, reviews GET, socket delivery) once Redis is restored.
+> ⚠️ **Upstash status (2026-09-05):** the `UPSTASH_REDIS_REST_URL` in `.env` (`lucky-gobbler-82201.upstash.io`) no longer resolves in public DNS — the instance appears deleted/renamed. Since the resilience fix (2026-09-05, later that day) the API **degrades gracefully** with Redis down: rate limiting, JWT blacklisting, failed-login lockouts, and caches fail open with loud logging (2.5s bounded calls, no retries), and all endpoints serve real MongoDB data. Update the URL to a live Upstash database to restore full protection. Verified live in this state: products/categories/stats/orders-sort/reviews/patch-status/admin-login all 200.
 
 ### P1 — silent failures & misinformation — ✅ ALL DONE 2026-09-05
 | # | Gap | Fix / acceptance |

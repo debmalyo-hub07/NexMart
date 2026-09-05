@@ -11,11 +11,21 @@
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 import { env } from './env';
+import { logger } from '../utils/logger';
 
 // ── Upstash Redis (REST over HTTPS — always works) ────────────
+// signal: every call is bounded at 2.5s — a dead/unresolvable Upstash host
+//   must fail fast, not hang each request for the DNS timeout.
+//   MUST be a function: with a plain AbortSignal the client swallows the
+//   abort into a fake 200 ({result:"Aborted"}) which reads as a truthy
+//   cache/blacklist hit; as a function it throws, so callers can fail open.
+// retry: disabled — 5 retries with exponential backoff on a dead host would
+//   multiply the hang on every request. Callers degrade instead.
 export const upstashRedis = new Redis({
   url: env.UPSTASH_REDIS_REST_URL,
   token: env.UPSTASH_REDIS_REST_TOKEN,
+  signal: () => AbortSignal.timeout(2500),
+  retry: false,
 });
 
 // ── Rate Limiters ─────────────────────────────────────────────
@@ -76,20 +86,37 @@ export async function deleteOtpLock(key: string): Promise<void> {
 }
 
 // ── Failed Login Attempt helpers ──────────────────────────────
+// All fail OPEN on Redis errors: brute-force lockout is a protection, not a
+// functional requirement — an unreachable Redis must not 500 every login.
+// Degradation is logged loudly so it is visible in ops.
 export async function getFailedLoginAttempts(ip: string): Promise<number> {
-  const count = await upstashRedis.get<number>(`nexmart:login:failed:${ip}`);
-  return count || 0;
+  try {
+    const count = await upstashRedis.get<number>(`nexmart:login:failed:${ip}`);
+    return count || 0;
+  } catch (err) {
+    logger.error('Redis unavailable in getFailedLoginAttempts (fail-open):', err instanceof Error ? err.message : err);
+    return 0;
+  }
 }
 
 export async function incrementFailedLoginAttempts(ip: string): Promise<number> {
-  const count = await getFailedLoginAttempts(ip);
-  const newCount = count + 1;
-  await upstashRedis.set(`nexmart:login:failed:${ip}`, newCount, { ex: 900 }); // 15 minutes (900s)
-  return newCount;
+  try {
+    const count = await getFailedLoginAttempts(ip);
+    const newCount = count + 1;
+    await upstashRedis.set(`nexmart:login:failed:${ip}`, newCount, { ex: 900 }); // 15 minutes (900s)
+    return newCount;
+  } catch (err) {
+    logger.error('Redis unavailable in incrementFailedLoginAttempts (fail-open):', err instanceof Error ? err.message : err);
+    return 0;
+  }
 }
 
 export async function clearFailedLoginAttempts(ip: string): Promise<void> {
-  await upstashRedis.del(`nexmart:login:failed:${ip}`);
+  try {
+    await upstashRedis.del(`nexmart:login:failed:${ip}`);
+  } catch (err) {
+    logger.error('Redis unavailable in clearFailedLoginAttempts (fail-open):', err instanceof Error ? err.message : err);
+  }
 }
 
 // ── JWT Blacklist helpers (revoke tokens on logout) ───────────
@@ -100,6 +127,13 @@ export async function blacklistToken(jti: string, ttlSeconds: number): Promise<v
 
 export async function isTokenBlacklisted(jti: string | undefined): Promise<boolean> {
   if (!jti) return false;
-  const val = await upstashRedis.get(`nexmart:jwt:blacklist:${jti}`);
-  return val !== null;
+  try {
+    const val = await upstashRedis.get(`nexmart:jwt:blacklist:${jti}`);
+    return val !== null;
+  } catch (err) {
+    // Fail OPEN: treat as not-blacklisted so an unreachable Redis cannot
+    // 401 every authenticated request. Revocation resumes when Redis returns.
+    logger.error('Redis unavailable in isTokenBlacklisted (fail-open):', err instanceof Error ? err.message : err);
+    return false;
+  }
 }

@@ -5,7 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
-## 2026-09-05 — P3+P4: dishonesty purge + polish (in progress)
+## 2026-09-05 (later) — Redis resilience: dead Upstash no longer takes the API down
+
+**Diagnosed:** every `/api/v1/*` request 500'd with `fetch failed` — `.env`'s `UPSTASH_REDIS_REST_URL` host no longer resolves in public DNS (deleted/renamed instance), and the global rate limiter's uncaught Upstash call failed every request (~4.4s DNS timeout, 5 retries with backoff).
+
+**Fixed (fail-open degradation):** all five rate-limiter middlewares, `isTokenBlacklisted`, and the failed-login-attempt helpers now fail open with loud logging — matching the degradation pattern the product/category caches already used. Upstash client calls are bounded at 2.5s with retries disabled; the signal is passed as a **function** (a plain `AbortSignal` makes the client swallow the abort into a fake 200 `"Aborted"` result, which the blacklist check would read as a truthy hit — 401ing everything).
+
+**Security note:** while Redis is unreachable, rate limiting / token revocation / login lockouts are bypassed (logged). Availability over protection for general traffic; update `.env` to a live Upstash database to restore full protection.
+
+**Verified live against the still-dead host:** products, categories, admin login, admin stats, server-side sort, reviews GET, admin order-status PATCH — all 200 with real data.
+
+## 2026-09-05 — P3+P4: dishonesty purge + polish
 
 **Removed (no-fic rule, CLAUDE.md §0.2):** fabricated `MOCK_ACTIVITY` "Security & Activity Log", hardcoded dashboard trend deltas, fake "LIVE" sync badge (now honest "SYNC" with polling tooltip), unconditional "Verified by Admin" pill, per-page delivery stat counts.
 
