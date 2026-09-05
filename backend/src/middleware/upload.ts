@@ -32,7 +32,5 @@ export const videoUpload = multer({
   },
 });
 
-export const anyUpload = multer({
-  storage,
-  limits: { fileSize: MAX_IMAGE_SIZE },
-});
+// NOTE: no unrestricted `anyUpload` export — every upload path must go through
+// a type-whitelisted multer instance (defense in depth alongside Cloudinary).

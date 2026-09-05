@@ -2,7 +2,7 @@
 
 import { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Points, PointMaterial, Preload } from '@react-three/drei';
+import { Points, PointMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
 function OrbitingRings() {
@@ -127,33 +127,64 @@ function SceneCleanup() {
 
 export function HeroBackground() {
   const [ready, setReady] = useState(false);
-  // Pause the render loop entirely when the tab is backgrounded — no GPU/CPU
-  // burned animating a canvas nobody is looking at.
+  // Pause the render loop entirely when (a) the tab is backgrounded or
+  // (b) the hero is scrolled out of the viewport — no GPU/CPU burned
+  // animating a canvas nobody is looking at.
   const [active, setActive] = useState(true);
+  // Mobile skip: a 500-particle WebGL field behind text on a small screen is
+  // pure GPU waste — render the static gradient backdrop instead (the section
+  // keeps its grid pattern + glow orbs, so mobile still looks designed).
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => { setReady(true); }, []);
 
+  // "Should render" = tab visible AND hero in viewport. Two signals, one state.
+  const inViewRef = useRef(true);
+  const tabVisibleRef = useRef(true);
+  const syncActive = () => setActive(inViewRef.current && tabVisibleRef.current);
+
   useEffect(() => {
-    const onVisibility = () => setActive(!document.hidden);
+    const onVisibility = () => { tabVisibleRef.current = !document.hidden; syncActive(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
-  if (!ready) return <div className="absolute inset-0 z-0" />;
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // Pause the render loop the moment the hero leaves the viewport — the old
+  // code kept animating forever while the user browsed the rest of the page.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([entry]) => {
+      inViewRef.current = entry.isIntersecting;
+      syncActive();
+    }, { threshold: 0.01 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ready]);
+
+  if (!ready || isMobile) return <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,#1E0B3B_0%,#0A0A0F_60%)]" />;
 
   return (
     <div
+      ref={wrapperRef}
       className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
       style={{ animation: 'heroFadeIn 0.5s ease forwards' }}
     >
       <style>{`@keyframes heroFadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
       <Canvas frameloop={active ? 'always' : 'never'} camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 1.5]} gl={{ powerPreference: 'high-performance', antialias: false }}>
-        <ambientLight intensity={0.5} />
         <WireframeSphere />
         <OrbitingRings />
         <FloatingParticles />
         <SceneCleanup />
-        <Preload all />
       </Canvas>
     </div>
   );

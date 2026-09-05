@@ -52,7 +52,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     for (const item of items) {
       const product = await Product.findById(item.product).session(session);
       if (!product) {
-        sendBadRequest(res, `Product ${item.product} not found`);
+        sendBadRequest(res, 'An item in your order is no longer available. Please refresh your cart and try again.');
         await session.abortTransaction();
         session.endSession();
         return;
@@ -60,7 +60,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 
       const variant = product.variants.find((v) => v.sku === item.variant);
       if (!variant) {
-        sendBadRequest(res, `Variant ${item.variant} not found`);
+        sendBadRequest(res, `An option of "${product.name}" is no longer available. Please refresh your cart and try again.`);
         await session.abortTransaction();
         session.endSession();
         return;
@@ -98,7 +98,10 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       } catch (rzpErr: any) {
         await session.abortTransaction();
         session.endSession();
-        sendError(res, `Payment gateway error: ${rzpErr.message || rzpErr}`, 500);
+        // Log the SDK detail server-side; the shopper gets a clean, actionable
+        // message (CLAUDE.md §13: no SDK internals in error responses).
+        console.error('Razorpay order creation failed:', rzpErr?.message || rzpErr);
+        sendError(res, 'Payment service is temporarily unavailable. Please try again in a moment.', 503);
         return;
       }
     }
@@ -156,7 +159,13 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     await session.abortTransaction();
     session.endSession();
     console.error('Order creation transaction failed, rolled back:', error);
-    sendError(res, error.message || 'An error occurred during order creation', 500);
+    // Zod validation errors carry user-actionable messages; anything else
+    // (stock races, Mongo internals) stays in the server log, not the response.
+    if (error?.name === 'ZodError' || error?.issues) {
+      sendError(res, error.message || 'Invalid order details', 400);
+    } else {
+      sendError(res, "We couldn't complete your order. Please try again.", 500);
+    }
   }
 }
 

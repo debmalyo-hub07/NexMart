@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, memo } from 'react';
+import { useState, useRef, useEffect, memo } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -21,6 +21,17 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
   const { addItem } = useCartStore();
   const { showToast } = useUIStore();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Tilt + glow run only where they're wanted and cheap: fine pointers (mouse/
+  // trackpad) with motion allowed. Touch devices never fire useful mousemove
+  // and reduced-motion users opt out (vestibular safety).
+  const interactiveTilt = useRef(false);
+  useEffect(() => {
+    interactiveTilt.current =
+      window.matchMedia('(pointer: fine)').matches &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
 
   // 3D Tilt Effect
   const x = useMotionValue(0);
@@ -32,9 +43,8 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["10deg", "-10deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-10deg", "10deg"]);
 
-  const [coords, setCoords] = useState({ mouseX: 0, mouseY: 0 });
-
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!interactiveTilt.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const width = rect.width;
     const height = rect.height;
@@ -42,7 +52,11 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
     const mouseY = e.clientY - rect.top;
     x.set(mouseX / width - 0.5);
     y.set(mouseY / height - 0.5);
-    setCoords({ mouseX, mouseY });
+    // Direct DOM write — NO React state. The old setCoords() re-rendered the
+    // whole card on every pointer event (60+/sec); the glow only needs the
+    // CSS variables, so we set them on the node and skip the render entirely.
+    cardRef.current?.style.setProperty('--mouse-x', `${mouseX}px`);
+    cardRef.current?.style.setProperty('--mouse-y', `${mouseY}px`);
   };
 
   const handleMouseLeave = () => {
@@ -78,16 +92,13 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
 
   return (
     <motion.div
+      ref={cardRef}
       className={cn('group relative glass rounded-2xl overflow-hidden glass-hover cursor-pointer transition-colors duration-300 card-glow-wrapper', className)}
       style={{
         rotateX,
         rotateY,
         transformPerspective: 1000,
         transformStyle: 'preserve-3d',
-        ...({
-          '--mouse-x': `${coords.mouseX}px`,
-          '--mouse-y': `${coords.mouseY}px`,
-        } as React.CSSProperties),
       }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}

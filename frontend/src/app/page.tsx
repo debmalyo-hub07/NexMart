@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import Link from 'next/link';
@@ -27,8 +27,6 @@ interface CategoryTile {
 }
 
 export default function HomePage() {
-  const textRef = useRef<HTMLHeadingElement>(null);
-
   const { data: featuredData, isLoading } = useQuery({
     queryKey: ['featured-products'],
     queryFn: () => api.get('/products?featured=true&limit=8').then((r) => r.data),
@@ -60,14 +58,6 @@ export default function HomePage() {
       gsap.registerPlugin(ScrollTrigger);
 
       ctx = gsap.context(() => {
-        const chars = textRef?.current?.querySelectorAll('.char');
-        if (chars?.length) {
-          gsap.fromTo(chars,
-            { opacity: 0, y: 60 },
-            { opacity: 1, y: 0, duration: 0.6, stagger: 0.03, ease: 'power4.out', delay: 0.2 }
-          );
-        }
-
         const sections = document.querySelectorAll('.gsap-section');
         sections.forEach((section) => {
           gsap.fromTo(section,
@@ -110,7 +100,7 @@ export default function HomePage() {
         }} />
         <div className="page-container relative z-10 py-12 flex flex-col justify-center items-center min-h-[calc(100vh-72px)]">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center max-w-4xl mx-auto mt-4">
-            <h1 ref={textRef} className="font-syne text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-white mb-6 leading-[1.1]">
+            <h1 className="font-syne text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-white mb-6 leading-[1.1]">
               Shop Smarter, <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">Live</span>
               <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">Better</span>

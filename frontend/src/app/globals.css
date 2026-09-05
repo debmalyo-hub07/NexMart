@@ -42,6 +42,23 @@ body {
   overflow-x: hidden;
 }
 
+/* ── Reduced motion: HARD GATE (CLAUDE.md §2.5) ──────────────────
+ * Vestibular safety (WCAG 2.3.3): users who opt out of motion get
+ * everything instantly — no shimmer, pulse, parallax, or scroll hijack.
+ * JS animation layers (Lenis, GSAP, ProductCard tilt) bail out separately
+ * via matchMedia checks.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ── Typography ──────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-outfit), sans-serif;
