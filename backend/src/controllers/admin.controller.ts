@@ -7,6 +7,9 @@ import { DeliveryAgent } from '../models/DeliveryAgent';
 import { Admin } from '../models/Admin';
 import { sendSuccess, sendNotFound, sendPaginated } from '../utils/response';
 import { parsePagination } from '../utils/helpers';
+import { sendAgentAssignmentEmail } from '../services/email.service';
+import { emitOrderStatusUpdate } from '../config/socket';
+import { upstashRedis } from '../config/redis';
 
 export async function getAllProducts(req: Request, res: Response): Promise<void> {
   const { page, limit, skip } = parsePagination(req.query);
@@ -21,10 +24,22 @@ export async function getAllProducts(req: Request, res: Response): Promise<void>
     Product.countDocuments(filter),
   ]);
 
+  const stats = { products, total };
   sendPaginated(res, products, total, page, limit);
 }
 
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
+  const cacheKey = 'nexmart:admin:dashboard:stats';
+  try {
+    const cached = await upstashRedis.get(cacheKey);
+    if (cached) {
+      sendSuccess(res, cached);
+      return;
+    }
+  } catch (err) {
+    console.error('Redis read error for dashboard stats:', err);
+  }
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -45,7 +60,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
     Order.find().sort('-createdAt').limit(5).populate('customer', 'name email'),
   ]);
 
-  sendSuccess(res, {
+  const stats = {
     totalOrders,
     totalRevenue: totalRevenue[0]?.total || 0,
     totalUsers,
@@ -54,7 +69,15 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
     monthlyRevenue: monthlyRevenue[0]?.total || 0,
     pendingOrders,
     recentOrders,
-  });
+  };
+
+  try {
+    await upstashRedis.set(cacheKey, stats, { ex: 30 }); // 30 seconds TTL
+  } catch (err) {
+    console.error('Redis write error for dashboard stats:', err);
+  }
+
+  sendSuccess(res, stats);
 }
 
 export async function getAllOrders(req: Request, res: Response): Promise<void> {
@@ -131,6 +154,14 @@ export async function assignDeliveryAgent(req: Request, res: Response): Promise<
     { order: orderId, agent: agentId, assignedAt: new Date(), status: 'assigned' },
     { upsert: true, new: true }
   );
+
+  try {
+    await sendAgentAssignmentEmail(agent.email, agent.name, order.orderId);
+  } catch (err) {
+    console.error('Failed to send agent assignment email:', err);
+  }
+
+  emitOrderStatusUpdate(order.customer.toString(), order.orderId, 'shipped');
 
   sendSuccess(res, order, 'Delivery agent assigned');
 }

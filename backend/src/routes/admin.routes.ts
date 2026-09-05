@@ -12,15 +12,16 @@ import {
 } from '../controllers/admin.controller';
 import { protectAdmin } from '../middleware/auth';
 import { checkIP } from '../middleware/ipWhitelist';
-import { authLimit } from '../middleware/rateLimiter';
+import { authLimit, registerLimit } from '../middleware/rateLimiter';
 import { Admin } from '../models/Admin';
 import { DeliveryAgent } from '../models/DeliveryAgent';
 import { registerAdmin, loginAdmin } from '../controllers/roleAuth.controller';
+import { sendAgentStatusEmail } from '../services/email.service';
 
 const router = Router();
 
 // --- Auth Routes (Unprotected but rate-limited) ---
-router.post('/auth/register', authLimit, registerAdmin);
+router.post('/auth/register', registerLimit, registerAdmin);
 router.post('/auth/login', authLimit, loginAdmin);
 
 // --- Protected Routes ---
@@ -53,17 +54,31 @@ router.get('/agents/pending', async (req, res) => {
 router.patch('/agents/:id/approve', async (req, res) => {
   const agent = await DeliveryAgent.findByIdAndUpdate(
     req.params.id,
-    { status: 'approved' },
+    { status: 'approved', isApproved: true },
     { new: true }
   ).select('-password');
+  if (!agent) return res.status(404).json({ success: false, message: 'Agent not found' });
+
+  try {
+    await sendAgentStatusEmail(agent.email, agent.name, 'approved');
+  } catch (err) {
+    console.error('SMTP agent approval email failed:', err);
+  }
   res.json({ success: true, message: 'Agent approved', data: agent });
 });
 router.patch('/agents/:id/reject', async (req, res) => {
   const agent = await DeliveryAgent.findByIdAndUpdate(
     req.params.id,
-    { status: 'rejected' },
+    { status: 'rejected', isApproved: false },
     { new: true }
   ).select('-password');
+  if (!agent) return res.status(404).json({ success: false, message: 'Agent not found' });
+
+  try {
+    await sendAgentStatusEmail(agent.email, agent.name, 'rejected');
+  } catch (err) {
+    console.error('SMTP agent rejection email failed:', err);
+  }
   res.json({ success: true, message: 'Agent rejected', data: agent });
 });
 router.delete('/agents/:id', async (req, res) => {
