@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+import { Logo } from '@/components/common/Logo';
 import { useSession } from 'next-auth/react';
 import { LiveSyncBadge } from '@/components/common/LiveSyncBadge';
 
@@ -57,11 +58,9 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
     <aside className="flex flex-col h-full w-[260px] bg-space-900/95 backdrop-blur-xl border-r border-white/5">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b border-white/5 shrink-0">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-violet-gradient flex items-center justify-center">
-            <span className="text-white font-bold text-xs">N</span>
-          </div>
-          <span className="font-syne font-bold text-lg gradient-text">NexMart</span>
+        <Link href="/" className="flex items-center gap-2.5">
+          <Logo size={26} />
+          <span className="font-syne font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">NexMart</span>
         </Link>
         <div className="flex items-center gap-2 ml-auto">
           <LiveSyncBadge />

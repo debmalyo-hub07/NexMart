@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { memo } from 'react';
 import { Mail, Phone, MapPin, Twitter, Instagram, Github, Youtube } from 'lucide-react';
+import { Logo } from '@/components/common/Logo';
 
 const footerLinks = {
   Shop: [
@@ -83,11 +84,9 @@ export const Footer = memo(function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
           {/* Brand */}
           <div className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-violet-gradient flex items-center justify-center">
-                <span className="text-white font-bold text-sm">N</span>
-              </div>
-              <span className="font-syne font-bold text-xl gradient-text">NexMart</span>
+            <div className="flex items-center gap-2.5 mb-4">
+              <Logo size={30} />
+              <span className="font-syne font-bold text-xl text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">NexMart</span>
             </div>
             <p className="text-white/50 text-sm leading-relaxed mb-6">
               India&apos;s next-generation shopping destination. Millions of products,

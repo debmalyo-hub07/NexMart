@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
+import { Logo } from '@/components/common/Logo';
 
 export function FullPageLoader({ show = true }: { show?: boolean }) {
   return (
@@ -17,9 +18,8 @@ export function FullPageLoader({ show = true }: { show?: boolean }) {
             <motion.div
               animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              className="w-16 h-16 rounded-2xl bg-violet-gradient flex items-center justify-center glow-violet"
             >
-              <span className="text-white font-syne font-bold text-2xl">N</span>
+              <Logo size={56} />
             </motion.div>
 
             {/* Loading bar */}

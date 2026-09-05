@@ -92,7 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <Menu size={20} />
         </button>
-        <span className="font-syne font-bold gradient-text flex-1">Admin Panel</span>
+        <span className="font-syne font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 flex-1">Admin Panel</span>
         <LiveSyncBadge />
       </div>
 

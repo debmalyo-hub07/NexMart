@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-06 (later) — the Orbit-N logo mark
+
+Replaced the generic gradient-tile-plus-"N" with an ownable monogram: two bold brand-gradient stems carry the letter **N**, the diagonal becomes a thin violet orbital arc, and an acid-green node travels on it — the homepage hero (wireframe sphere + orbiting rings) miniaturized into a mark. The node is the action color: the product in orbit. Implemented as a scalable SVG (`Logo` component, token colors only) across all seven call sites (navbar desktop + mobile drawer, footer, admin sidebar, delivery header, auth screens, loader) plus a dark-tile `icon.svg` favicon. En route: the last three `gradient-text` (violet→acid, the retired contradictory gradient) uses converted to the brand violet→fuchsia — the codebase now has exactly one gradient.
+
 ## 2026-09-06 — stability gap fixes (risk register rows 1–6)
 
 - **Order status transition guard:** forward-only state graph enforced server-side (`placed→confirmed→…→delivered`, cancellation/return as the only exits); invalid moves get a 400 naming the allowed set; re-applying the current status is an idempotent no-op. Verified live.

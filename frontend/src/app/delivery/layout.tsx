@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { LiveSyncBadge } from '@/components/common/LiveSyncBadge';
+import { Logo } from '@/components/common/Logo';
 import { User, LogOut } from 'lucide-react';
 import Link from 'next/link';
 
@@ -21,11 +22,11 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
       {/* Persistent Header */}
       <div className="glass border-b border-white/5 sticky top-0 z-10">
         <div className="page-container flex items-center gap-3 h-[64px]">
-          <Link href="/delivery/dashboard" className="w-8 h-8 rounded-xl bg-violet-gradient flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20 transition-transform hover:scale-105">
-            <span className="text-white font-bold text-sm">N</span>
+          <Link href="/delivery/dashboard" className="shrink-0 transition-transform hover:scale-105">
+            <Logo size={30} />
           </Link>
           <div className="flex-1">
-            <h1 className="font-syne text-lg font-bold gradient-text leading-none">
+            <h1 className="font-syne text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 leading-none">
               {pathname?.includes('/profile') ? 'Agent Profile' : 'Delivery Dashboard'}
             </h1>
           </div>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- NexMart "Orbit-N" favicon — dark tile so the mark reads on browser chrome -->
+  <rect width="48" height="48" rx="11" fill="#0A0A0F"/>
+  <rect x="0.75" y="0.75" width="46.5" height="46.5" rx="10.25" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="g" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#D946EF"/>
+    </linearGradient>
+  </defs>
+  <!-- N stems -->
+  <path d="M11 10 V38" stroke="url(#g)" stroke-width="6.5" stroke-linecap="round"/>
+  <path d="M37 10 V38" stroke="url(#g)" stroke-width="6.5" stroke-linecap="round"/>
+  <!-- orbital arc diagonal -->
+  <path d="M14 11 Q36 14 34 37" stroke="#C084FC" stroke-opacity="0.9" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- the node -->
+  <circle cx="31.8" cy="21.8" r="4" fill="#22D58D"/>
+</svg>

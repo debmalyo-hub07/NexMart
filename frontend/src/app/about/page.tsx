@@ -31,7 +31,7 @@ export default function AboutPage() {
             </div>
             <h1 className="font-syne text-5xl md:text-6xl font-black text-white leading-tight mb-6">
               Built for the{' '}
-              <span className="gradient-text">next generation</span>{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">next generation</span>{' '}
               of shoppers
             </h1>
             <p className="text-lg text-white/50 leading-relaxed">

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Logo } from '@/components/common/Logo';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
@@ -157,9 +158,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
       >
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3 mb-8 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-violet-500/25 group-hover:shadow-violet-500/40 transition-shadow">
-              <span className="text-white font-bold text-lg">N</span>
-            </div>
+            <Logo size={38} className="transition-transform group-hover:scale-105" />
             <span className="font-outfit font-bold text-2xl text-white tracking-tight">NexMart</span>
           </Link>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-2 font-outfit">{title}</h1>

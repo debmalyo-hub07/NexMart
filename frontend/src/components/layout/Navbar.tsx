@@ -8,6 +8,7 @@ import { ShoppingCart, Search, User, Menu, X, ChevronDown, LogOut, LayoutDashboa
 import { useScrollDirection } from '@/hooks/useScrollDirection';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
+import { Logo } from '@/components/common/Logo';
 import { useUIStore } from '@/store/uiStore';
 import { useQuery } from '@tanstack/react-query';
 import { CartDrawer } from '@/components/navbar/CartDrawer';
@@ -131,11 +132,9 @@ export const Navbar = memo(function Navbar() {
         <nav className="page-container">
           <div className="flex items-center justify-between h-[72px] gap-4">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-violet-gradient flex items-center justify-center glow-violet">
-                <span className="text-white font-bold text-sm">N</span>
-              </div>
-              <span className="font-syne font-bold text-xl hidden sm:block gradient-text">NexMart</span>
+            <Link href="/" className="flex items-center gap-2.5 shrink-0">
+              <Logo size={30} className="shrink-0" />
+              <span className="font-syne font-bold text-xl hidden sm:block text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">NexMart</span>
             </Link>
 
             {/* Primary nav links + Categories */}
@@ -357,7 +356,10 @@ export const Navbar = memo(function Navbar() {
               className="fixed left-0 top-0 h-full w-80 glass z-50 flex flex-col lg:hidden border-r border-white/5"
             >
               <div className="flex items-center justify-between p-6 border-b border-white/5">
-                <span className="font-syne font-bold text-xl gradient-text">NexMart</span>
+                <span className="flex items-center gap-2.5">
+                  <Logo size={26} />
+                  <span className="font-syne font-bold text-xl text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">NexMart</span>
+                </span>
                 <button onClick={closeMobileNav} className="p-2 rounded-lg hover:bg-white/5" suppressHydrationWarning>
                   <X size={20} className="text-white/70" />
                 </button>
