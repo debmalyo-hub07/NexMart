@@ -1,0 +1,40 @@
+# Upstash free-tier keep-alive
+#
+# Upstash deletes free databases that receive no commands for an extended
+# period. This workflow pings the database with one SET command every week —
+# ~4 commands/month against the 500,000/month free tier — so the database
+# never goes idle.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   UPSTASH_REDIS_REST_URL     e.g. https://your-db-xxxx.upstash.io
+#   UPSTASH_REDIS_REST_TOKEN   the REST token from the Upstash console
+#
+# Manual run: Actions → "Redis keep-alive" → Run workflow.
+
+name: "Redis keep-alive"
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC (off the hour — cheaper on GitHub's scheduler)
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Upstash
+        run: |
+          if [ -z "${{ secrets.UPSTASH_REDIS_REST_URL }}" ] || [ -z "${{ secrets.UPSTASH_REDIS_REST_TOKEN }}" ]; then
+            echo "::error::Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN secrets. Add them in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          RESPONSE=$(curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}" \
+            -d '["SET", "nexmart:keepalive", "ping"]' \
+            --max-time 30 \
+            "${{ secrets.UPSTASH_REDIS_REST_URL }}")
+          echo "Upstash response: $RESPONSE"
+          case "$RESPONSE" in
+            *'"result":"OK"'*) echo "Keep-alive successful." ;;
+            *) echo "::error::Unexpected response — check the URL/token secrets and the database status."; exit 1 ;;
+          esac
