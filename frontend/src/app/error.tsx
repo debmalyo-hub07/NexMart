@@ -13,7 +13,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Surface to the console (and Sentry, which is wired in this app) for diagnosis.
+    // Surface to the console for diagnosis.
     console.error('Route error:', error);
   }, [error]);
 
@@ -27,7 +27,7 @@ export default function Error({
         <div className="flex items-center justify-center gap-3 pt-2">
           <button
             onClick={reset}
-            className="btn-glow rounded-xl bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/15 transition"
+            className="btn-primary rounded-xl px-5 py-2.5 text-sm font-medium text-white"
           >
             Try again
           </button>

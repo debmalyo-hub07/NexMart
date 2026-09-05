@@ -57,6 +57,11 @@ export function getStatusColor(status: string): string {
     paid: 'badge-acid',
     failed: 'badge-red',
     refunded: 'badge-amber',
+    approved: 'badge-acid',
+    rejected: 'badge-red',
+    assigned: 'badge-violet',
+    picked: 'badge-amber',
+    attempted: 'badge-amber',
   };
   return colors[status] || 'badge-amber';
 }

@@ -15,11 +15,14 @@ const COLORS = ['#7C3AED', '#22D58D', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'
 export default function AdminAnalyticsPage() {
   const [days, setDays] = useState(30);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-analytics', days],
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin', 'analytics', days],
     queryFn: () => api.get(`/admin/analytics?days=${days}`).then((r) => r.data.data),
     ...analyticsQueryOptions,
   });
+
+  // Only treat the query as failed when there is no cached data to fall back on.
+  const analyticsFailed = isError && !data;
 
   const chartData = (data?.dailyRevenue || []).map((d: { _id: string; revenue: number; orders: number }) => ({
     date: d._id?.slice(5),
@@ -44,7 +47,7 @@ export default function AdminAnalyticsPage() {
         <div className="flex gap-2">
           {[7, 14, 30, 90].map((d) => (
             <button key={d} onClick={() => setDays(d)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${days === d ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white border border-white/10'}`}>
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-[color,background-color,box-shadow] ${days === d ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white border border-white/10'}`}>
               {d}d
             </button>
           ))}
@@ -52,7 +55,12 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Revenue Chart */}
-      <RevenueChart data={chartData} />
+      <RevenueChart
+        data={chartData}
+        isLoading={isLoading}
+        isError={analyticsFailed}
+        onRetry={() => refetch()}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Order Status Distribution */}
@@ -60,19 +68,33 @@ export default function AdminAnalyticsPage() {
           <h3 className="font-syne font-semibold text-white mb-6 flex items-center gap-2">
             <BarChart3 size={18} className="text-violet-400" /> Orders by Status
           </h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={statusData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: 'rgba(15,15,26,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12 }} />
-              <Bar dataKey="count" radius={[4,4,0,0]}>
-                {statusData.map((_: unknown, index: number) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <div className="w-full h-[220px] rounded-xl skeleton" aria-hidden="true" />
+          ) : analyticsFailed ? (
+            <div className="flex flex-col items-center justify-center gap-2 h-[220px] text-center">
+              <BarChart3 size={28} className="text-white/20" aria-hidden="true" />
+              <p className="text-sm text-white/40">Failed to load order status data</p>
+            </div>
+          ) : statusData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 h-[220px] text-center">
+              <BarChart3 size={28} className="text-white/20" aria-hidden="true" />
+              <p className="text-sm text-white/40">No data for this period</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={statusData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: 'rgba(15,15,26,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12 }} />
+                <Bar dataKey="count" radius={[4,4,0,0]}>
+                  {statusData.map((_: unknown, index: number) => (
+                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Top Products */}
@@ -81,28 +103,45 @@ export default function AdminAnalyticsPage() {
             <TrendingUp size={18} className="text-acid-400" /> Top Selling Products
           </h3>
           <div className="space-y-3">
-            {topProducts.slice(0, 7).map((p: { name: string; totalSold: number; revenue: number }, i: number) => (
-              <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-3">
-                <span className="text-xs text-white/30 w-4 shrink-0">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between mb-1">
-                    <p className="text-xs text-white truncate">{p.name}</p>
-                    <p className="text-xs text-acid-400 font-medium shrink-0 ml-2">{formatPrice(p.revenue)}</p>
+            {isLoading ? (
+              Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-4 h-3 rounded skeleton shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="h-3 w-2/3 rounded skeleton" />
+                    <div className="h-1.5 w-full rounded-full skeleton" />
                   </div>
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min((p.totalSold / (topProducts[0]?.totalSold || 1)) * 100, 100)}%` }}
-                      transition={{ delay: i * 0.05 + 0.3, duration: 0.8 }}
-                      className="h-full bg-violet-gradient rounded-full"
-                    />
-                  </div>
+                  <div className="w-6 h-3 rounded skeleton shrink-0" />
                 </div>
-                <span className="text-xs text-white/50 shrink-0">{p.totalSold}</span>
-              </motion.div>
-            ))}
-            {topProducts.length === 0 && <p className="text-sm text-white/30 text-center py-8">No sales data yet</p>}
+              ))
+            ) : analyticsFailed ? (
+              <p className="text-sm text-white/40 text-center py-8">Failed to load product data</p>
+            ) : (
+              <>
+                {topProducts.slice(0, 7).map((p: { name: string; totalSold: number; revenue: number }, i: number) => (
+                  <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                    className="flex items-center gap-3">
+                    <span className="text-xs text-white/30 w-4 shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between mb-1">
+                        <p className="text-xs text-white truncate">{p.name}</p>
+                        <p className="text-xs text-acid-400 font-medium shrink-0 ml-2">{formatPrice(p.revenue)}</p>
+                      </div>
+                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min((p.totalSold / (topProducts[0]?.totalSold || 1)) * 100, 100)}%` }}
+                          transition={{ delay: i * 0.05 + 0.3, duration: 0.8 }}
+                          className="h-full bg-violet-gradient rounded-full"
+                        />
+                      </div>
+                    </div>
+                    <span className="text-xs text-white/50 shrink-0">{p.totalSold}</span>
+                  </motion.div>
+                ))}
+                {topProducts.length === 0 && <p className="text-sm text-white/30 text-center py-8">No sales data yet</p>}
+              </>
+            )}
           </div>
         </div>
       </div>

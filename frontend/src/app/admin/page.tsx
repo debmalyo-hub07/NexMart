@@ -59,19 +59,37 @@ const TopProductRow = memo(function TopProductRow({
   );
 });
 
+// Skeleton rows for the Top Products panel while analytics loads
+const TOP_PRODUCT_SKELETONS = Array.from({ length: 5 }, (_, i) => i);
+
 export default function AdminDashboard() {
   // Phase 8 — Auto-sync every 20 seconds (lightweight polling, no UI freeze)
-  const { data: statsData, isLoading } = useQuery({
-    queryKey: ['admin-stats'],
+  const {
+    data: statsData,
+    isLoading: statsLoading,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ['admin', 'stats'],
     queryFn: () => api.get('/admin/dashboard/stats').then((r) => r.data.data as DashboardStats),
     ...liveQueryOptions,
   });
 
-  const { data: analyticsData } = useQuery({
-    queryKey: ['admin-analytics'],
+  const {
+    data: analyticsData,
+    isLoading: analyticsLoading,
+    isError: analyticsError,
+    refetch: refetchAnalytics,
+  } = useQuery({
+    queryKey: ['admin', 'analytics'],
     queryFn: () => api.get('/admin/analytics?days=30').then((r) => r.data.data as any),
     ...analyticsQueryOptions,
   });
+
+  // A query only counts as failed when there is no cached data to fall back on —
+  // a failed background refresh keeps showing the last real values.
+  const statsFailed = statsError && !statsData;
+  const analyticsFailed = analyticsError && !analyticsData;
 
   const chartData = analyticsData?.dailyRevenue?.map(
     (d: { _id: string; revenue: number; orders: number }) => ({
@@ -107,36 +125,50 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatsCard
           title="Total Revenue"
-          value={statsData?.totalRevenue ?? 0}
+          value={statsData?.totalRevenue}
           prefix="₹"
           icon={TrendingUp}
           color="violet"
-          change={12}
+          isLoading={statsLoading}
+          isError={statsFailed}
+          onRetry={() => refetchStats()}
         />
         <StatsCard
           title="Total Orders"
-          value={statsData?.totalOrders ?? 0}
+          value={statsData?.totalOrders}
           icon={ShoppingBag}
           color="acid"
-          change={8}
+          isLoading={statsLoading}
+          isError={statsFailed}
+          onRetry={() => refetchStats()}
         />
         <StatsCard
           title="Customers"
-          value={statsData?.totalUsers ?? 0}
+          value={statsData?.totalUsers}
           icon={Users}
           color="amber"
-          change={5}
+          isLoading={statsLoading}
+          isError={statsFailed}
+          onRetry={() => refetchStats()}
         />
         <StatsCard
           title="Pending Orders"
-          value={statsData?.pendingOrders ?? 0}
+          value={statsData?.pendingOrders}
           icon={Clock}
           color="red"
+          isLoading={statsLoading}
+          isError={statsFailed}
+          onRetry={() => refetchStats()}
         />
       </div>
 
       {/* Chart */}
-      <RevenueChart data={chartData} />
+      <RevenueChart
+        data={chartData}
+        isLoading={analyticsLoading}
+        isError={analyticsFailed}
+        onRetry={() => refetchAnalytics()}
+      />
 
       {/* Recent Orders + Top Products */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -146,8 +178,8 @@ export default function AdminDashboard() {
           <DataTable
             columns={recentOrderCols}
             data={recentOrders}
-            isLoading={isLoading}
-            emptyMessage="No orders yet"
+            isLoading={statsLoading}
+            emptyMessage={statsFailed ? 'Failed to load orders — try Retry above' : 'No orders yet'}
           />
         </div>
 
@@ -155,7 +187,20 @@ export default function AdminDashboard() {
         <div>
           <h3 className="font-syne font-semibold text-white mb-4">Top Products</h3>
           <div className="glass rounded-2xl border border-white/5 divide-y divide-white/5 overflow-hidden">
-            {topProducts.length > 0 ? (
+            {analyticsLoading ? (
+              TOP_PRODUCT_SKELETONS.map((i) => (
+                <div key={i} className="flex items-center gap-3 p-3">
+                  <div className="w-7 h-7 rounded-lg skeleton shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-3/4 rounded skeleton" />
+                    <div className="h-3 w-1/3 rounded skeleton" />
+                  </div>
+                  <div className="h-3.5 w-14 rounded skeleton shrink-0" />
+                </div>
+              ))
+            ) : analyticsFailed ? (
+              <p className="text-center text-sm text-white/30 py-8">Failed to load top products</p>
+            ) : topProducts.length > 0 ? (
               topProducts.map((p, i) => (
                 <TopProductRow key={i} product={p} index={i} />
               ))

@@ -28,21 +28,31 @@ export default function AdminDeliveryPage() {
 
   // All agents with status filter
   const { data: agentsData, isLoading: agentsLoading } = useQuery({
-    queryKey: ['admin-agents', activeTab],
+    queryKey: ['admin', 'agents', activeTab],
     queryFn: () => api.get(`/admin/agents?status=${activeTab}`).then((r) => r.data),
+    ...liveQueryOptions,
+  });
+
+  // Pending-agent total for the "Awaiting Approval" stat — fetched independently
+  // of the active tab so the count never depends on which tab is open. Shares
+  // the ['admin', 'agents', 'pending'] cache entry with the tab query above
+  // when the pending tab is active (React Query dedupes identical keys).
+  const { data: pendingAgentsData } = useQuery({
+    queryKey: ['admin', 'agents', 'pending'],
+    queryFn: () => api.get('/admin/agents?status=pending').then((r) => r.data),
     ...liveQueryOptions,
   });
 
   // Confirmed orders for assignment
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
-    queryKey: ['admin-orders-pending', orderPage],
+    queryKey: ['admin', 'orders', 'pending', orderPage],
     queryFn: () => api.get(`/admin/orders?page=${orderPage}&limit=15&status=confirmed`).then((r) => r.data),
     ...liveQueryOptions,
   });
 
   // Only approved agents for assignment dropdown
   const { data: approvedAgentsData } = useQuery({
-    queryKey: ['delivery-agents'],
+    queryKey: ['admin', 'delivery-agents'],
     queryFn: () => api.get('/admin/delivery-agents').then((r) => r.data.data),
     ...liveQueryOptions,
   });
@@ -50,8 +60,8 @@ export default function AdminDeliveryPage() {
   const approveMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/admin/agents/${id}/approve`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-agents'] });
-      queryClient.invalidateQueries({ queryKey: ['delivery-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'agents'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'delivery-agents'] });
       showToast('Agent approved successfully');
     },
     onError: () => showToast('Approval failed', 'error'),
@@ -60,7 +70,7 @@ export default function AdminDeliveryPage() {
   const rejectMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/admin/agents/${id}/reject`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'agents'] });
       showToast('Agent rejected');
     },
     onError: () => showToast('Rejection failed', 'error'),
@@ -69,8 +79,8 @@ export default function AdminDeliveryPage() {
   const removeMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/agents/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-agents'] });
-      queryClient.invalidateQueries({ queryKey: ['delivery-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'agents'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'delivery-agents'] });
       showToast('Agent role revoked and removed');
       setRevokeAgentId(null);
       setRevokeWord('');
@@ -82,7 +92,7 @@ export default function AdminDeliveryPage() {
     mutationFn: ({ orderId, agentId }: { orderId: string; agentId: string }) =>
       api.post(`/admin/orders/${orderId}/assign/${agentId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders', 'pending'] });
       showToast('Delivery agent assigned');
     },
     onError: () => showToast('Assignment failed', 'error'),
@@ -126,7 +136,9 @@ export default function AdminDeliveryPage() {
     { key: 'createdAt', header: 'Date', render: (r) => <span className="text-white/50 text-xs">{formatDate(r.createdAt as string)}</span> },
   ];
 
-  const pendingCount = activeTab === 'pending' ? agentsData?.meta?.total || 0 : 0;
+  // Always the real pending count, regardless of which tab is active
+  // (getAllAgents returns meta.total = countDocuments for the status filter).
+  const pendingCount = pendingAgentsData?.meta?.total || 0;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -136,7 +148,7 @@ export default function AdminDeliveryPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div className="glass rounded-2xl p-4 border border-white/5">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-2 rounded-xl bg-acid-400/10 text-acid-400"><Truck size={16} /></div>

@@ -11,13 +11,6 @@ import { Loader2, Mail, User, Save } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
-const MOCK_ACTIVITY = [
-  { action: 'Admin Profile Updated', time: 'Just now', ip: '127.0.0.1' },
-  { action: 'Database backup completed', time: '2 hours ago', ip: 'System' },
-  { action: 'Delivery Agent Approved: Rahul K.', time: '1 day ago', ip: '192.168.1.10' },
-  { action: 'Bulk stock update for Electronics', time: '3 days ago', ip: '192.168.1.10' },
-];
-
 const profileSchema = z.object({
   name: z.string().min(2, 'Enter your full name'),
   email: z.string().min(1, 'Enter your email address').email('Enter a valid email address'),
@@ -61,7 +54,7 @@ export default function AdminProfilePage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2 font-syne">Admin Control Center</h1>
-        <p className="text-white/50 text-sm">Manage your admin details and view security logs.</p>
+        <p className="text-white/50 text-sm">Manage your admin details.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -90,7 +83,7 @@ export default function AdminProfilePage() {
           </motion.div>
         </div>
 
-        {/* Update Form & Activity Log */}
+        {/* Update Form */}
         <div className="lg:col-span-2 space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -108,7 +101,7 @@ export default function AdminProfilePage() {
                   <input
                     type="text"
                     {...register('name')}
-                    className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] transition-all"
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] transition-colors"
                     placeholder="Enter your full name"
                   />
                 </div>
@@ -124,7 +117,7 @@ export default function AdminProfilePage() {
                   <input
                     type="email"
                     {...register('email')}
-                    className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] transition-all"
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] transition-colors"
                     placeholder="Enter your email address"
                   />
                 </div>
@@ -145,26 +138,6 @@ export default function AdminProfilePage() {
                 </button>
               </div>
             </form>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="card"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4 font-syne">Security & Activity Log</h3>
-            <div className="space-y-3">
-              {MOCK_ACTIVITY.map((act, index) => (
-                <div key={index} className="flex justify-between items-center p-3 rounded-xl bg-white/[0.02] border border-white/5 text-sm">
-                  <div>
-                    <p className="text-white/80 font-medium">{act.action}</p>
-                    <p className="text-xs text-white/40">IP: {act.ip}</p>
-                  </div>
-                  <span className="text-xs text-white/30 shrink-0">{act.time}</span>
-                </div>
-              ))}
-            </div>
           </motion.div>
         </div>
       </div>

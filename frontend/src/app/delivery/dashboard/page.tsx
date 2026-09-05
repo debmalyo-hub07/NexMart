@@ -7,27 +7,34 @@ import { DataTable, Column } from '@/components/admin/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useUIStore } from '@/store/uiStore';
 import { formatDate, formatPrice } from '@/lib/utils';
-import { Truck, MapPin, Package, ChevronDown, Loader2, User, LogOut } from 'lucide-react';
+import { Truck, MapPin, Package, ChevronDown, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ClockCalendar } from '@/components/common/ClockCalendar';
 import { liveQueryOptions } from '@/lib/syncConfig';
-import { LiveSyncBadge } from '@/components/common/LiveSyncBadge';
-import { useAuthStore } from '@/store/authStore';
-import Link from 'next/link';
 
-const DELIVERY_STATUSES = ['picked', 'out_for_delivery', 'delivered', 'attempted', 'returned'];
+// 'assigned' is the model default (display-only — the backend won't accept it as an update target)
+const DELIVERY_STATUSES = ['assigned', 'picked', 'out_for_delivery', 'delivered', 'attempted', 'returned'];
 
 export default function DeliveryDashboardPage() {
   const [page, setPage] = useState(1);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { showToast } = useUIStore();
-  const { logout } = useAuthStore();
   const queryClient = useQueryClient();
 
   // Phase 8 — Auto-sync every 20 seconds (lightweight polling, no UI freeze)
   const { data, isLoading } = useQuery({
     queryKey: ['delivery', 'my-deliveries', page],
     queryFn: () => api.get(`/delivery/my-orders?page=${page}&limit=10`).then((r) => r.data),
+    ...liveQueryOptions,
+  });
+
+  // Stats fetch — one large page (the backend caps limit at 100) so the stat
+  // cards count across all of the agent's recent assignments instead of just
+  // the 10 rows on the currently visible table page. Keyed under
+  // ['delivery', 'my-deliveries'] so status updates invalidate it too.
+  const { data: statsData } = useQuery({
+    queryKey: ['delivery', 'my-deliveries', 'stats'],
+    queryFn: () => api.get('/delivery/my-orders?page=1&limit=100').then((r) => r.data),
     ...liveQueryOptions,
   });
 
@@ -45,13 +52,29 @@ export default function DeliveryDashboardPage() {
   const assignments = data?.data || [];
   const totalPages = data?.meta?.totalPages || 1;
 
-  const todayDeliveries = assignments.filter((a: Record<string, unknown>) => {
-    const order = a.order as { orderStatus: string };
+  // Stat cards count over the full recent assignment list (stats fetch above),
+  // not the current table page — so the numbers no longer change when the
+  // agent paginates the table.
+  const statsAssignments: Record<string, unknown>[] = statsData?.data || [];
+
+  const isToday = (value: unknown): boolean => {
+    if (!value) return false;
+    const date = new Date(value as string);
+    const now = new Date();
+    return (
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate()
+    );
+  };
+
+  const outForDeliveryCount = statsAssignments.filter((a: Record<string, unknown>) => {
+    const order = a.order as { orderStatus: string } | null;
     return order?.orderStatus === 'out_for_delivery';
   }).length;
 
-  const delivered = assignments.filter((a: Record<string, unknown>) => {
-    return (a as { status: string }).status === 'delivered';
+  const deliveredTodayCount = statsAssignments.filter((a: Record<string, unknown>) => {
+    return a.status === 'delivered' && isToday(a.deliveredAt);
   }).length;
 
   const columns: Column<Record<string, unknown>>[] = [
@@ -125,14 +148,14 @@ export default function DeliveryDashboardPage() {
               <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400"><Truck size={18} /></div>
               <p className="text-sm text-white/60">Out for Delivery</p>
             </div>
-            <p className="font-syne text-3xl font-bold text-violet-400">{todayDeliveries}</p>
+            <p className="font-syne text-3xl font-bold text-violet-400">{outForDeliveryCount}</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass rounded-2xl p-5 border border-acid-400/20">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2.5 rounded-xl bg-acid-400/10 text-acid-400"><Package size={18} /></div>
               <p className="text-sm text-white/60">Delivered Today</p>
             </div>
-            <p className="font-syne text-3xl font-bold text-acid-400">{delivered}</p>
+            <p className="font-syne text-3xl font-bold text-acid-400">{deliveredTodayCount}</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass rounded-2xl p-5 border border-white/5 sm:col-span-1 col-span-2">
             <div className="flex items-center gap-3 mb-2">

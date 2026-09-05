@@ -1,18 +1,24 @@
 'use client';
 
 import { memo } from 'react';
-import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
+import { LucideIcon, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StatsCardProps {
   title: string;
-  value: string | number;
-  change?: number;
+  /** Real value from the API — undefined while loading or on error. */
+  value?: string | number;
   icon: LucideIcon;
   color?: 'violet' | 'acid' | 'amber' | 'red';
   prefix?: string;
   suffix?: string;
   index?: number;
+  /** True while the query is fetching and no data is cached yet. */
+  isLoading?: boolean;
+  /** True when the query failed and there is no cached data to show. */
+  isError?: boolean;
+  /** Invoked by the "Retry" button shown in the error state. */
+  onRetry?: () => void;
 }
 
 const colorMap = {
@@ -23,10 +29,10 @@ const colorMap = {
 };
 
 export const StatsCard = memo(function StatsCard({
-  title, value, change, icon: Icon, color = 'violet', prefix = '', suffix = '',
+  title, value, icon: Icon, color = 'violet', prefix = '', suffix = '',
+  isLoading, isError, onRetry,
 }: StatsCardProps) {
   const colors = colorMap[color];
-  const isPositive = (change ?? 0) >= 0;
   const formattedValue = typeof value === 'number' ? value.toLocaleString('en-IN') : value;
 
   return (
@@ -37,17 +43,27 @@ export const StatsCard = memo(function StatsCard({
         <div className={cn('p-3 rounded-xl', colors.bg)}>
           <Icon size={20} className={colors.text} />
         </div>
-        {change !== undefined && (
-          <div className={cn('flex items-center gap-1 text-xs font-medium', isPositive ? 'text-acid-400' : 'text-red-400')}>
-            {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            <span>{Math.abs(change)}%</span>
-          </div>
+        {isError && onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            <RotateCw size={12} aria-hidden="true" />
+            Retry
+          </button>
         )}
       </div>
       <p className="text-sm text-white/50 mb-1">{title}</p>
-      <p className={cn('font-syne text-2xl font-bold', colors.text)}>
-        {prefix}{formattedValue}{suffix}
-      </p>
+      {isError ? (
+        <p className="font-syne text-2xl font-bold text-white/30">—</p>
+      ) : isLoading || value === undefined ? (
+        <div className="h-8 w-24 rounded-lg skeleton" aria-hidden="true" />
+      ) : (
+        <p className={cn('font-syne text-2xl font-bold', colors.text)}>
+          {prefix}{formattedValue}{suffix}
+        </p>
+      )}
     </div>
   );
 });

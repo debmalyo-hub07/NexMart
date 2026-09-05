@@ -20,7 +20,9 @@ const DeliveryAssignmentSchema = new Schema<IDeliveryAssignment>(
     attemptedAt: Date,
     status: {
       type: String,
-      enum: ['assigned', 'picked', 'delivered', 'attempted', 'returned'],
+      // 'out_for_delivery' must be here: updateDeliveryStatus accepts it (zod) and
+      // assigns it to assignment.status — mongoose rejected the save without it.
+      enum: ['assigned', 'picked', 'out_for_delivery', 'delivered', 'attempted', 'returned'],
       default: 'assigned',
     },
   },

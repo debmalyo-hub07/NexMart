@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
-import { Truck, User, MapPin, BadgeCheck, FileText, Loader2 } from 'lucide-react';
+import { Truck, User, MapPin, BadgeCheck, Clock, XCircle, FileText, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatDate } from '@/lib/utils';
@@ -15,29 +15,14 @@ export default function DeliveryProfilePage() {
   const { user } = useAuthStore();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['agent-profile'],
+    queryKey: ['delivery', 'agent-profile'],
     queryFn: () => api.get('/agent/profile').then((r) => r.data.data),
   });
 
   const profile = data || user;
 
   return (
-    <div className="min-h-screen bg-space-900">
-      <div className="glass border-b border-white/5 sticky top-0 z-10">
-        <div className="page-container flex items-center justify-between h-[64px]">
-          <div className="flex items-center gap-3">
-            <Link href="/delivery/dashboard" className="w-8 h-8 rounded-xl bg-violet-gradient flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20 transition-transform hover:scale-105">
-              <span className="text-white font-bold text-sm">N</span>
-            </Link>
-            <h1 className="font-syne text-lg font-bold gradient-text leading-none">Agent Profile</h1>
-          </div>
-          <Link href="/delivery/dashboard" className="text-sm text-white/60 hover:text-white transition-colors">
-            Back to Dashboard
-          </Link>
-        </div>
-      </div>
-
-      <div className="page-container py-8 space-y-6">
+    <div className="page-container py-8 space-y-6">
         {isLoading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="animate-spin text-violet-500" size={32} />
@@ -55,9 +40,11 @@ export default function DeliveryProfilePage() {
                       {getInitials(profile?.name || 'A')}
                     </div>
                   )}
-                  <div className="absolute -bottom-1 -right-1 bg-space-900 rounded-full p-1">
-                    <BadgeCheck size={20} className="text-acid-400" />
-                  </div>
+                  {profile?.status === 'approved' && (
+                    <div className="absolute -bottom-1 -right-1 bg-space-900 rounded-full p-1">
+                      <BadgeCheck size={20} className="text-acid-400" />
+                    </div>
+                  )}
                 </div>
                 <h2 className="font-syne font-bold text-xl text-white mb-1">{profile?.name}</h2>
                 <p className="text-sm text-white/50 mb-4">{profile?.email}</p>
@@ -116,9 +103,19 @@ export default function DeliveryProfilePage() {
                     </div>
                     <h3 className="font-syne font-semibold text-lg text-white">Vehicle Details</h3>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-acid-400 bg-acid-400/10 px-3 py-1.5 rounded-full font-medium border border-acid-400/20">
-                    <BadgeCheck size={14} /> Verified by Admin
-                  </div>
+                  {profile?.status === 'approved' ? (
+                    <div className="badge-acid gap-1.5">
+                      <BadgeCheck size={14} /> Verified by Admin
+                    </div>
+                  ) : profile?.status === 'pending' ? (
+                    <div className="badge-amber gap-1.5">
+                      <Clock size={14} /> Pending review
+                    </div>
+                  ) : profile?.status === 'rejected' ? (
+                    <div className="badge-red gap-1.5">
+                      <XCircle size={14} /> Not approved
+                    </div>
+                  ) : null}
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -150,6 +147,5 @@ export default function DeliveryProfilePage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
+    );
+  }
