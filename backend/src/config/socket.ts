@@ -29,14 +29,19 @@ export function initializeSocket(httpServer: HttpServer): SocketIOServer {
     }
 
     try {
-      const decoded = jwt.verify(token, env.JWT_SECRET_CUSTOMER) as { userId: string; role: string };
-      socket.data.userId = decoded.userId;
-      socket.data.role = decoded.role;
+      const decodedUnverified = jwt.decode(token) as any;
+      let secret = env.JWT_SECRET_CUSTOMER;
+      if (decodedUnverified?.role === 'admin') secret = env.JWT_SECRET_ADMIN;
+      else if (decodedUnverified?.role === 'agent') secret = env.JWT_SECRET_AGENT;
+
+      const decoded = jwt.verify(token, secret) as { id: string; role: string };
+      socket.data.userId = decoded.id;
+      socket.data.role = decoded.role || decodedUnverified?.role || 'customer';
       next();
     } catch {
-      socket.data.userId = null;
-      socket.data.role = 'guest';
-      next();
+      // A token WAS presented but is invalid/expired — reject the connection
+      // rather than silently downgrading to a guest (prevents room-spoofing attempts).
+      next(new Error('Invalid or expired token'));
     }
   });
 
@@ -88,4 +93,13 @@ export function emitStockUpdate(productId: string, variantSku: string, stock: nu
 
 export function emitDashboardStats(stats: object): void {
   getIO().to('role:admin').emit('dashboard:stats_updated', stats);
+}
+
+export function emitAgentStatusUpdate(agentId: string, status: string): void {
+  try {
+    const ioInstance = getIO();
+    ioInstance.to(`user:${agentId}`).emit('agent:status_updated', { agentId, status });
+  } catch (err) {
+    logger.error('Socket emitAgentStatusUpdate failed:', err);
+  }
 }

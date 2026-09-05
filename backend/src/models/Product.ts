@@ -11,7 +11,7 @@ const VariantSchema = new Schema({
 });
 
 const ReviewSchema = new Schema({
-  user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  user: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
   rating: { type: Number, min: 1, max: 5, required: true },
   title: String,
   body: String,
@@ -40,7 +40,7 @@ const ProductSchema = new Schema<IProduct>(
     reviews: [ReviewSchema],
     isPublished: { type: Boolean, default: false, index: true },
     isFeatured: { type: Boolean, default: false, index: true },
-    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
   },
   {
     timestamps: true,

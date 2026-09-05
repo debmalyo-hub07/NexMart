@@ -105,7 +105,7 @@ function CategoryPicker({
         type="button"
         onClick={() => setOpen(v => !v)}
         suppressHydrationWarning
-        className={`w-full input text-left flex items-center justify-between gap-2 transition-all ${open ? 'border-violet-500/50 ring-1 ring-violet-500/20' : ''} ${!selectedParent ? 'text-white/30' : 'text-white'}`}
+        className={`w-full input text-left flex items-center justify-between gap-2 transition-[color,border-color,box-shadow] ${open ? 'border-violet-500/50 ring-1 ring-violet-500/20' : ''} ${!selectedParent ? 'text-white/30' : 'text-white'}`}
       >
         <span className="truncate">{displayLabel}</span>
         <ChevronRight size={14} className={`shrink-0 text-white/30 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
@@ -153,7 +153,7 @@ function CategoryPicker({
                       onSubSelect('');
                       if (getChildren(cat._id).length === 0) setOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left transition-all ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left transition-colors ${
                       value === cat._id
                         ? 'bg-violet-600/20 text-white border border-violet-500/30'
                         : hoveredParent === cat._id
@@ -185,7 +185,7 @@ function CategoryPicker({
                           onSubSelect(sub._id);
                           setOpen(false);
                         }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left transition-all ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left transition-colors ${
                           subValue === sub._id
                             ? 'bg-violet-600/20 text-white border border-violet-500/30'
                             : 'text-white/55 hover:text-white hover:bg-white/[0.06] border border-transparent'
@@ -350,7 +350,7 @@ export function ProductForm({ initialData, productId }: { initialData?: any; pro
 
             <div className="space-y-4">
               {fields.map((field, index) => (
-                <div key={field.id} className="p-5 rounded-xl border border-white/10 bg-white/5 relative group transition-all hover:bg-white/10">
+                <div key={field.id} className="p-5 rounded-xl border border-white/10 bg-white/5 relative group transition-colors hover:bg-white/10">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="relative">
                       <label className="text-xs text-white/60 mb-1.5 flex justify-between items-center">

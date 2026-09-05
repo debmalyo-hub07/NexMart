@@ -200,7 +200,7 @@ export default function CategoriesPage() {
                         key={emoji}
                         type="button"
                         onClick={() => setValue('icon', emoji, { shouldValidate: true })}
-                        className={`w-9 h-9 rounded-lg text-xl flex items-center justify-center transition-all ${formIcon === emoji ? 'bg-violet-500/30 border border-violet-500' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}
+                        className={`w-9 h-9 rounded-lg text-xl flex items-center justify-center transition-colors ${formIcon === emoji ? 'bg-violet-500/30 border border-violet-500' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}
                         suppressHydrationWarning
                       >
                         {emoji}

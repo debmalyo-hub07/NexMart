@@ -125,7 +125,7 @@ export function SearchBar({ autoFocus, onClose }: SearchBarProps) {
 
   const clearQuery = useCallback(() => setQuery(''), []);
 
-  const containerClass = useMemo(() => `flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+  const containerClass = useMemo(() => `flex items-center gap-2 px-4 py-2.5 rounded-xl transition-[background-color,box-shadow] duration-200 ${
     isFocused
       ? 'ring-1 ring-violet-500/50 bg-white/[0.08]'
       : 'bg-white/5 hover:bg-white/[0.07]'

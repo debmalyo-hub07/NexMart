@@ -28,6 +28,7 @@ export interface ICustomer extends Document {
   emailVerified: boolean;
   isActive: boolean;
   authProviders: string[];   // ['email', 'google'] — can have both
+  createdViaCustomerGoogleOverlap?: boolean;
   // OTP flow
   otp?: string;
   otpExpiry?: Date;
@@ -64,11 +65,15 @@ const CustomerSchema = new Schema<ICustomer>(
     emailVerified: { type: Boolean, default: true },  // true = existing customers keep access; new registrations explicitly set false
     isActive: { type: Boolean, default: true },
     authProviders: { type: [String], default: [] },
+    createdViaCustomerGoogleOverlap: { type: Boolean, default: false },
     // OTP
     otp: { type: String },
     otpExpiry: { type: Date },
   },
   { timestamps: true }
 );
+
+CustomerSchema.index({ role: 1 });
+CustomerSchema.index({ email: 1 }, { unique: true });
 
 export const Customer = mongoose.model<ICustomer>('Customer', CustomerSchema);

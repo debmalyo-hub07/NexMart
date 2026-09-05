@@ -2,7 +2,7 @@ import { z } from 'zod';
 import path from 'path';
 import dotenv from 'dotenv';
 
-// Load .env from project root (two levels up from src/)
+// Load .env from the project root (three levels up from src/config → NexMart/.env)
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const envSchema = z.object({
@@ -29,6 +29,9 @@ const envSchema = z.object({
   // Razorpay
   RAZORPAY_KEY_ID: z.string().min(1),
   RAZORPAY_KEY_SECRET: z.string().min(1),
+  // Set this to the webhook signing secret from the Razorpay dashboard to enable
+  // server-to-server payment confirmation. If unset, the webhook endpoint returns 503.
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 
   // Auth
   AUTH_SECRET: z.string().min(1),
@@ -71,6 +74,9 @@ const envSchema = z.object({
 
   // Admin Secret Key — Phase 3 security (required for new admin registration)
   ADMIN_SECRET_KEY: z.string().min(8, 'ADMIN_SECRET_KEY must be at least 8 characters'),
+
+  // Optional: pin each account to its first-seen IP (default off — see ipWhitelist.ts).
+  IP_WHITELIST_ENABLED: z.string().default('false'),
 });
 
 const parsed = envSchema.safeParse(process.env);

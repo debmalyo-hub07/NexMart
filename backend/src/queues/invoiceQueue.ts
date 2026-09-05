@@ -105,5 +105,27 @@ export function startInvoiceWorker(): { on: (event: string, cb: (...args: unknow
   jobQueue.on('failed', (orderId, err) => {
     logger.error(`Invoice permanently failed for order ${orderId}:`, err);
   });
+  // Crash recovery: this is an in-process queue, so jobs in flight are lost on restart.
+  // On boot, re-queue any paid order that has no invoice yet so nothing is silently dropped.
+  void recoverPendingInvoices();
   return jobQueue;
+}
+
+async function recoverPendingInvoices(): Promise<void> {
+  try {
+    const orphans = await Order.find({
+      paymentStatus: 'paid',
+      $or: [{ invoiceUrl: { $exists: false } }, { invoiceUrl: null }, { invoiceUrl: '' }],
+    })
+      .select('_id')
+      .limit(100)
+      .lean();
+
+    if (orphans.length > 0) {
+      logger.info(`📄 Recovering ${orphans.length} pending invoice(s) after restart`);
+      orphans.forEach((o) => jobQueue.add({ orderId: String(o._id) }));
+    }
+  } catch (err) {
+    logger.error('Invoice recovery scan failed:', err);
+  }
 }

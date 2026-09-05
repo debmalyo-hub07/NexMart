@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
+import { env } from '../config/env';
 
 export const checkIP = (Model: any) => async (req: Request, res: Response, next: NextFunction) => {
+  // Disabled by default: pinning an account to its first-seen IP locks out legitimate
+  // users who roam between networks (wifi ↔ cellular) and relies on a spoofable
+  // x-forwarded-for header. Enable only behind a trusted proxy via IP_WHITELIST_ENABLED=true.
+  if (env.IP_WHITELIST_ENABLED !== 'true') return next();
   try {
     const incomingIP = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const user = await Model.findById((req as any).user.id);

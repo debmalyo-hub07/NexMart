@@ -239,3 +239,102 @@ export async function sendOrderStatusEmail(
 </body></html>`,
   });
 }
+
+export async function sendAgentStatusEmail(
+  to: string,
+  agentName: string,
+  status: 'approved' | 'rejected'
+): Promise<void> {
+  const isApproved = status === 'approved';
+  const subject = isApproved 
+    ? 'NexMart — Delivery Agent Account Approved!' 
+    : 'NexMart — Delivery Agent Account Registration Update';
+  
+  const heading = isApproved ? '🎉 Welcome to the NexMart Fleet!' : 'Registration Status Update';
+  const message = isApproved 
+    ? 'Your delivery agent registration has been approved by the admin. You can now log in to the dashboard and start accepting delivery assignments!'
+    : 'Thank you for your interest in NexMart. Unfortunately, your delivery agent registration has not been approved at this time. If you believe this is in error, please contact support.';
+
+  await sendEmail({
+    to,
+    subject,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#07050f;font-family:Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#07050f;">
+  <tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;border-radius:20px;overflow:hidden;border:1px solid #2d1b69;">
+      <tr><td style="background:linear-gradient(90deg,#5b21b6,#7c3aed,#c026d3);height:4px;font-size:0;">&nbsp;</td></tr>
+      <tr><td align="center" style="background:#0d0820;padding:28px 40px 24px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="padding-right:10px;vertical-align:middle;">
+            <table cellpadding="0" cellspacing="0"><tr><td style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#d946ef);border-radius:10px;text-align:center;line-height:40px;font-size:20px;font-weight:900;color:#fff;font-family:Arial;">N</td></tr></table>
+          </td>
+          <td style="vertical-align:middle;font-family:Arial;font-size:20px;font-weight:800;color:#fff;">NexMart</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="background:#0f0a1e;padding:36px 40px;text-align:center;">
+        <p style="margin:0 0 6px;font-family:Arial;font-size:22px;font-weight:800;color:#f3e8ff;">${heading}</p>
+        <p style="margin:0 0 24px;font-family:Arial;font-size:14px;color:#9ca3af;line-height:1.6;">Hi ${agentName},<br/><br/>${message}</p>
+        ${isApproved ? `
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+          <tr><td style="border-radius:40px;background:linear-gradient(135deg,#7c3aed,#c026d3);">
+            <a href="${env.APP_URL}/delivery/login" style="display:inline-block;padding:13px 36px;font-family:Arial;font-size:14px;font-weight:700;color:#fff;text-decoration:none;">Log In to Dashboard &rarr;</a>
+          </td></tr>
+        </table>` : ''}
+      </td></tr>
+      <tr><td style="background:#0a0615;padding:18px 40px;border-top:1px solid #1e1040;text-align:center;">
+        <p style="margin:0;font-family:Arial;font-size:12px;color:#4b5563;">&copy; 2026 NexMart &middot; All rights reserved</p>
+      </td></tr>
+      <tr><td style="background:linear-gradient(90deg,#5b21b6,#7c3aed,#c026d3);height:2px;font-size:0;">&nbsp;</td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`,
+  });
+}
+
+export async function sendAgentAssignmentEmail(
+  to: string,
+  agentName: string,
+  orderId: string
+): Promise<void> {
+  await sendEmail({
+    to,
+    subject: `NexMart — New Delivery Assignment · ${orderId}`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#07050f;font-family:Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#07050f;">
+  <tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;border-radius:20px;overflow:hidden;border:1px solid #2d1b69;">
+      <tr><td style="background:linear-gradient(90deg,#5b21b6,#7c3aed,#c026d3);height:4px;font-size:0;">&nbsp;</td></tr>
+      <tr><td align="center" style="background:#0d0820;padding:28px 40px 24px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="padding-right:10px;vertical-align:middle;">
+            <table cellpadding="0" cellspacing="0"><tr><td style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#d946ef);border-radius:10px;text-align:center;line-height:40px;font-size:20px;font-weight:900;color:#fff;font-family:Arial;">N</td></tr></table>
+          </td>
+          <td style="vertical-align:middle;font-family:Arial;font-size:20px;font-weight:800;color:#fff;">NexMart</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="background:#0f0a1e;padding:36px 40px;text-align:center;">
+        <p style="margin:0 0 6px;font-family:Arial;font-size:22px;font-weight:800;color:#f3e8ff;">New Assignment!</p>
+        <p style="margin:0 0 24px;font-family:Arial;font-size:14px;color:#9ca3af;line-height:1.6;">Hi ${agentName},<br/><br/>You have been assigned to deliver order <strong style="color:#c084fc;">${orderId}</strong>. Please check your delivery dashboard for more details.</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+          <tr><td style="border-radius:40px;background:linear-gradient(135deg,#7c3aed,#c026d3);">
+            <a href="${env.APP_URL}/delivery/dashboard" style="display:inline-block;padding:13px 36px;font-family:Arial;font-size:14px;font-weight:700;color:#fff;text-decoration:none;">View Dashboard &rarr;</a>
+          </td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="background:#0a0615;padding:18px 40px;border-top:1px solid #1e1040;text-align:center;">
+        <p style="margin:0;font-family:Arial;font-size:12px;color:#4b5563;">&copy; 2026 NexMart &middot; All rights reserved</p>
+      </td></tr>
+      <tr><td style="background:linear-gradient(90deg,#5b21b6,#7c3aed,#c026d3);height:2px;font-size:0;">&nbsp;</td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`,
+  });
+}

@@ -47,7 +47,7 @@ export const googleAuthCallback = async (req: Request, res: Response) => {
       }
 
       const token = generateToken(
-        { id: customer._id },
+        { id: customer._id, role: 'customer' },
         env.JWT_SECRET_CUSTOMER,
         env.JWT_EXPIRES_IN
       );
@@ -72,23 +72,20 @@ export const googleAuthCallback = async (req: Request, res: Response) => {
     // DO NOT touch the original admin/agent account. Do NOT fail — create the customer.
     const adminExists = await Admin.findOne({ email });
     const agentExists = await DeliveryAgent.findOne({ email });
-
-    // For admins/agents who accidentally use Google login on customer portal:
-    // We create a brand-new customer account so their original role is unaffected.
-    // This is intentional per CLAUDE.md Phase 7.
+    const hasOverlap = !!(adminExists || agentExists);
 
     const newCustomer = await Customer.create({
       name: name || 'Customer',
-      email: adminExists || agentExists
-        ? `${email.split('@')[0]}_google_${Date.now()}@nexmart.customer` // Prevent email collision
-        : email,
+      email,
       googleId,
       profilePicture: picture || '',
       role: 'customer',
+      authProviders: ['google'],
+      createdViaCustomerGoogleOverlap: hasOverlap,
     });
 
     const token = generateToken(
-      { id: newCustomer._id },
+      { id: newCustomer._id, role: 'customer' },
       env.JWT_SECRET_CUSTOMER,
       env.JWT_EXPIRES_IN
     );

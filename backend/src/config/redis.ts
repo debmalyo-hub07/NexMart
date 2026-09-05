@@ -49,6 +49,18 @@ export const otpRateLimiter = new Ratelimit({
   prefix: 'nexmart:ratelimit:otp',
 });
 
+export const registrationRateLimiter = new Ratelimit({
+  redis: upstashRedis,
+  limiter: Ratelimit.slidingWindow(3, '3600s'), // 3 per hour
+  prefix: 'nexmart:ratelimit:registration',
+});
+
+export const otpEmailRateLimiter = new Ratelimit({
+  redis: upstashRedis,
+  limiter: Ratelimit.slidingWindow(3, '600s'), // 3 per 10 minutes
+  prefix: 'nexmart:ratelimit:otp:email',
+});
+
 // ── OTP Redis helpers ─────────────────────────────────────────
 export async function setOtpLock(key: string, ttlSeconds: number): Promise<void> {
   await upstashRedis.set(`nexmart:otp:lock:${key}`, '1', { ex: ttlSeconds });
@@ -61,4 +73,33 @@ export async function getOtpLock(key: string): Promise<boolean> {
 
 export async function deleteOtpLock(key: string): Promise<void> {
   await upstashRedis.del(`nexmart:otp:lock:${key}`);
+}
+
+// ── Failed Login Attempt helpers ──────────────────────────────
+export async function getFailedLoginAttempts(ip: string): Promise<number> {
+  const count = await upstashRedis.get<number>(`nexmart:login:failed:${ip}`);
+  return count || 0;
+}
+
+export async function incrementFailedLoginAttempts(ip: string): Promise<number> {
+  const count = await getFailedLoginAttempts(ip);
+  const newCount = count + 1;
+  await upstashRedis.set(`nexmart:login:failed:${ip}`, newCount, { ex: 900 }); // 15 minutes (900s)
+  return newCount;
+}
+
+export async function clearFailedLoginAttempts(ip: string): Promise<void> {
+  await upstashRedis.del(`nexmart:login:failed:${ip}`);
+}
+
+// ── JWT Blacklist helpers (revoke tokens on logout) ───────────
+export async function blacklistToken(jti: string, ttlSeconds: number): Promise<void> {
+  if (!jti || ttlSeconds <= 0) return;
+  await upstashRedis.set(`nexmart:jwt:blacklist:${jti}`, '1', { ex: ttlSeconds });
+}
+
+export async function isTokenBlacklisted(jti: string | undefined): Promise<boolean> {
+  if (!jti) return false;
+  const val = await upstashRedis.get(`nexmart:jwt:blacklist:${jti}`);
+  return val !== null;
 }

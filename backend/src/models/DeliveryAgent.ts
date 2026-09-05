@@ -12,6 +12,7 @@ export interface IDeliveryAgent extends Document {
   aadharNumber?: string;
   role: string;
   status: string;
+  isApproved?: boolean;
   whitelistedIP?: string;
   createdAt: Date;
 }
@@ -29,9 +30,14 @@ const DeliveryAgentSchema = new Schema<IDeliveryAgent>(
     aadharNumber: { type: String },
     role: { type: String, default: 'agent' },
     status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+    isApproved: { type: Boolean, default: false },
     whitelistedIP: { type: String },
   },
   { timestamps: true }
 );
+
+DeliveryAgentSchema.index({ role: 1, isApproved: 1 });
+DeliveryAgentSchema.index({ role: 1, status: 1 });
+DeliveryAgentSchema.index({ email: 1 }, { unique: true });
 
 export const DeliveryAgent = mongoose.model<IDeliveryAgent>('DeliveryAgent', DeliveryAgentSchema);

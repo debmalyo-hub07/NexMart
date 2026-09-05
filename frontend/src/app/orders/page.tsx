@@ -164,7 +164,7 @@ export default function OrdersPage() {
                 <div className="flex justify-center gap-2 pt-4">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                     <button key={p} onClick={() => setPage(p)}
-                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${page === p ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white'}`}>
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-[color,background-color,box-shadow] ${page === p ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white'}`}>
                       {p}
                     </button>
                   ))}

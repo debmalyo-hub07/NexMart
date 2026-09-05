@@ -11,6 +11,7 @@ import { logger } from './utils/logger';
 import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 import { generalLimit } from './middleware/rateLimiter';
 
+import { razorpayWebhook } from './controllers/webhook.controller';
 import productRoutes from './routes/product.routes';
 import categoryRoutes from './routes/category.routes';
 import cartRoutes from './routes/cart.routes';
@@ -38,6 +39,42 @@ export function createApp(): express.Application {
     allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id'],
   }));
 
+  // ── Razorpay Webhook (raw body — must run BEFORE json/CSRF/rate-limit) ──
+  // Authenticated by HMAC signature, not by Origin/Referer, so it is exempt from CSRF.
+  app.post(
+    '/api/v1/webhooks/razorpay',
+    express.raw({ type: '*/*', limit: '1mb' }),
+    razorpayWebhook
+  );
+
+  // CSRF Protection Middleware
+  app.use((req, res, next) => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      const origin = req.headers.origin;
+      const referer = req.headers.referer;
+      const allowedOrigin = env.CORS_ORIGIN;
+
+      let isValid = false;
+      if (origin && origin === allowedOrigin) {
+        isValid = true;
+      } else if (referer && referer.startsWith(allowedOrigin)) {
+        isValid = true;
+      }
+
+      // Note: requests with NEITHER Origin NOR Referer are now REJECTED. Legitimate
+      // server-to-server callers (e.g. Razorpay) use dedicated signed endpoints mounted
+      // above this middleware, so they never reach here.
+      if (!isValid) {
+        logger.warn(`CSRF Blocked: Method: ${req.method}, Origin: ${origin}, Referer: ${referer}, Expected: ${allowedOrigin}`);
+        return res.status(403).json({
+          success: false,
+          message: 'CSRF protection triggered. Request origin/referer mismatch.',
+        });
+      }
+    }
+    next();
+  });
+
   // ── Body Parsing ──────────────────────────────────────────────
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -62,6 +99,9 @@ export function createApp(): express.Application {
 
   // ── Role-Based API Routes ──────────────────────────────────────
   const apiPrefix = '/api/v1';
+
+  // Global sliding-window rate limit on all API traffic (health check is exempt).
+  app.use(apiPrefix, generalLimit);
 
   // Shared auth routes (Google OAuth callback, etc.)
   app.use(`${apiPrefix}/auth`, authRoutes);

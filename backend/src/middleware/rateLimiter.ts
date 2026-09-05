@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { authRateLimiter, paymentRateLimiter, otpRateLimiter, generalRateLimiter } from '../config/redis';
+import { authRateLimiter, paymentRateLimiter, otpRateLimiter, generalRateLimiter, registrationRateLimiter } from '../config/redis';
 import { sendError } from '../utils/response';
 
 function getIdentifier(req: Request): string {
@@ -21,6 +21,15 @@ export async function authLimit(req: Request, res: Response, next: NextFunction)
   const { success } = await authRateLimiter.limit(getIdentifier(req));
   if (!success) {
     sendError(res, 'Too many auth attempts. Please wait 1 minute.', 429);
+    return;
+  }
+  next();
+}
+
+export async function registerLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const { success } = await registrationRateLimiter.limit(getIdentifier(req));
+  if (!success) {
+    sendError(res, 'Too many registration attempts. Please wait 1 hour.', 429);
     return;
   }
   next();
