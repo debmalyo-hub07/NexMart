@@ -1,11 +1,11 @@
 # NexMart 🛒
 
-> **Production-ready full-stack e-commerce platform** built with Next.js 15, Node.js, MongoDB, Redis, and Razorpay — featuring the **Deep-Space Kinetic Glassmorphism** design system.
+> **Full-stack e-commerce platform** — Next.js 15 + Express + MongoDB + Upstash Redis + Razorpay — with three role portals (customer storefront, admin panel, delivery agent app) and the **Deep-Space Kinetic Editorial** design system.
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-7-green?logo=mongodb)](https://mongodb.com/)
-[![Redis](https://img.shields.io/badge/Redis-7-red?logo=redis)](https://redis.io/)
+[![Node](https://img.shields.io/badge/Node-18+-green?logo=node.js)](https://nodejs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-8-green?logo=mongodb)](https://mongodb.com/)
 
 ---
 
@@ -13,11 +13,17 @@
 
 ```
 NexMart/
-├── backend/          # Node.js + Express + TypeScript API
-├── frontend/         # Next.js 15 App Router + Tailwind CSS
-├── .env.example      # Environment variable template
-├── docker-compose.yml
-└── README.md
+├── backend/              # Express + TypeScript API (src/controllers, routes, models, middleware)
+│   └── src/seed/         # First-admin seed script (adminSeed.ts)
+├── frontend/             # Next.js 15 App Router + Tailwind CSS 3.4
+│   └── src/              # app/ (routes) · components/ · hooks/ · lib/ · store/ (Zustand)
+├── docs/
+│   ├── superpowers/plans # Dated implementation plans (P0–P4 remediation waves)
+│   ├── CHANGELOG.md      # Dated record of every change wave
+│   └── CONTRIBUTING.md   # The update workflow (plan → execute → strike roadmap → changelog)
+├── CLAUDE.md             # Authoritative dev directive: reality snapshot + design law + roadmap
+├── .env.example          # Environment variable template (root, backend reads it)
+└── docker-compose.yml    # MongoDB + Redis for local dev
 ```
 
 ---
@@ -26,8 +32,9 @@ NexMart/
 
 ### Prerequisites
 - Node.js 18+
-- Docker & Docker Compose (for MongoDB + Redis)
-- Git
+- A MongoDB database (local or [Atlas](https://mongodb.com/atlas))
+- An [Upstash](https://upstash.com) Redis database (REST API — used for rate limiting, OTP, caching, token blacklist)
+- Razorpay (test mode works), Cloudinary, Brevo SMTP, Google OAuth credentials
 
 ### 1. Clone & install
 
@@ -35,85 +42,80 @@ NexMart/
 git clone https://github.com/debmalyo-hub07/NexMart.git
 cd NexMart
 
-# Install backend deps
+# Backend
 cd backend && npm install && cd ..
 
-# Install frontend deps
-cd frontend && npm install --legacy-peer-deps && cd ..
+# Frontend
+cd frontend && npm install && cd ..
 ```
 
 ### 2. Set up environment
 
 ```bash
 cp .env.example .env
-# Edit .env with your credentials (MongoDB, Razorpay, Google OAuth, etc.)
-
-cp frontend/.env.local.example frontend/.env.local
-# Edit frontend/.env.local
+# Fill in: MongoDB URI, Upstash URL+token, Razorpay keys, Cloudinary,
+# Brevo SMTP, Google OAuth, and the three JWT secrets + ADMIN_SECRET_KEY.
 ```
 
-### 3. Start infrastructure
+> ⚠️ **Verify your Upstash URL resolves before starting** — if `UPSTASH_REDIS_REST_URL` points to a deleted database, every API request 500s (the global rate limiter calls Upstash on every request). Test: `nslookup <your-host>.upstash.io` should resolve.
+
+### 3. Start infrastructure (optional, for local MongoDB/Redis)
 
 ```bash
-# Start MongoDB + Redis via Docker
 docker-compose up mongodb redis -d
 ```
 
-### 4. Run in development
+### 4. Seed the first admin
+
+The first admin cannot be created through the UI (`/admin/register` requires an existing admin session). The seed runs automatically on backend boot if no admin exists — or force it:
 
 ```bash
-# Terminal 1 — Backend
+cd backend && npm run build && node dist/seed/adminSeed.js
+```
+
+### 5. Run in development
+
+```bash
+# Terminal 1 — Backend (http://localhost:4000)
 cd backend && npm run dev
 
-# Terminal 2 — Frontend
+# Terminal 2 — Frontend (http://localhost:3000)
 cd frontend && npm run dev
 ```
 
-- Backend: http://localhost:4000
-- Frontend: http://localhost:3000
-- API Docs: http://localhost:4000/api/v1/health
+Health check: `http://localhost:4000/health`
 
 ---
 
-## 🌟 Features
+## 🌟 Features (as built)
 
-### 🛍️ Customer Experience
-- **Deep-Space Kinetic Glassmorphism** design system
-- GSAP-powered hero animations
-- Smart search with debounce + trending
-- Product gallery with lightbox zoom
-- Variant selector with stock awareness
-- Cart with GST calculation & free shipping threshold
-- Multi-step checkout: Address → Razorpay/COD → Confirmation
-- Real-time order tracking via Socket.io
-- Order history with PDF invoice download
+### 🛍️ Customer storefront (`/`, `/products`, `/categories`, `/search`)
+- Deep-Space Kinetic Editorial design: char-reveal headlines, magnetic CTAs, WebGL particle hero (desktop only, reduced-motion safe)
+- Debounced typo-tolerant search with recent-history
+- Variant selector with stock awareness, gallery lightbox, reviews with verified-purchase badges
+- Wishlist (account-bound, optimistic UI) + `navigator.share`
+- Guest cart → account cart merge on login; GST + free-shipping threshold
+- Checkout: address form (pincode/phone validated) → Razorpay online or COD → confirmation
+- Order history + live status updates (Socket.IO) + PDF invoice download
+- Auth: email+password with OTP email verification, or Google Sign-In
 
-### 🔐 Authentication
-- Email + Password with OTP email verification
-- Google OAuth 2.0
-- Phone OTP via Twilio (optional)
-- JWT with role-based access (customer / admin / delivery)
+### 🏪 Admin panel (`/admin`)
+- KPI dashboard with real deltas, revenue chart, 60s auto-sync backstop + socket push
+- Products CRUD (variants, MRP, images via Cloudinary), categories tree (incl. inactive), orders with inline status + row-detail expansion
+- Customer directory with suspend/activate, delivery agent approve/reject + assignment
+- Analytics with skeletons and empty states; storefronst read-preview for product pages
 
-### 🏪 Admin Panel
-- Live KPI dashboard (revenue, orders, customers)
-- Revenue & orders analytics with 7/14/30/90d range
-- Product management (CRUD, images via Cloudinary)
-- Order management with inline status updates
-- Customer directory
-- Delivery agent assignment
-
-### 🚚 Delivery App
-- Dedicated delivery agent dashboard
-- Assigned orders list with real-time updates
-- Inline status updates (picked → out_for_delivery → delivered)
+### 🚚 Delivery app (`/delivery/dashboard`)
+- Assignment list with tap-to-call customer phone and Google Maps deep link
+- Inline status updates (picked → out for delivery → delivered) — forward-only, never regresses the order
+- Honest approval-status badge; per-row spinners
 
 ### ⚡ Backend
-- BullMQ for async PDF invoice generation
-- Cloudinary image optimization
-- Razorpay payment verification with HMAC
-- Rate limiting per route
-- Helmet + CORS + mongo-sanitize security
-- Winston structured logging
+- Role-isolated auth: three JWT secrets, three httpOnly cookies (`nexmart_{admin|customer|delivery}_session`)
+- Upstash Redis: sliding-window rate limits (global + auth + OTP + payment), JWT blacklist, caches
+- Razorpay order creation with server-authoritative amounts + HMAC signature verification + webhook
+- Cloudinary uploads, in-process invoice queue (PDFKit), Brevo transactional emails
+- Helmet, CORS, CSRF origin check, mongo-sanitize, hpp, Winston logging
 
 ---
 
@@ -121,66 +123,80 @@ cd frontend && npm run dev
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS |
-| State | Zustand + TanStack Query v5 |
-| Auth | NextAuth v5 + JWT |
+| Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS 3.4 |
+| State/data | Zustand (auth/cart/ui) + TanStack Query v5 |
+| Auth | NextAuth v5 (JWT strategy) + backend httpOnly cookies — hybrid, see CLAUDE.md §1.3 |
+| Animation | framer-motion, GSAP + ScrollTrigger, Lenis (storefront only), three.js (homepage hero only) |
 | Backend | Node.js, Express, TypeScript |
-| Database | MongoDB (Mongoose) |
-| Cache/Queue | Redis (BullMQ) |
-| Payments | Razorpay |
-| Storage | Cloudinary |
-| Real-time | Socket.io |
-| Email | Brevo (Sendinblue) SMTP |
-| SMS | Twilio |
+| Database | MongoDB (Mongoose; collections `admins`, `customers`, `deliveryagents`, `products`, `categories`, `orders`, `carts`, `deliveryassignments`, `wishlists`) |
+| Cache/rate-limit | Upstash Redis (REST) |
+| Payments | Razorpay (test mode) |
+| Media | Cloudinary |
+| Realtime | Socket.IO (canonical event names in `frontend/src/lib/socketEvents.ts`) |
+| Email | Brevo SMTP |
+| Charts | Recharts |
+| Tests | Vitest (`frontend/src/lib/*.test.ts`) |
 
 ---
 
 ## 🔑 Environment Variables
 
-See [.env.example](./.env.example) for full documentation.
+See [.env.example](./.env.example) — every variable is documented inline. The essentials:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `MONGODB_URI` | ✅ | MongoDB connection string |
-| `REDIS_URL` | ✅ | Redis URL for BullMQ |
-| `RAZORPAY_KEY_ID` | ✅ | Razorpay public key |
-| `RAZORPAY_KEY_SECRET` | ✅ | Razorpay secret key |
-| `JWT_SECRET` | ✅ | JWT signing secret (32+ chars) |
-| `GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | ✅ | Google OAuth client secret |
-| `CLOUDINARY_*` | ✅ | Cloudinary credentials |
-| `SMTP_*` | ✅ | SMTP credentials (Brevo) |
-| `TWILIO_*` | ⚠️ | Twilio for phone OTP (optional) |
+| Variable | Notes |
+|----------|-------|
+| `MONGODB_URI` | Atlas or local |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | Must be a live Upstash database (see warning above) |
+| `JWT_SECRET_ADMIN` / `_CUSTOMER` / `_AGENT` | Three separate secrets — never mix |
+| `ADMIN_SECRET_KEY` | Required to register additional admins |
+| `RAZORPAY_KEY_ID` / `_SECRET` | Test mode works end-to-end |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | For customer Google Sign-In |
+| `CLOUDINARY_*`, `SMTP_*` (Brevo) | Media + transactional email |
+
+`SESSION_MAXAGE` in `.env` is informational — the frontend pins the NextAuth session to 7 days (`frontend/src/lib/sessionConstants.ts`) to match backend cookie TTLs.
+
+---
+
+## 🧪 Scripts
+
+| Where | Command | What |
+|-------|---------|------|
+| `backend/` | `npm run dev` / `build` / `start` | nodemon / tsc / production server |
+| `frontend/` | `npm run dev` / `build` / `start` | dev server / production build / serve |
+| `frontend/` | `npm test` | Vitest unit tests |
+| `frontend/` | `npm run lint` | ESLint (next/core-web-vitals) |
 
 ---
 
 ## 📸 Design System
 
-NexMart uses the **Deep-Space Kinetic Glassmorphism** design language:
+**Deep-Space Kinetic Editorial** — governed by `CLAUDE.md` §2:
 
-- **Palettes**: `space` (dark backgrounds), `violet` (primary), `acid` (CTA/success)
-- **Glass effects**: `glass`, `glass-hover`, `glow-violet`
-- **Typography**: Syne (headings) + Inter (body)
-- **Animations**: Framer Motion + GSAP (hero only)
+- Surfaces: `space` ramp (`950→700`), elevation = lightness, never shadows
+- Accents: one violet ramp (600/500/400), acid green reserved for action/success, amber = warning, red = danger
+- One brand gradient: violet→fuchsia
+- Type: Outfit (display) · Inter (body) · JetBrains Mono (prices/IDs) — all via `next/font`
+- Motion: compositor-only properties; storefront vocabulary never leaks into admin/delivery/checkout; `prefers-reduced-motion` is a hard gate
 
 ---
 
 ## 🐳 Docker
 
-Run the full stack with Docker Compose:
+`docker-compose.yml` provides MongoDB (27017) and Redis (6379) for local development. The app services themselves run via npm (above).
 
-```bash
-docker-compose up --build
-```
+---
 
-Services:
-- `nexmart_mongodb` → port 27017
-- `nexmart_redis` → port 6379
-- `nexmart_backend` → port 4000
-- `nexmart_frontend` → port 3000
+## 📚 Documentation Index
+
+| Doc | Purpose |
+|-----|---------|
+| [CLAUDE.md](./CLAUDE.md) | **Read first.** Reality snapshot, design law, interaction contracts, P0–P4 roadmap with status |
+| [docs/CHANGELOG.md](./docs/CHANGELOG.md) | Dated record of every change wave |
+| [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | How to make changes (the plan → execute → verify → document workflow) |
+| [docs/superpowers/plans/](./docs/superpowers/plans/) | Implementation plans per wave |
 
 ---
 
 ## 📄 License
 
-MIT © 2024 NexMart
+MIT © NexMart
