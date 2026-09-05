@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
+import { BACKEND_SESSION_MAX_AGE_SECONDS } from '@/lib/sessionConstants';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -106,7 +107,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: {
     strategy: 'jwt',
-    maxAge: parseInt(process.env.SESSION_MAXAGE || '2592000'),
+    // Never outlive the backend session cookies (7d) — see lib/sessionConstants
+    maxAge: BACKEND_SESSION_MAX_AGE_SECONDS,
   },
   secret: process.env.AUTH_SECRET,
   trustHost: true,
