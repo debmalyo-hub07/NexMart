@@ -137,7 +137,7 @@ export default function AboutPage() {
             <p className="text-white/50 mb-8">Join over 500,000 happy customers who shop smarter every day.</p>
             <div className="flex justify-center gap-4 flex-wrap">
               <Link href="/products" className="btn-primary px-8 py-3.5 text-base">Browse Products</Link>
-              <Link href="/auth/register" className="btn-secondary px-8 py-3.5 text-base">Create Account</Link>
+              <Link href="/customer/register" className="btn-secondary px-8 py-3.5 text-base">Create Account</Link>
             </div>
           </div>
         </section>
