@@ -20,6 +20,9 @@ export default function CustomerRegister() {
         { name: 'confirmPassword', label: 'Confirm Password', type: 'password' },
         { name: 'address', label: 'Address', type: 'text' },
         { name: 'city', label: 'City', type: 'text' },
+        { name: 'phone', label: 'Phone (10-digit mobile)', type: 'tel' },
+        { name: 'state', label: 'State', type: 'text' },
+        { name: 'pincode', label: 'Pincode', type: 'text' },
       ]}
     />
   );

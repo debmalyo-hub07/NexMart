@@ -7,6 +7,12 @@ import { DeliveryAgent } from '../models/DeliveryAgent';
 import { generateToken } from '../middleware/auth';
 import { env } from '../config/env';
 import { sendEmail, buildOtpEmail } from '../services/email.service';
+import {
+  getFailedLoginAttempts,
+  incrementFailedLoginAttempts,
+  clearFailedLoginAttempts,
+  otpEmailRateLimiter
+} from '../config/redis';
 
 // ─── OTP helpers ───────────────────────────────────────────────────────────────
 
@@ -45,17 +51,65 @@ export const registerAdmin = async (req: Request, res: Response) => {
 
 export const loginAdmin = async (req: Request, res: Response) => {
   const { email, password } = req.body;
+  const ip = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+
+  // 1. Rate limiting on failed attempts
+  const failedAttempts = await getFailedLoginAttempts(ip);
+  if (failedAttempts >= 5) {
+    return res.status(429).json({
+      success: false,
+      message: 'Too many failed login attempts. Please try again after 15 minutes.',
+      data: null,
+    });
+  }
+
+  // 2. Cross-role isolation: Deny customers
+  const isCustomer = await Customer.findOne({ email });
+  if (isCustomer) {
+    await incrementFailedLoginAttempts(ip);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. This portal is for authorized personnel only.',
+      data: null,
+    });
+  }
+
+  const isAgent = await DeliveryAgent.findOne({ email });
+  if (isAgent) {
+    await incrementFailedLoginAttempts(ip);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. This portal is for authorized personnel only.',
+      data: null,
+    });
+  }
+
   const admin = await Admin.findOne({ email });
   if (!admin || !admin.password) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(401).json({ success: false, message: 'Invalid credentials', data: null });
   }
 
   const isMatch = await bcrypt.compare(password, admin.password);
   if (!isMatch) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(401).json({ success: false, message: 'Invalid credentials', data: null });
   }
 
-  const token = generateToken({ id: admin._id }, env.JWT_SECRET_ADMIN, env.JWT_EXPIRES_IN);
+  // Success: Clear failed attempts
+  await clearFailedLoginAttempts(ip);
+
+  const token = generateToken({ id: admin._id, role: 'admin' }, env.JWT_SECRET_ADMIN, env.JWT_EXPIRES_IN);
+
+  // Set namespaced httpOnly cookie
+  res.cookie('nexmart_admin_session', token, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
   res.json({
     success: true,
     message: 'Login successful',
@@ -69,11 +123,42 @@ export const loginAdmin = async (req: Request, res: Response) => {
 // ─── CUSTOMER AUTH ─────────────────────────────────────────────────────────────
 
 export const registerCustomer = async (req: Request, res: Response) => {
-  const { name, email, password, address, city, phone } = req.body;
+  const { name, email, password, address, city, phone, state, pincode } = req.body;
+
+  // 1. Cross-role check: Check if email exists in admin or agent collections
+  const isAdmin = await Admin.findOne({ email });
+  const isAgent = await DeliveryAgent.findOne({ email });
+  if (isAdmin || isAgent) {
+    return res.status(409).json({
+      success: false,
+      message: 'An account with this email already exists under a different role.',
+      data: null,
+    });
+  }
 
   const existing = await Customer.findOne({ email });
   if (existing) {
     return res.status(400).json({ success: false, message: 'An account with this email already exists', data: null });
+  }
+
+  if (phone && !/^[6-9]\d{9}$/.test(String(phone).trim())) {
+    return res.status(400).json({ success: false, message: 'Enter a valid 10-digit Indian mobile number', data: null });
+  }
+  if (pincode && !/^\d{6}$/.test(String(pincode).trim())) {
+    return res.status(400).json({ success: false, message: 'Enter a valid 6-digit pincode', data: null });
+  }
+  if (state && state.trim().length < 2) {
+    return res.status(400).json({ success: false, message: 'Enter your state (minimum 2 characters)', data: null });
+  }
+
+  // 2. Email-level OTP rate limiting
+  const emailLimit = await otpEmailRateLimiter.limit(email);
+  if (!emailLimit.success) {
+    return res.status(429).json({
+      success: false,
+      message: 'Too many OTP requests for this email. Please try again after 10 minutes.',
+      data: null,
+    });
   }
 
   const otp = generateOTP();
@@ -96,8 +181,8 @@ export const registerCustomer = async (req: Request, res: Response) => {
       phone: phone || '',
       addressLine1: address,
       city: city,
-      state: '',
-      pincode: '',
+      state: state || '',
+      pincode: pincode || '',
       isDefault: true
     }] : []
   });
@@ -180,6 +265,16 @@ export const resendOtp = async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: 'Email is already verified', data: null });
   }
 
+  // Email-level OTP rate limiting
+  const emailLimit = await otpEmailRateLimiter.limit(email);
+  if (!emailLimit.success) {
+    return res.status(429).json({
+      success: false,
+      message: 'Too many OTP requests for this email. Please try again after 10 minutes.',
+      data: null,
+    });
+  }
+
   const otp = generateOTP();
   const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -210,38 +305,54 @@ export const resendOtp = async (req: Request, res: Response) => {
 
 export const loginCustomer = async (req: Request, res: Response) => {
   const { email, password } = req.body;
+  const ip = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+
+  // 1. Rate limiting on failed attempts
+  const failedAttempts = await getFailedLoginAttempts(ip);
+  if (failedAttempts >= 5) {
+    return res.status(429).json({
+      success: false,
+      message: 'Too many failed login attempts. Please try again after 15 minutes.',
+      data: null,
+    });
+  }
 
   // Phase 7: Reject admin/agent credentials at customer login
   const isAdmin = await Admin.findOne({ email });
   if (isAdmin) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(403).json({
       success: false,
-      message: 'This email belongs to an admin account. Please use the admin login portal.',
+      message: 'This account is not a customer account. Please use the correct login portal.',
       data: null,
     });
   }
 
   const isAgent = await DeliveryAgent.findOne({ email });
   if (isAgent) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(403).json({
       success: false,
-      message: 'This email belongs to a delivery agent account. Please use the delivery agent login portal.',
+      message: 'This account is not a customer account. Please use the correct login portal.',
       data: null,
     });
   }
 
   const customer = await Customer.findOne({ email });
   if (!customer || !customer.password) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(401).json({ success: false, message: 'Invalid credentials', data: null });
   }
 
   const isMatch = await bcrypt.compare(password, customer.password);
   if (!isMatch) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(401).json({ success: false, message: 'Invalid credentials', data: null });
   }
 
   // Block login if email not verified
   if (!customer.emailVerified) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(403).json({
       success: false,
       message: 'Please verify your email before logging in. Check your inbox for the OTP.',
@@ -249,7 +360,20 @@ export const loginCustomer = async (req: Request, res: Response) => {
     });
   }
 
-  const token = generateToken({ id: customer._id }, env.JWT_SECRET_CUSTOMER, env.JWT_EXPIRES_IN);
+  // Success: Clear failed attempts
+  await clearFailedLoginAttempts(ip);
+
+  const token = generateToken({ id: customer._id, role: 'customer' }, env.JWT_SECRET_CUSTOMER, env.JWT_EXPIRES_IN);
+
+  // Set namespaced httpOnly cookie
+  res.cookie('nexmart_customer_session', token, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
   res.json({
     success: true,
     message: 'Login successful',
@@ -286,28 +410,67 @@ export const registerAgent = async (req: Request, res: Response) => {
     city,
     address,
     aadharNumber,
+    status: 'pending',
+    isApproved: false,
   });
 
   res.status(201).json({
     success: true,
-    message: 'Agent registered successfully. Awaiting admin approval.',
+    message: 'Registration submitted. Please wait for admin approval before logging in.',
     data: { id: agent._id },
   });
 };
 
 export const loginAgent = async (req: Request, res: Response) => {
   const { email, password } = req.body;
+  const ip = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+
+  // 1. Rate limiting on failed attempts
+  const failedAttempts = await getFailedLoginAttempts(ip);
+  if (failedAttempts >= 5) {
+    return res.status(429).json({
+      success: false,
+      message: 'Too many failed login attempts. Please try again after 15 minutes.',
+      data: null,
+    });
+  }
+
+  // 2. Cross-role isolation: Deny customers
+  const isCustomer = await Customer.findOne({ email });
+  if (isCustomer) {
+    await incrementFailedLoginAttempts(ip);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. This portal is for authorized personnel only.',
+      data: null,
+    });
+  }
+
+  // Deny admins
+  const isAdmin = await Admin.findOne({ email });
+  if (isAdmin) {
+    await incrementFailedLoginAttempts(ip);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. This portal is for authorized personnel only.',
+      data: null,
+    });
+  }
+
   const agent = await DeliveryAgent.findOne({ email });
   if (!agent || !agent.password) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(401).json({ success: false, message: 'Invalid credentials', data: null });
   }
 
   const isMatch = await bcrypt.compare(password, agent.password);
   if (!isMatch) {
+    await incrementFailedLoginAttempts(ip);
     return res.status(401).json({ success: false, message: 'Invalid credentials', data: null });
   }
 
-  if (agent.status === 'pending') {
+  // 3. Status checks
+  if (agent.status === 'pending' || !agent.isApproved) {
     return res.status(403).json({
       success: false,
       message: 'Your account is pending admin approval.',
@@ -322,7 +485,20 @@ export const loginAgent = async (req: Request, res: Response) => {
     });
   }
 
-  const token = generateToken({ id: agent._id }, env.JWT_SECRET_AGENT, env.JWT_EXPIRES_IN);
+  // Success: Clear failed attempts
+  await clearFailedLoginAttempts(ip);
+
+  const token = generateToken({ id: agent._id, role: 'agent' }, env.JWT_SECRET_AGENT, env.JWT_EXPIRES_IN);
+
+  // Set namespaced httpOnly cookie
+  res.cookie('nexmart_delivery_session', token, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
   res.json({
     success: true,
     message: 'Login successful',
