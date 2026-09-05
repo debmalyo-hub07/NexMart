@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Order } from '../models/Order';
 import { DeliveryAssignment } from '../models/DeliveryAssignment';
 import { emitOrderStatusUpdate } from '../config/socket';
+import { sendOrderStatusEmail } from '../services/email.service';
 import { sendSuccess, sendNotFound, sendPaginated } from '../utils/response';
 import { AuthenticatedRequest, OrderStatus } from '../types';
 import { parsePagination } from '../utils/helpers';
@@ -59,8 +60,10 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
   await assignment.save();
 
   // Map delivery status to order status
+  // picked → 'shipped' (never 'processing': an order the admin already set to
+  // 'shipped' must not be regressed backwards by the agent picking it up)
   const orderStatusMap: Partial<Record<typeof status, OrderStatus>> = {
-    picked: 'processing',
+    picked: 'shipped',
     out_for_delivery: 'out_for_delivery',
     delivered: 'delivered',
     attempted: 'out_for_delivery',
@@ -76,10 +79,17 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
         $push: { statusHistory: { status: orderStatus, timestamp: new Date(), updatedBy: userId, note } },
       },
       { new: true }
-    ).populate('customer', '_id');
+    ).populate('customer', 'name email');
 
     if (order) {
-      const customer = order.customer as unknown as { _id: { toString(): string } };
+      const customer = order.customer as unknown as { name?: string; email?: string; _id: { toString(): string } };
+      try {
+        if (customer?.email) {
+          await sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, orderStatus);
+        }
+      } catch (err) {
+        console.error('Order status email failed:', err);
+      }
       emitOrderStatusUpdate(customer._id.toString(), order.orderId, orderStatus);
     }
   }

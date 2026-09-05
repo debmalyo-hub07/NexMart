@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import mongoose from 'mongoose';
 import { Order } from '../models/Order';
 import { Product } from '../models/Product';
 import { Cart } from '../models/Cart';
 import { createRazorpayOrder } from '../services/razorpay.service';
 import { queueInvoiceGeneration } from '../queues/invoiceQueue';
 import { emitOrderStatusUpdate, emitNewOrder } from '../config/socket';
+import { sendOrderStatusEmail } from '../services/email.service';
+import { Customer } from '../models/Customer';
 import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendError, sendPaginated } from '../utils/response';
 import { AuthenticatedRequest, OrderStatus } from '../types';
 import { generateOrderId, generateDeliveryId, verifyRazorpaySignature, parsePagination } from '../utils/helpers';
@@ -38,82 +41,123 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;
   const { items, shippingAddress, paymentMethod, notes } = createOrderSchema.parse(req.body);
 
-  // Re-validate prices from DB (never trust client)
-  let subtotal = 0;
-  const validatedItems = [];
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  for (const item of items) {
-    const product = await Product.findById(item.product);
-    if (!product) { sendBadRequest(res, `Product ${item.product} not found`); return; }
+  try {
+    // Re-validate prices from DB (never trust client)
+    let subtotal = 0;
+    const validatedItems = [];
 
-    const variant = product.variants.find((v) => v.sku === item.variant);
-    if (!variant) { sendBadRequest(res, `Variant ${item.variant} not found`); return; }
-    if (variant.stock < item.quantity) { sendBadRequest(res, `Insufficient stock for ${product.name}`); return; }
+    for (const item of items) {
+      const product = await Product.findById(item.product).session(session);
+      if (!product) {
+        sendBadRequest(res, `Product ${item.product} not found`);
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
 
-    const totalPrice = variant.price * item.quantity;
-    subtotal += totalPrice;
+      const variant = product.variants.find((v) => v.sku === item.variant);
+      if (!variant) {
+        sendBadRequest(res, `Variant ${item.variant} not found`);
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
+      if (variant.stock < item.quantity) {
+        sendBadRequest(res, `Insufficient stock for ${product.name}`);
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
 
-    validatedItems.push({
-      product: product._id,
-      variant: item.variant,
-      quantity: item.quantity,
-      unitPrice: variant.price,
-      totalPrice,
-    });
+      const totalPrice = variant.price * item.quantity;
+      subtotal += totalPrice;
+
+      validatedItems.push({
+        product: product._id,
+        variant: item.variant,
+        quantity: item.quantity,
+        unitPrice: variant.price,
+        totalPrice,
+      });
+    }
+
+    const shippingFee = subtotal > 999 ? 0 : 49;
+    const tax = Math.round(subtotal * 0.18 * 100) / 100; // 18% GST
+    const total = subtotal + shippingFee + tax;
+    const orderId = generateOrderId();
+
+    let razorpayOrderId: string | undefined;
+
+    if (paymentMethod === 'online') {
+      try {
+        const rzpOrder = await createRazorpayOrder(Math.round(total * 100), 'INR', orderId);
+        razorpayOrderId = rzpOrder.id;
+      } catch (rzpErr: any) {
+        await session.abortTransaction();
+        session.endSession();
+        sendError(res, `Payment gateway error: ${rzpErr.message || rzpErr}`, 500);
+        return;
+      }
+    }
+
+    const [order] = await Order.create([{
+      orderId,
+      customer: userId,
+      items: validatedItems,
+      shippingAddress,
+      paymentMethod,
+      paymentStatus: 'pending',
+      razorpayOrderId,
+      orderStatus: 'placed',
+      statusHistory: [{ status: 'placed', timestamp: new Date(), updatedBy: userId }],
+      subtotal,
+      shippingFee,
+      tax,
+      discount: 0,
+      total,
+      notes,
+    }], { session });
+
+    // Decrement stock
+    for (const item of validatedItems) {
+      const updateResult = await Product.updateOne(
+        { _id: item.product, 'variants.sku': item.variant, 'variants.stock': { $gte: item.quantity } },
+        { $inc: { 'variants.$.stock': -item.quantity } },
+        { session }
+      );
+      if (updateResult.modifiedCount === 0) {
+        throw new Error(`Stock level changed for product ${item.product} during transaction. Please try again.`);
+      }
+    }
+
+    // Clear user cart
+    await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } }, { session });
+
+    // Commit transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    // Notify admin
+    emitNewOrder(orderId, { total, paymentMethod });
+
+    sendCreated(res, {
+      orderId: order._id,
+      humanOrderId: orderId,
+      razorpayOrderId,
+      total,
+      currency: 'INR',
+      keyId: paymentMethod === 'online' ? env.RAZORPAY_KEY_ID : undefined,
+    }, 'Order created');
+
+  } catch (error: any) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error('Order creation transaction failed, rolled back:', error);
+    sendError(res, error.message || 'An error occurred during order creation', 500);
   }
-
-  const shippingFee = subtotal > 999 ? 0 : 49;
-  const tax = Math.round(subtotal * 0.18 * 100) / 100; // 18% GST
-  const total = subtotal + shippingFee + tax;
-  const orderId = generateOrderId();
-
-  let razorpayOrderId: string | undefined;
-
-  if (paymentMethod === 'online') {
-    const rzpOrder = await createRazorpayOrder(Math.round(total * 100), 'INR', orderId);
-    razorpayOrderId = rzpOrder.id;
-  }
-
-  const order = await Order.create({
-    orderId,
-    customer: userId,
-    items: validatedItems,
-    shippingAddress,
-    paymentMethod,
-    paymentStatus: 'pending',
-    razorpayOrderId,
-    orderStatus: 'placed',
-    statusHistory: [{ status: 'placed', timestamp: new Date(), updatedBy: userId }],
-    subtotal,
-    shippingFee,
-    tax,
-    discount: 0,
-    total,
-    notes,
-  });
-
-  // Decrement stock
-  for (const item of validatedItems) {
-    await Product.updateOne(
-      { _id: item.product, 'variants.sku': item.variant },
-      { $inc: { 'variants.$.stock': -item.quantity } }
-    );
-  }
-
-  // Clear user cart
-  await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } });
-
-  // Notify admin
-  emitNewOrder(orderId, { total, paymentMethod });
-
-  sendCreated(res, {
-    orderId: order._id,
-    humanOrderId: orderId,
-    razorpayOrderId,
-    total,
-    currency: 'INR',
-    keyId: paymentMethod === 'online' ? env.RAZORPAY_KEY_ID : undefined,
-  }, 'Order created');
 }
 
 // ── Verify Payment ────────────────────────────────────────────
@@ -154,6 +198,17 @@ export async function verifyPayment(req: Request, res: Response): Promise<void> 
 
   // Emit real-time update
   emitOrderStatusUpdate(userId, order.orderId, 'confirmed');
+
+  // Email the customer their confirmation (never throws into the request)
+  // order.customer is a raw ObjectId here (not populated) — fetch it
+  const customerDoc = await Customer.findById(order.customer).select('name email');
+  try {
+    if (customerDoc?.email) {
+      await sendOrderStatusEmail(customerDoc.email, customerDoc.name, order.orderId, 'confirmed');
+    }
+  } catch (err) {
+    console.error('Order confirmation email failed:', err);
+  }
 
   // Queue invoice generation (async, non-blocking)
   await queueInvoiceGeneration(order._id.toString());
@@ -209,12 +264,22 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
 
   if (!order) { sendNotFound(res, 'Order not found'); return; }
 
+  const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
+
   // Queue invoice if delivered
   if (status === 'delivered') {
     await queueInvoiceGeneration(order._id.toString());
   }
 
-  const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
+  // Email the customer on meaningful transitions (never throws into the request)
+  try {
+    if (customer?.email) {
+      await sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, status);
+    }
+  } catch (err) {
+    console.error('Order status email failed:', err);
+  }
+
   emitOrderStatusUpdate(customer._id.toString(), order.orderId, status);
 
   sendSuccess(res, order, 'Order status updated');

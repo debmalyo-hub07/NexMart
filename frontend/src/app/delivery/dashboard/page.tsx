@@ -26,7 +26,7 @@ export default function DeliveryDashboardPage() {
 
   // Phase 8 — Auto-sync every 20 seconds (lightweight polling, no UI freeze)
   const { data, isLoading } = useQuery({
-    queryKey: ['my-deliveries', page],
+    queryKey: ['delivery', 'my-deliveries', page],
     queryFn: () => api.get(`/delivery/my-orders?page=${page}&limit=10`).then((r) => r.data),
     ...liveQueryOptions,
   });
@@ -35,7 +35,7 @@ export default function DeliveryDashboardPage() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/delivery/orders/${id}/status`, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-deliveries'] });
+      queryClient.invalidateQueries({ queryKey: ['delivery', 'my-deliveries'] });
       showToast('Status updated');
       setUpdatingId(null);
     },
@@ -70,11 +70,16 @@ export default function DeliveryDashboardPage() {
     {
       key: 'customer', header: 'Customer',
       render: (r) => {
-        const order = r.order as { customer: { name: string; phone: string } };
+        const order = r.order as { customer: { name: string }; shippingAddress: { phone?: string } };
         return (
           <div>
             <p className="text-sm text-white">{order?.customer?.name}</p>
-            <p className="text-xs text-white/40">{order?.customer?.phone}</p>
+            <a
+              href={`tel:${order?.shippingAddress?.phone || ''}`}
+              className="text-xs text-white/40"
+            >
+              {order?.shippingAddress?.phone || 'No phone on file'}
+            </a>
           </div>
         );
       },
@@ -99,31 +104,7 @@ export default function DeliveryDashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-space-900">
-      <div className="glass border-b border-white/5 sticky top-0 z-10">
-        <div className="page-container flex items-center gap-3 h-[64px]">
-          <div className="w-8 h-8 rounded-xl bg-violet-gradient flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20">
-            <span className="text-white font-bold text-sm">N</span>
-          </div>
-          <div className="flex-1">
-            <h1 className="font-syne text-lg font-bold gradient-text leading-none">Delivery Dashboard</h1>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <LiveSyncBadge />
-            <div className="w-px h-6 bg-white/10 hidden sm:block"></div>
-            <Link href="/delivery/profile" className="flex items-center gap-2 p-2 sm:p-0 rounded-xl hover:bg-white/5 sm:hover:bg-transparent text-white/60 hover:text-white transition-colors">
-              <User size={18} />
-              <span className="text-sm font-medium hidden sm:block">Profile</span>
-            </Link>
-            <button onClick={() => logout()} className="flex items-center gap-2 p-2 sm:p-0 rounded-xl hover:bg-red-500/10 sm:hover:bg-transparent text-red-400/60 hover:text-red-400 transition-colors ml-1 sm:ml-0">
-              <LogOut size={18} />
-              <span className="text-sm font-medium hidden sm:block">Logout</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="page-container py-8 space-y-6">
+    <div className="page-container py-8 space-y-6">
         {/* Clock/Calendar Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="flex flex-col justify-center">
@@ -201,6 +182,5 @@ export default function DeliveryDashboardPage() {
           />
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
