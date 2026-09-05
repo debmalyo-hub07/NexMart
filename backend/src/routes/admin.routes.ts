@@ -15,6 +15,7 @@ import { checkIP } from '../middleware/ipWhitelist';
 import { authLimit, registerLimit } from '../middleware/rateLimiter';
 import { Admin } from '../models/Admin';
 import { DeliveryAgent } from '../models/DeliveryAgent';
+import { Customer } from '../models/Customer';
 import { registerAdmin, loginAdmin } from '../controllers/roleAuth.controller';
 import { sendAgentStatusEmail } from '../services/email.service';
 
@@ -40,6 +41,19 @@ router.get('/analytics', getRevenueAnalytics);
 // Both /customers and /users resolve to same handler — fix for frontend URL mismatch
 router.get('/customers', getAllUsers);
 router.get('/users', getAllUsers); // ← alias: frontend calls /admin/users
+router.patch('/customers/:id/status', async (req, res) => {
+  const { isActive } = req.body;
+  if (typeof isActive !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'isActive must be a boolean', data: null });
+  }
+  const customer = await Customer.findByIdAndUpdate(
+    req.params.id,
+    { isActive },
+    { new: true }
+  ).select('-password -otp -otpExpiry');
+  if (!customer) return res.status(404).json({ success: false, message: 'Customer not found', data: null });
+  res.json({ success: true, message: `Customer ${isActive ? 'activated' : 'suspended'}`, data: customer });
+});
 
 // ── Agents management ─────────────────────────────────────────────────────────
 // All agents (with optional status filter: ?status=pending|approved|rejected)

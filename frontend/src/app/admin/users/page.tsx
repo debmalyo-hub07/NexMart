@@ -1,23 +1,37 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api, { getApiError } from '@/lib/api';
 import { DataTable, Column } from '@/components/admin/DataTable';
 import { formatDate } from '@/lib/utils';
 import { User } from '@/types';
 import { getInitials } from '@/lib/utils';
 import Image from 'next/image';
+import { UserX, UserCheck } from 'lucide-react';
+import { useUIStore } from '@/store/uiStore';
 import { liveQueryOptions } from '@/lib/syncConfig';
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const { showToast } = useUIStore();
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-users', page, search],
+    queryKey: ['admin', 'users', page, search],
     queryFn: () => api.get(`/admin/users?page=${page}&limit=15${search ? `&search=${search}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
+  });
+
+  const toggleStatus = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      api.patch(`/admin/customers/${id}/status`, { isActive }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      showToast('Customer status updated');
+    },
+    onError: (err: unknown) => showToast(getApiError(err), 'error'),
   });
 
   const columns: Column<Record<string, unknown>>[] = [
@@ -72,6 +86,19 @@ export default function AdminUsersPage() {
         searchable
         onSearch={(q) => { setSearch(q); setPage(1); }}
         emptyMessage="No customers found"
+        actions={(row) => (
+          <button
+            type="button"
+            onClick={() => toggleStatus.mutate({ id: row._id as string, isActive: !(row.isActive as boolean) })}
+            disabled={toggleStatus.isPending}
+            className={(row.isActive
+              ? 'p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50'
+              : 'p-1.5 rounded-lg text-white/40 hover:text-acid-400 hover:bg-acid-400/10 transition-colors disabled:opacity-50')}
+            title={row.isActive ? 'Suspend customer' : 'Activate customer'}
+          >
+            {row.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
+          </button>
+        )}
         expandableRender={(row) => {
           const addresses = (row.addresses as any[]) || [];
           const address = addresses.find((a) => a.isDefault) || addresses[0];
