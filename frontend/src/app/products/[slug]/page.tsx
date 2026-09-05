@@ -16,15 +16,16 @@ import { useUIStore } from '@/store/uiStore';
 import { formatPrice } from '@/lib/utils';
 import { Product } from '@/types';
 import { ReviewSection } from '@/components/product/ReviewSection';
+import { useWishlist } from '@/hooks/useWishlist';
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [selectedSku, setSelectedSku] = useState('');
   const [qty, setQty] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
-  const [wishlist, setWishlist] = useState(false);
   const { addItem } = useCartStore();
   const { showToast } = useUIStore();
+  const { isWishlisted, toggleWishlist } = useWishlist();
 
   const { data, isLoading } = useQuery<{ data: Product }>({
     queryKey: ['product', slug],
@@ -47,6 +48,21 @@ export default function ProductDetailPage() {
     queryFn: () => api.get(`/products?category=${product?.category?._id}&limit=4`).then((r) => r.data),
     enabled: !!product?.category?._id,
   });
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    const shareData = { title: product!.name, text: `Check out ${product!.name} on NexMart`, url };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(url);
+        showToast('Link copied to clipboard', 'success');
+      }
+    } catch {
+      // user dismissed the share sheet — not an error
+    }
+  };
 
   const handleAddToCart = async () => {
     if (!variant) return;
@@ -160,10 +176,10 @@ export default function ProductDetailPage() {
                   className="btn-primary flex-1 justify-center py-4 text-base">
                   {isAdding ? <Loader2 size={18} className="animate-spin" /> : <><ShoppingCart size={18} /> Add to Cart</>}
                 </button>
-                <button onClick={() => setWishlist(!wishlist)} className={`p-4 rounded-xl transition-all border ${wishlist ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'glass border-white/10 text-white/50 hover:text-white'}`}>
-                  <Heart size={18} className={wishlist ? 'fill-current' : ''} />
+                <button onClick={() => toggleWishlist(product._id)} className={`p-4 rounded-xl transition-all border ${isWishlisted(product._id) ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'glass border-white/10 text-white/50 hover:text-white'}`}>
+                  <Heart size={18} className={isWishlisted(product._id) ? 'fill-current' : ''} />
                 </button>
-                <button className="p-4 rounded-xl glass border border-white/10 text-white/50 hover:text-white transition-colors">
+                <button onClick={handleShare} className="p-4 rounded-xl glass border border-white/10 text-white/50 hover:text-white transition-colors">
                   <Share2 size={18} />
                 </button>
               </div>

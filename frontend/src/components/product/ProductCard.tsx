@@ -9,6 +9,7 @@ import { Product } from '@/types';
 import { formatPrice, cn } from '@/lib/utils';
 import { useCartStore } from '@/store/cartStore';
 import { useUIStore } from '@/store/uiStore';
+import { useWishlist } from '@/hooks/useWishlist';
 
 interface ProductCardProps {
   product: Product;
@@ -16,10 +17,10 @@ interface ProductCardProps {
 }
 
 export const ProductCard = memo(function ProductCard({ product, className }: ProductCardProps) {
-  const [isWishlisted, setIsWishlisted] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const { addItem } = useCartStore();
   const { showToast } = useUIStore();
+  const { isWishlisted, toggleWishlist } = useWishlist();
 
   // 3D Tilt Effect
   const x = useMotionValue(0);
@@ -127,13 +128,13 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
 
           {/* Wishlist */}
           <button
-            onClick={(e) => { e.preventDefault(); setIsWishlisted(!isWishlisted); }}
-            className="absolute top-3 right-3 p-2 rounded-xl glass opacity-0 group-hover:opacity-100 transition-all duration-200"
+            onClick={(e) => { e.preventDefault(); toggleWishlist(product._id); }}
+            className={`absolute top-3 right-3 p-2 rounded-xl glass transition-all duration-200 ${isWishlisted(product._id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
             suppressHydrationWarning
           >
             <Heart
               size={16}
-              className={isWishlisted ? 'fill-red-400 text-red-400' : 'text-white/60'}
+              className={isWishlisted(product._id) ? 'fill-red-400 text-red-400' : 'text-white/60'}
             />
           </button>
 

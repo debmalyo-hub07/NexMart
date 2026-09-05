@@ -11,6 +11,7 @@ import {
   verifyOtp,
   resendOtp,
 } from '../controllers/roleAuth.controller';
+import { getWishlist, addToWishlist, removeFromWishlist } from '../controllers/wishlist.controller';
 
 const router = Router();
 
@@ -128,5 +129,10 @@ router.put('/avatar', imageUpload.single('avatar'), async (req: any, res) => {
     res.status(500).json({ success: false, message: 'Failed to upload image' });
   }
 });
+
+// --- Wishlist ---
+router.get('/wishlist', getWishlist);
+router.post('/wishlist/:productId', addToWishlist);
+router.delete('/wishlist/:productId', removeFromWishlist);
 
 export default router;
