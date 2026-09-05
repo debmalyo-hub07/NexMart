@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getApiError } from '@/lib/api';
 import { formatPrice, formatDate } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Package, ChevronDown, ChevronUp, Download, Loader2 } from 'lucide-react';
@@ -15,12 +15,14 @@ import { useSocket } from '@/hooks/useSocket';
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SOCKET_EVENTS } from '@/lib/socketEvents';
+import { useUIStore } from '@/store/uiStore';
 
 export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { on } = useSocket();
+  const { showToast } = useUIStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ['orders', page],
@@ -44,10 +46,10 @@ export default function OrdersPage() {
       if (data.data?.invoiceUrl) {
         window.open(data.data.invoiceUrl, '_blank');
       } else {
-        alert('Invoice is being generated. Please try again in a moment.');
+        showToast(data.message || 'Invoice is being generated. Please try again in a moment.', 'info');
       }
-    } catch {
-      alert('Failed to download invoice');
+    } catch (err: unknown) {
+      showToast(getApiError(err), 'error');
     }
   };
 

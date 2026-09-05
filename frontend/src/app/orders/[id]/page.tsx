@@ -2,7 +2,7 @@
 
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getApiError } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import { formatPrice, formatDate } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -15,12 +15,14 @@ import { useSocket } from '@/hooks/useSocket';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { SOCKET_EVENTS } from '@/lib/socketEvents';
+import { useUIStore } from '@/store/uiStore';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { on } = useSocket();
+  const { showToast } = useUIStore();
 
   const { data, isLoading } = useQuery<{ data: Order }>({
     queryKey: ['order', id],
@@ -47,9 +49,13 @@ export default function OrderDetailPage() {
 
   const handleDownloadInvoice = async () => {
     if (!order) return;
-    const { data: inv } = await api.get(`/orders/${id}/invoice`);
-    if (inv.data?.invoiceUrl) window.open(inv.data.invoiceUrl, '_blank');
-    else alert('Invoice is being generated, please try again shortly.');
+    try {
+      const { data: inv } = await api.get(`/orders/${id}/invoice`);
+      if (inv.data?.invoiceUrl) window.open(inv.data.invoiceUrl, '_blank');
+      else showToast(inv.message || 'Invoice is being generated, please try again shortly.', 'info');
+    } catch (err: unknown) {
+      showToast(getApiError(err), 'error');
+    }
   };
 
   if (isLoading) return (
