@@ -8,8 +8,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { useUIStore } from '@/store/uiStore';
 import { Order } from '@/types';
 import { formatPrice, formatDate } from '@/lib/utils';
-import { Eye, ChevronDown } from 'lucide-react';
-import Link from 'next/link';
+import { Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { liveQueryOptions } from '@/lib/syncConfig';
 
@@ -80,11 +79,61 @@ export default function AdminOrdersPage() {
         totalPages={data?.meta?.totalPages || 1}
         onPageChange={setPage}
         emptyMessage="No orders found"
-        actions={(row) => (
+        rowIdKey="_id"
+        expandableRender={(row) => {
+          const items = (row.items as Array<Record<string, unknown>>) || [];
+          const address = (row.shippingAddress as Record<string, string>) || {};
+          return (
+            <div className="space-y-4">
+              {/* Customer */}
+              <div>
+                <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-1">Customer</p>
+                <p className="text-sm text-white">{(row.customer as { name?: string })?.name || '—'}</p>
+              </div>
+
+              {/* Items summary */}
+              <div className="border-t border-white/5 pt-3">
+                <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Items</p>
+                <div className="space-y-1.5">
+                  {items.length === 0 && <p className="text-xs text-white/40">No item data</p>}
+                  {items.map((item, j) => (
+                    <div key={j} className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-white/70 truncate">
+                        {(item.product as { name?: string })?.name || 'Item'}
+                        <span className="text-white/40 text-xs"> × {String(item.quantity ?? 1)}</span>
+                      </span>
+                      <span className="text-white/70 shrink-0">{formatPrice((item.totalPrice as number) ?? 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Shipping address */}
+              <div className="border-t border-white/5 pt-3 text-xs text-white/50">
+                <p className="font-semibold text-white/40 uppercase tracking-wider mb-1">Shipping to</p>
+                <p>{[address.fullName, address.phone].filter(Boolean).join(' • ') || '—'}</p>
+                <p>{[address.addressLine1, address.city, address.state, address.pincode].filter(Boolean).join(', ')}</p>
+              </div>
+
+              {/* Total */}
+              <div className="border-t border-white/5 pt-3 flex items-center justify-between">
+                <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Total</p>
+                <p className="text-sm font-semibold text-acid-400">{formatPrice((row.total as number) ?? 0)}</p>
+              </div>
+            </div>
+          );
+        }}
+        actions={(row, { isExpanded, toggleExpanded }) => (
           <div className="flex items-center gap-2">
-            <Link href={`/orders/${row._id}`} className="p-1.5 rounded-lg text-white/40 hover:text-violet-400 hover:bg-violet-500/10 transition-colors">
-              <Eye size={14} />
-            </Link>
+            <button
+              type="button"
+              onClick={toggleExpanded}
+              title={isExpanded ? 'Hide details' : 'View details'}
+              aria-expanded={isExpanded}
+              className="p-1.5 rounded-lg text-white/40 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
+            >
+              {isExpanded ? <ChevronUp size={14} /> : <Eye size={14} />}
+            </button>
             <div className="relative" key={row.orderStatus as string}>
               <select
                 defaultValue={row.orderStatus as string}

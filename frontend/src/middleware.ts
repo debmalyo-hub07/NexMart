@@ -26,9 +26,20 @@ export default auth((req) => {
 
   // ── Admin routes ──────────────────────────────────────────────
   if (pathname.startsWith('/admin')) {
-    if (pathname.startsWith('/admin/login') || pathname.startsWith('/admin/register')) {
+    if (pathname === '/admin/login') {
       if (isAuthenticated) {
         if (role === 'admin') return NextResponse.redirect(new URL('/admin', req.url));
+        if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+        return NextResponse.redirect(new URL('/', req.url));
+      }
+      return NextResponse.next();
+    }
+
+    if (pathname === '/admin/register') {
+      if (!isAuthenticated) {
+        return NextResponse.redirect(new URL('/admin/login', req.url));
+      }
+      if (role !== 'admin') {
         if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
         return NextResponse.redirect(new URL('/', req.url));
       }
@@ -76,9 +87,15 @@ export default auth((req) => {
   }
 
   // ── Customer routes & App roots ────────────────────────────────
-  // Admin and Agent should never see customer routes or root
+  // Role confinement. Admins keep READ access to storefront routes (product
+  // preview from the admin panel) but are bounced from customer-account
+  // surfaces. Agents stay fully confined to /delivery.
   if (isAuthenticated && role === 'admin' && !pathname.startsWith('/admin')) {
-    return NextResponse.redirect(new URL('/admin', req.url));
+    const adminPreviewable = ['/products', '/categories', '/search', '/about'];
+    const customerSurfaces = ['/cart', '/checkout', '/orders', '/profile', '/customer'];
+    if (customerSurfaces.some((p) => pathname.startsWith(p)) || !adminPreviewable.some((p) => pathname.startsWith(p))) {
+      return NextResponse.redirect(new URL('/admin', req.url));
+    }
   }
   if (isAuthenticated && role === 'agent' && !pathname.startsWith('/delivery')) {
     return NextResponse.redirect(new URL('/delivery/dashboard', req.url));

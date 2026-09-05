@@ -13,6 +13,12 @@ export interface Column<T> {
   className?: string;
 }
 
+/** Context passed as the second argument to the actions renderer */
+export interface ActionContext {
+  isExpanded: boolean;
+  toggleExpanded: () => void;
+}
+
 interface DataTableProps<T extends Record<string, unknown>> {
   columns: Column<T>[];
   data: T[];
@@ -22,7 +28,7 @@ interface DataTableProps<T extends Record<string, unknown>> {
   onPageChange?: (page: number) => void;
   searchable?: boolean;
   onSearch?: (q: string) => void;
-  actions?: (row: T) => React.ReactNode;
+  actions?: (row: T, ctx: ActionContext) => React.ReactNode;
   emptyMessage?: string;
   expandableRender?: (row: T) => React.ReactNode;
   rowIdKey?: string; // e.g. '_id'
@@ -157,7 +163,7 @@ export function DataTable<T extends Record<string, unknown>>({
                       ))}
                       {actions && (
                         <td className="table-cell" onClick={isClickable ? (e) => e.stopPropagation() : undefined}>
-                          {actions(row)}
+                          {actions(row, { isExpanded, toggleExpanded: () => toggleRow(rowId) })}
                         </td>
                       )}
                     </tr>
