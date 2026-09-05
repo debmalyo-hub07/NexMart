@@ -62,7 +62,7 @@ There is **no** `/admin/dashboard`, no `/customer/dashboard`, no `/products/[id]
 - Response envelope: `{success, message, data}` + `meta:{page,limit,total,totalPages}`. Zod field errors return under `errors` — **no frontend code reads `errors` today**; new code must (§5.4).
 
 ### 1.5 Known-broken inventory
-The full ranked list with `file:line` evidence is §8. Summary of what's dead today: payment verification endpoint mismatch (customer pays, then sees "verification failed"), admin order-status 401 (router-wide `protectCustomer`), Socket.IO frontend delivery (event-name typo + guest handshake + listener leaks), reviews API (404), wishlist (no routes), Google OAuth (configured, no button), price sort on `/products` and `/search` (backend `ALLOWED_SORT` mismatch).
+The full ranked list with `file:line` evidence is §8. **P0 rows 1–8 were fixed 2026-09-05** (see §8 for the one remaining environment caveat: the Upstash Redis URL in `.env` no longer resolves, 500-ing every API request locally until updated). Still open today: the invoice `alert()`s on `/orders` (P4), plus the P1–P4 rows.
 
 ---
 
@@ -383,17 +383,19 @@ Add `plugin:jsx-a11y/recommended` to `.eslintrc.json` so CI enforces this instea
 
 Each item: the gap, the evidence, the acceptance criterion. Execute in order; P0 blocks everything.
 
-### P0 — broken in production (fix before any UI polish)
+### P0 — broken in production (fix before any UI polish) — ✅ ALL DONE 2026-09-05
 | # | Gap | Fix / acceptance |
 |---|---|---|
-| 1 | **Payment verify 404s after customer pays.** `checkout/page.tsx:107` posts `/orders/verify-payment`; real route is `POST /orders/:id/payment/verify`. Customer sees "verification failed", cart never clears, double-order risk (button re-enables mid-Razorpay). | Call the real route; disable Pay through modal lifetime; handle modal-dismiss (order stays `pending`, offer retry); clear cart on verified success. |
-| 2 | **Admin order-status change always 401.** `order.routes.ts:9` applies `protectCustomer` router-wide before per-route `protectAdmin`. COD orders can never reach `confirmed`, hence never assignable — structurally undeliverable. | Restructure route middleware per-route; admin can transition status; a COD order can be assigned and delivered end-to-end via UI. |
-| 3 | **19 dead Tailwind opacity classes** (`/3 /4 /6 /7 /8`) — active nav pill, search focus fill, admin sidebar hovers render nothing. | Replace with step-5 or bracket values; grep gate in CI (`/(\\|3|4|6|7|8)\\b` on class strings). Every interactive state visually exists. |
-| 4 | **Phantom font classes** (`font-outfit`, `font-inter` — 17 uses compile to nothing) + double font loading + lying config keys. | Fonts via next/font only; config keys renamed; auth screens render Outfit display type. |
-| 5 | **Socket.IO dead end-to-end:** event-name typo (`order:status_update` vs `order:status_updated`), guest handshake (token never persisted), listener leaks (fresh listener per refetch on `/orders/[id]`). | Canonical names (§5.1); authenticated handshake; singleton rebuilds on auth change; all listeners cleaned up. A status change by an agent appears in the customer's order timeline without refresh. |
-| 6 | **Reviews fully dead** — UI calls routes that 404. | Backend routes + controller (zod-validated, purchase-verified if order data allows), or remove the UI section. Reviews render real data. |
-| 7 | **Google OAuth configured, zero buttons.** | Render "Continue with Google" on `/customer/login` + `/customer/register` per the v2 spec's isolation rules. |
-| 8 | **Lenis + CustomCursor scoped wrong** — smooth-scroll hijack + cursor over admin tables and checkout. | Storefront-only mount; reduced-motion + native-touch bail-outs. |
+| 1 ✅ | **Payment verify 404s after customer pays.** `checkout/page.tsx:107` posts `/orders/verify-payment`; real route is `POST /orders/:id/payment/verify`. Customer sees "verification failed", cart never clears, double-order risk (button re-enables mid-Razorpay). | FIXED: `paymentVerifyPath()` helper, real route, button disabled through modal, ondismiss feedback, cart clears on success. |
+| 2 ✅ | **Admin order-status change always 401.** `order.routes.ts:9` applies `protectCustomer` router-wide before per-route `protectAdmin`. COD orders can never reach `confirmed`, hence never assignable — structurally undeliverable. | FIXED: per-route guards; `updateOrderStatus` under `protectAdmin` only. Live smoke pending (Upstash outage, see below). |
+| 3 ✅ | **19 dead Tailwind opacity classes** (`/3 /4 /6 /7 /8`) — active nav pill, search focus fill, admin sidebar hovers render nothing. | FIXED: all bracket values; grep gate clean. |
+| 4 ✅ | **Phantom font classes** (`font-outfit`, `font-inter` — 17 uses compile to nothing) + double font loading + lying config keys. | FIXED: next/font ×3 families, @import deleted, config wired to variables, body/heading rules use vars. |
+| 5 ✅ | **Socket.IO dead end-to-end:** event-name typo (`order:status_update` vs `order:status_updated`), guest handshake (token never persisted), listener leaks (fresh listener per refetch on `/orders/[id]`). | FIXED: `SOCKET_EVENTS` constants, NextAuth-session token, singleton rebuild, real unsubscribes. Live smoke pending (Upstash outage, see below). |
+| 6 ✅ | **Reviews fully dead** — UI calls routes that 404. | FIXED: `GET/POST /products/:id/reviews` (zod, one-per-customer, verified-purchase via delivered orders). Live smoke pending (Upstash outage, see below). |
+| 7 ✅ | **Google OAuth configured, zero buttons.** | FIXED: "Continue with Google" on customer login/register. |
+| 8 ✅ | **Lenis + CustomCursor scoped wrong** — smooth-scroll hijack + cursor over admin tables and checkout. | FIXED: storefront-only mount (StorefrontLayout), providers.tsx double-mount removed, reduced-motion early-return, CSS scroll-behavior conflict removed. |
+
+> ⚠️ **Live smoke tests pending (2026-09-05):** the `UPSTASH_REDIS_REST_URL` in `.env` (`lucky-gobbler-82201.upstash.io`) no longer resolves in public DNS — the instance appears deleted/renamed. The global `generalLimit` middleware hits Upstash on every request, so the whole API 500s locally until the URL is fixed in `.env`. All code fixes verified by tsc/vitest/Next build + manual code review; run the smoke matrix (admin status PATCH, reviews GET, socket delivery) once Redis is restored.
 
 ### P1 — silent failures & misinformation
 | # | Gap | Fix / acceptance |
