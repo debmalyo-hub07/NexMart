@@ -1,11 +1,22 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Product } from '../models/Product';
 import { Category } from '../models/Category';
+import { Order } from '../models/Order';
 import { uploadImageBuffer } from '../services/cloudinary.service';
-import { sendSuccess, sendCreated, sendNotFound, sendPaginated } from '../utils/response';
+import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendPaginated } from '../utils/response';
 import { AuthenticatedRequest } from '../types';
 import { parsePagination, parseSortField, generateSlug } from '../utils/helpers';
+import { upstashRedis } from '../config/redis';
+
+async function clearFeaturedProductsCache() {
+  try {
+    await upstashRedis.del('nexmart:products:featured');
+  } catch (err) {
+    console.error('Redis invalidation failed for featured products:', err);
+  }
+}
 
 const productSchema = z.object({
   name: z.string().min(2).max(200),
@@ -53,10 +64,33 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
     filter['ratings.average'] = { $gte: parseFloat(req.query.rating as string) };
   }
 
+  // Caching featured homepage products (limit=8, featured=true)
+  const isHomepageFeatured = req.query.featured === 'true' && limit === 8;
+  if (isHomepageFeatured) {
+    try {
+      const cached = await upstashRedis.get('nexmart:products:featured');
+      if (cached) {
+        const { products, total } = cached as { products: any[]; total: number };
+        sendPaginated(res, products, total, page, limit);
+        return;
+      }
+    } catch (err) {
+      console.error('Redis read error for featured products:', err);
+    }
+  }
+
   const [products, total] = await Promise.all([
     Product.find(filter).populate('category', 'name slug').sort(sort).skip(skip).limit(limit).lean(),
     Product.countDocuments(filter),
   ]);
+
+  if (isHomepageFeatured) {
+    try {
+      await upstashRedis.set('nexmart:products:featured', { products, total }, { ex: 300 }); // 5 minutes TTL
+    } catch (err) {
+      console.error('Redis write error for featured products:', err);
+    }
+  }
 
   sendPaginated(res, products, total, page, limit);
 }
@@ -111,6 +145,8 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
     await product.save();
   }
 
+  await clearFeaturedProductsCache();
+
   sendCreated(res, product, 'Product created');
 }
 
@@ -133,12 +169,14 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
 
   const product = await Product.findByIdAndUpdate(id, data, { new: true });
   if (!product) { sendNotFound(res, 'Product not found'); return; }
+  await clearFeaturedProductsCache();
   sendSuccess(res, product, 'Product updated');
 }
 
 export async function deleteProduct(req: Request, res: Response): Promise<void> {
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) { sendNotFound(res, 'Product not found'); return; }
+  await clearFeaturedProductsCache();
   sendSuccess(res, null, 'Product deleted');
 }
 
@@ -159,4 +197,59 @@ export async function uploadProductImages(req: Request, res: Response): Promise<
     { new: true }
   );
   sendSuccess(res, { images: product?.images }, 'Images uploaded');
+}
+
+// ── Product Reviews ───────────────────────────────────────────
+const reviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  title: z.string().trim().max(100).optional(),
+  body: z.string().trim().max(2000).optional(),
+});
+
+export async function getProductReviews(req: Request, res: Response): Promise<void> {
+  const product = await Product.findById(req.params.id)
+    .select('reviews')
+    .populate('reviews.user', 'name profilePicture');
+
+  if (!product) { sendNotFound(res, 'Product not found'); return; }
+
+  // Newest first, plain array (frontend expects data.data to be a list)
+  const reviews = [...product.reviews].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  sendSuccess(res, reviews);
+}
+
+export async function addProductReview(req: Request, res: Response): Promise<void> {
+  const { userId } = (req as AuthenticatedRequest).user!;
+  const { rating, title, body } = reviewSchema.parse(req.body);
+
+  const product = await Product.findById(req.params.id);
+  if (!product) { sendNotFound(res, 'Product not found'); return; }
+
+  const alreadyReviewed = product.reviews.some((r) => r.user.toString() === userId);
+  if (alreadyReviewed) { sendBadRequest(res, 'You have already reviewed this product'); return; }
+
+  // Verified-purchase badge: this customer has a delivered order containing this product
+  const isVerifiedPurchase = !!(await Order.exists({
+    customer: userId,
+    'items.product': product._id,
+    orderStatus: 'delivered',
+  }));
+
+  product.reviews.push({
+    user: new mongoose.Types.ObjectId(userId),
+    rating,
+    title,
+    body,
+    isVerifiedPurchase,
+  } as never);
+  product.ratings.count = product.reviews.length;
+  product.ratings.average =
+    product.reviews.reduce((sum, r) => sum + r.rating, 0) / product.ratings.count;
+
+  await product.save();
+
+  const created = product.reviews[product.reviews.length - 1];
+  sendCreated(res, created, 'Review submitted');
 }
