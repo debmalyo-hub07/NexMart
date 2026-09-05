@@ -13,7 +13,8 @@ import { Order } from '@/types';
 import { Skeleton } from '@/components/common/SkeletonLoader';
 import { useSocket } from '@/hooks/useSocket';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { SOCKET_EVENTS } from '@/lib/socketEvents';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -26,13 +27,21 @@ export default function OrderDetailPage() {
     queryFn: () => api.get(`/orders/${id}`).then((r) => r.data),
   });
 
+  // Human order id (NXM-...) from the query cache, kept in a ref so the
+  // listener registration doesn't depend on the query data.
+  const orderIdRef = useRef<string | null>(null);
   useEffect(() => {
-    on<{ orderId: string; status: string }>('order:status_update', (payload) => {
-      if (payload.orderId === (data?.data as Order)?.orderId) {
+    orderIdRef.current = data?.data?.orderId ?? null;
+  }, [data]);
+
+  useEffect(() => {
+    const unsubscribe = on<{ orderId: string; status: string }>(SOCKET_EVENTS.orderStatusUpdated, (payload) => {
+      if (orderIdRef.current && payload.orderId === orderIdRef.current) {
         queryClient.invalidateQueries({ queryKey: ['order', id] });
       }
     });
-  }, [on, id, queryClient, data]);
+    return unsubscribe;
+  }, [on, id, queryClient]);
 
   const order = data?.data;
 

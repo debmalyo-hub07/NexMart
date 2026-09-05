@@ -14,6 +14,7 @@ import { OrderRowSkeleton } from '@/components/common/SkeletonLoader';
 import { useSocket } from '@/hooks/useSocket';
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { SOCKET_EVENTS } from '@/lib/socketEvents';
 
 export default function OrdersPage() {
   const [page, setPage] = useState(1);
@@ -29,12 +30,12 @@ export default function OrdersPage() {
   const orders: Order[] = data?.data || [];
   const totalPages = data?.meta?.totalPages || 1;
 
-  // Real-time order status updates
+  // Real-time order status updates (backend emits order:status_updated)
   useEffect(() => {
-    on<{ orderId: string; status: string }>('order:status_update', () => {
+    const unsubscribe = on<{ orderId: string; status: string }>(SOCKET_EVENTS.orderStatusUpdated, () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     });
-    // socket.io listener cleanup is handled by the hook
+    return unsubscribe;
   }, [on, queryClient]);
 
   const handleDownloadInvoice = async (orderId: string) => {
@@ -76,8 +77,10 @@ export default function OrdersPage() {
                 <motion.div key={order._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className="glass rounded-2xl border border-white/5 overflow-hidden">
                   {/* Order header */}
-                  <button onClick={() => setExpanded(expanded === order._id ? null : order._id)}
-                    className="w-full flex items-center gap-4 p-5 text-left hover:bg-white/[0.02] transition-colors">
+                  <div role="button" tabIndex={0}
+                    onClick={() => setExpanded(expanded === order._id ? null : order._id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(expanded === order._id ? null : order._id); } }}
+                    className="w-full flex items-center gap-4 p-5 text-left hover:bg-white/[0.02] transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-violet-500/50">
                     <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
                         <p className="text-xs text-white/40 mb-1">Order ID</p>
@@ -102,7 +105,7 @@ export default function OrdersPage() {
                       </button>
                       {expanded === order._id ? <ChevronUp size={16} className="text-white/40" /> : <ChevronDown size={16} className="text-white/40" />}
                     </div>
-                  </button>
+                  </div>
 
                   {/* Expanded details */}
                   <AnimatePresence>
