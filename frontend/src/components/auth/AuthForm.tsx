@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
@@ -30,48 +33,73 @@ interface AuthFormProps {
   showGoogle?: boolean;
 }
 
+type AuthFormData = Record<string, string>;
+
+// Validation rules per field, derived from the fields prop
+const fieldSchema = (field: Field): z.ZodString => {
+  if (field.name === 'email') return z.string().min(1, 'Enter your email').email('Enter a valid email address');
+  if (field.type === 'password') {
+    if (field.name === 'confirmPassword') return z.string().min(1, 'Confirm your password');
+    return z.string().min(8, 'Password must be at least 8 characters');
+  }
+  if (field.name === 'phone') return z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number');
+  if (field.name === 'pincode') return z.string().regex(/^\d{6}$/, 'Enter a valid 6-digit pincode');
+  return z.string().min(1, `${field.label} is required`);
+};
+
 export function AuthForm({ type, role, title, fields, submitText, linkText, linkHref, redirectUrl, note, showGoogle }: AuthFormProps) {
   const router = useRouter();
   const { showToast } = useUIStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
+
+  // Build the zod schema dynamically from the fields prop
+  const schema = useMemo(() => {
+    const shape = Object.fromEntries(fields.map((f) => [f.name, fieldSchema(f)] as [string, z.ZodString]));
+    const base = z.object(shape);
+    return type === 'register'
+      ? base.refine((values) => values.password === values.confirmPassword, {
+          message: 'Passwords do not match',
+          path: ['confirmPassword'],
+        })
+      : base;
+  }, [fields, type]);
+
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<AuthFormData>({
+    resolver: zodResolver(schema),
+    defaultValues: Object.fromEntries(fields.map((f) => [f.name, ''])),
+  });
 
   useEffect(() => {
     if (type === 'login') {
-      const key = role === 'admin' 
-        ? 'nexmart_last_admin_email' 
-        : role === 'agent' 
-          ? 'nexmart_last_delivery_email' 
+      const key = role === 'admin'
+        ? 'nexmart_last_admin_email'
+        : role === 'agent'
+          ? 'nexmart_last_delivery_email'
           : null;
       if (key) {
         const savedEmail = localStorage.getItem(key);
         if (savedEmail) {
-          setFormData(prev => ({ ...prev, email: savedEmail }));
+          setValue('email', savedEmail);
         }
       }
     }
-  }, [type, role]);
+  }, [type, role, setValue]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (values: AuthFormData) => {
     setLoading(true);
     setError('');
 
     try {
       if (type === 'register') {
-        if (formData.password !== formData.confirmPassword) {
-          throw new Error('Passwords do not match');
-        }
-
-        const res = await api.post(`/${role}/auth/register`, formData);
+        const res = await api.post(`/${role}/auth/register`, values);
         if (res.data.success) {
           showToast(res.data.message);
 
           // Customer registration requires OTP verification before login
           if (role === 'customer' && res.data.data?.requiresOtp) {
-            const email = encodeURIComponent(res.data.data.email || formData.email);
+            const email = encodeURIComponent(res.data.data.email || values.email);
             router.push(`/customer/verify-otp?email=${email}`);
           } else {
             router.push(redirectUrl);
@@ -79,16 +107,16 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
         }
       } else {
         // LOGIN flow
-        await useAuthStore.getState().login(formData.email, formData.password, role);
+        await useAuthStore.getState().login(values.email, values.password, role);
 
         // Save email on successful login
-        const key = role === 'admin' 
-          ? 'nexmart_last_admin_email' 
-          : role === 'agent' 
-            ? 'nexmart_last_delivery_email' 
+        const key = role === 'admin'
+          ? 'nexmart_last_admin_email'
+          : role === 'agent'
+            ? 'nexmart_last_delivery_email'
             : null;
-        if (key && formData.email) {
-          localStorage.setItem(key, formData.email);
+        if (key && values.email) {
+          localStorage.setItem(key, values.email);
         }
 
         // Push to dashboard — no router.refresh() to avoid race condition
@@ -101,7 +129,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
 
       // Redirect to OTP page if server indicates unverified account
       if (err.response?.data?.data?.requiresOtp) {
-        const email = encodeURIComponent(formData.email);
+        const email = encodeURIComponent(values.email);
         showToast('Please verify your email first', 'error');
         router.push(`/customer/verify-otp?email=${email}`);
         return;
@@ -148,7 +176,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
           </motion.div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5" suppressHydrationWarning>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" suppressHydrationWarning>
           {fields.map((field) => (
             <div key={field.name} className="space-y-1.5">
               <label className="block text-xs font-medium text-white/50 ml-1 uppercase tracking-wider font-inter">{field.label}</label>
@@ -156,10 +184,8 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
                 <input
                   suppressHydrationWarning
                   type={field.type === 'password' && showPassword ? 'text' : field.type}
-                  required={field.required !== false}
+                  {...register(field.name)}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] focus:ring-4 focus:ring-violet-500/10 transition-all font-inter pr-10"
-                  value={formData[field.name] || ''}
-                  onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
                   placeholder={`Enter your ${field.label.toLowerCase()}`}
                 />
                 {field.type === 'password' && (
@@ -173,6 +199,9 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
                   </button>
                 )}
               </div>
+              {errors[field.name] && (
+                <p className="text-xs text-red-400 mt-1">{errors[field.name]?.message}</p>
+              )}
             </div>
           ))}
 
@@ -218,11 +247,13 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
           </p>
         )}
 
-        <div className="mt-8 text-center pt-6 border-t border-white/[0.05]">
-          <Link href={linkHref} className="text-sm text-white/40 hover:text-white transition-colors font-inter">
-            {linkText}
-          </Link>
-        </div>
+        {linkText && (
+          <div className="mt-8 text-center pt-6 border-t border-white/[0.05]">
+            <Link href={linkHref} className="text-sm text-white/40 hover:text-white transition-colors font-inter">
+              {linkText}
+            </Link>
+          </div>
+        )}
       </motion.div>
     </div>
   );

@@ -1,15 +1,21 @@
 import { AuthForm } from '@/components/auth/AuthForm';
+import { auth } from '@/auth';
 
 export const metadata = { title: 'Admin Login | NexMart' };
 
-export default function AdminLogin() {
+export default async function AdminLogin() {
+  // The register page requires an existing admin session (middleware) —
+  // only show the link to admins. First admin comes from the seed script.
+  const session = await auth();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === 'admin';
+
   return (
     <AuthForm
       type="login"
       role="admin"
       title="Admin Portal"
       submitText="Admin Login"
-      linkText="Register Admin Account"
+      linkText={isAdmin ? 'Register New Admin' : ''}
       linkHref="/admin/register"
       redirectUrl="/admin"
       fields={[
