@@ -1,6 +1,12 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Verification builds (CI, pre-commit checks) can target a separate directory
+  // so they never clobber the dev server's .next cache mid-session:
+  //   NEXT_DIST_DIR=.next-verify npm run build
+  // Without the env var, everything behaves exactly as before.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+
   // Optimize package imports for faster compile & load times
   experimental: {
     optimizePackageImports: [
