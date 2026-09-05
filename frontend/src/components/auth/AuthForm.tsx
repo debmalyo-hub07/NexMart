@@ -185,7 +185,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
                   suppressHydrationWarning
                   type={field.type === 'password' && showPassword ? 'text' : field.type}
                   {...register(field.name)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] focus:ring-4 focus:ring-violet-500/10 transition-all font-inter pr-10"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] focus:ring-4 focus:ring-violet-500/10 transition-[background-color,border-color,box-shadow] font-inter pr-10"
                   placeholder={`Enter your ${field.label.toLowerCase()}`}
                 />
                 {field.type === 'password' && (
@@ -209,7 +209,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
             suppressHydrationWarning
             type="submit"
             disabled={loading}
-            className="w-full relative overflow-hidden group bg-white text-black hover:text-white font-semibold rounded-xl py-3.5 mt-4 transition-all flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed font-outfit"
+            className="w-full relative overflow-hidden group bg-white text-black hover:text-white font-semibold rounded-xl py-3.5 mt-4 transition-[color,opacity] flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed font-outfit"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <span className="relative z-10 flex items-center gap-2">

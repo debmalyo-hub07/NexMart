@@ -148,7 +148,7 @@ export const Navbar = memo(function Navbar() {
                     href={href}
                     onMouseEnter={() => router.prefetch(href)}
                     className={cn(
-                      'relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
+                      'relative px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200',
                       isActive
                         ? 'text-white bg-white/[0.08]'
                         : 'text-white/60 hover:text-white hover:bg-white/5',
@@ -175,7 +175,7 @@ export const Navbar = memo(function Navbar() {
               >
                 <button
                   className={cn(
-                    'flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
+                    'flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200',
                     megaMenuOpen ? 'text-white bg-white/[0.08]' : 'text-white/60 hover:text-white hover:bg-white/5',
                   )}
                   suppressHydrationWarning
@@ -253,7 +253,7 @@ export const Navbar = memo(function Navbar() {
                     <ChevronDown size={14} className="hidden lg:block text-white/40" />
                   </button>
                 ) : (
-                  <Link href="/customer/login" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white font-semibold text-sm px-6 py-2.5 rounded-full shadow-[0_0_15px_rgba(167,139,250,0.4)] hover:shadow-[0_0_25px_rgba(167,139,250,0.6)] transition-all flex items-center justify-center">
+                  <Link href="/customer/login" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white font-semibold text-sm px-6 py-2.5 rounded-full shadow-[0_0_15px_rgba(167,139,250,0.4)] hover:shadow-[0_0_25px_rgba(167,139,250,0.6)] transition-shadow flex items-center justify-center">
                     Sign In
                   </Link>
                 )}

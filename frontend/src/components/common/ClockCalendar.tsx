@@ -72,7 +72,7 @@ export function ClockCalendar() {
             {days.map((day, i) => (
               <div 
                 key={i} 
-                className={`text-xs w-7 h-7 flex items-center justify-center mx-auto rounded-full transition-all ${
+                className={`text-xs w-7 h-7 flex items-center justify-center mx-auto rounded-full transition-[color,background-color,box-shadow] ${
                   day === today 
                     ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-bold shadow-[0_0_10px_rgba(167,139,250,0.5)]' 
                     : day 

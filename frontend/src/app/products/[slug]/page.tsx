@@ -176,7 +176,7 @@ export default function ProductDetailPage() {
                   className="btn-primary flex-1 justify-center py-4 text-base">
                   {isAdding ? <Loader2 size={18} className="animate-spin" /> : <><ShoppingCart size={18} /> Add to Cart</>}
                 </button>
-                <button onClick={() => toggleWishlist(product._id)} className={`p-4 rounded-xl transition-all border ${isWishlisted(product._id) ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'glass border-white/10 text-white/50 hover:text-white'}`}>
+                <button onClick={() => toggleWishlist(product._id)} className={`p-4 rounded-xl transition-colors border ${isWishlisted(product._id) ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'glass border-white/10 text-white/50 hover:text-white'}`}>
                   <Heart size={18} className={isWishlisted(product._id) ? 'fill-current' : ''} />
                 </button>
                 <button onClick={handleShare} className="p-4 rounded-xl glass border border-white/10 text-white/50 hover:text-white transition-colors">

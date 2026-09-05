@@ -216,7 +216,7 @@ export default function CheckoutPage() {
                       { value: 'cod', label: 'Cash on Delivery', desc: 'Pay when your order arrives', icon: '💵' },
                     ].map(({ value, label, desc, icon }) => (
                       <button key={value} type="button" onClick={() => setPaymentMethod(value as 'online' | 'cod')}
-                        className={`p-4 rounded-xl border text-left transition-all ${
+                        className={`p-4 rounded-xl border text-left transition-colors ${
                           paymentMethod === value ? 'border-violet-500 bg-violet-500/15' : 'border-white/10 glass hover:border-white/20'
                         }`}>
                         <div className="flex items-center gap-3 mb-2">

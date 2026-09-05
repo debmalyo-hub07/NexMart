@@ -66,7 +66,7 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
               <button
                 key={i}
                 onClick={() => setActiveIndex(i)}
-                className={cn('relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition-all',
+                className={cn('relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition-[border-color,box-shadow,opacity]',
                   i === activeIndex ? 'border-violet-500 glow-violet' : 'border-transparent opacity-60 hover:opacity-100'
                 )}
               >

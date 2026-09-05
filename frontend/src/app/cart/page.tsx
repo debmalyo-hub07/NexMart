@@ -1,9 +1,10 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useCartStore } from '@/store/cartStore';
 import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -11,6 +12,20 @@ import { useRouter } from 'next/navigation';
 export default function CartPage() {
   const { items, updateItem, removeItem, clearCart, subtotal } = useCartStore();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-space-900 flex items-center justify-center">
+        <Loader2 className="animate-spin text-violet-500" size={32} />
+      </div>
+    );
+  }
+
   const total = subtotal();
   const shipping = total > 999 ? 0 : 49;
   const tax = Math.round(total * 0.18);

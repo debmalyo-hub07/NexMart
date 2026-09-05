@@ -31,9 +31,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-space-900 flex">
-      {/* Desktop sidebar */}
-      <div className="hidden lg:flex shrink-0">
+    <div className="min-h-screen bg-space-900">
+      {/* Desktop sidebar — fixed to the viewport so it keeps a stable height;
+          its internal nav scrolls independently if it ever overflows */}
+      <div className="hidden lg:flex fixed inset-y-0 left-0 z-30">
         <AdminSidebar />
       </div>
 
@@ -63,25 +64,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       </AnimatePresence>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile topbar */}
-        <div className="lg:hidden flex items-center gap-3 p-4 border-b border-white/5 bg-space-900/80 backdrop-blur-sm sticky top-0 z-30">
-          <button
-            onClick={openSidebar}
-            className="p-2 rounded-xl hover:bg-white/5 transition-colors text-white/60"
-            suppressHydrationWarning
-          >
-            <Menu size={20} />
-          </button>
-          <span className="font-syne font-bold gradient-text flex-1">Admin Panel</span>
-          <LiveSyncBadge />
-        </div>
-
-        <main className="flex-1 p-6 overflow-auto">
-          {children}
-        </main>
+      {/* Mobile topbar — sticky within the single document scroll */}
+      <div className="lg:hidden flex items-center gap-3 p-4 border-b border-white/5 bg-space-900/80 backdrop-blur-sm sticky top-0 z-30">
+        <button
+          onClick={openSidebar}
+          className="p-2 rounded-xl hover:bg-white/5 transition-colors text-white/60"
+          suppressHydrationWarning
+        >
+          <Menu size={20} />
+        </button>
+        <span className="font-syne font-bold gradient-text flex-1">Admin Panel</span>
+        <LiveSyncBadge />
       </div>
+
+      {/* Main content — normal document flow; offset past the fixed sidebar on desktop.
+          The page itself is the only scroll container (no nested overflow wrappers). */}
+      <main className="p-6 lg:pl-[calc(var(--sidebar-width)+1.5rem)]">
+        {children}
+      </main>
     </div>
   );
 }

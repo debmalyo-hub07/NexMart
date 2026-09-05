@@ -153,7 +153,7 @@ function VerifyOtpContent() {
                   onChange={(e) => handleChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
                   suppressHydrationWarning
-                  className="w-11 h-13 text-center text-xl font-bold text-white bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/15 transition-all"
+                  className="w-11 h-13 text-center text-xl font-bold text-white bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/15 transition-[border-color,box-shadow]"
                   style={{ height: '52px' }}
                 />
               ))}
@@ -164,7 +164,7 @@ function VerifyOtpContent() {
               onClick={handleVerify}
               disabled={loading || otp.join('').length !== 6}
               suppressHydrationWarning
-              className="w-full relative overflow-hidden group bg-white text-black font-semibold rounded-xl py-3.5 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed font-outfit mb-5"
+              className="w-full relative overflow-hidden group bg-white text-black font-semibold rounded-xl py-3.5 transition-opacity flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed font-outfit mb-5"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-100 group-disabled:opacity-0 transition-opacity duration-300" />
               <span className="relative z-10 flex items-center gap-2 group-hover:text-white transition-colors">

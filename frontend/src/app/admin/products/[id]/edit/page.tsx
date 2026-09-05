@@ -12,7 +12,7 @@ export default function EditProductPage() {
   const id = params?.id as string;
   
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-product', id],
+    queryKey: ['admin', 'product', id],
     queryFn: () => api.get(`/products/${id}`).then(r => r.data),
     enabled: !!id,
   });

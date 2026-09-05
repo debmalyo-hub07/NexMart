@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { ProductCard } from '@/components/product/ProductCard';
 import { ProductCardSkeleton } from '@/components/common/SkeletonLoader';
+import { Pagination } from '@/components/common/Pagination';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -137,12 +138,7 @@ function SearchContent() {
 
               {totalPages > 1 && (
                 <div className="flex justify-center gap-2 mt-10">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)}
-                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${page === p ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white'}`}>
-                      {p}
-                    </button>
-                  ))}
+                  <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
                 </div>
               )}
             </>

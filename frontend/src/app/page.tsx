@@ -121,10 +121,10 @@ export default function HomePage() {
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-6">
-              <Link href="/products" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white font-semibold text-base px-8 py-4 rounded-full flex items-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(167,139,250,0.4)] group">
+              <Link href="/products" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white font-semibold text-base px-8 py-4 rounded-full flex items-center gap-2 transition-shadow hover:shadow-[0_0_20px_rgba(167,139,250,0.4)] group">
                 Explore Products <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/#categories" className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-base px-8 py-4 rounded-full transition-all hover:border-white/20">
+              <Link href="/#categories" className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-base px-8 py-4 rounded-full transition-colors hover:border-white/20">
                 View Categories
               </Link>
             </motion.div>
@@ -153,7 +153,7 @@ export default function HomePage() {
                 ))
               : categories.map(({ name, slug, emoji, color }, i) => (
                   <motion.div key={slug} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
-                    <Link href={`/categories/${slug}`} className={`block glass rounded-2xl p-5 text-center hover:scale-105 transition-all duration-300 bg-gradient-to-b ${color} border border-white/5 hover:border-white/15 group`}>
+                    <Link href={`/categories/${slug}`} className={`block glass rounded-2xl p-5 text-center hover:scale-105 transition-[transform,border-color] duration-300 bg-gradient-to-b ${color} border border-white/5 hover:border-white/15 group`}>
                       <span className="text-5xl block mb-3 group-hover:scale-110 transition-transform duration-300">{emoji}</span>
                       <p className="font-syne font-semibold text-white text-sm">{name}</p>
                     </Link>
@@ -210,7 +210,7 @@ export default function HomePage() {
               </p>
               <Link
                 href="/about"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 px-6 py-3 rounded-full transition-all group"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 px-6 py-3 rounded-full transition-colors group"
               >
                 Read Full Story
                 <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />

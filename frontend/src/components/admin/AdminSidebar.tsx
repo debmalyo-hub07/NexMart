@@ -90,7 +90,7 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
               href={href}
               onClick={onClose}
               className={cn(
-                'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200',
                 isActive
                   ? 'text-white bg-violet-600/20 border border-violet-500/30'
                   : 'text-white/60 hover:text-white hover:bg-white/[0.06]',
@@ -132,7 +132,7 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-200"
           suppressHydrationWarning
         >
           <LogOut size={16} />

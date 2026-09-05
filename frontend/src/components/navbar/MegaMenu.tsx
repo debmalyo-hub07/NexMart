@@ -41,7 +41,7 @@ export const MegaMenu = memo(function MegaMenu({
   if (!activeCategory) return null;
 
   return (
-    <div className="absolute top-full left-0 pt-3 w-[580px] z-50">
+    <div className="absolute top-full left-0 pt-3 w-[min(580px,calc(100vw-3rem))] z-50">
       <motion.div
         variants={menuVariants}
         initial="hidden"
@@ -59,7 +59,7 @@ export const MegaMenu = memo(function MegaMenu({
                 <button
                   key={cat.slug}
                   onMouseEnter={() => handleCategoryEnter(cat)}
-                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-left transition-all duration-200 group ${
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-left transition-[color,background-color,border-color,box-shadow] duration-200 group ${
                     isActive
                       ? 'bg-gradient-to-r from-violet-600/20 to-fuchsia-600/10 text-white border border-violet-500/40 shadow-[0_0_15px_rgba(124,58,237,0.2)]'
                       : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
@@ -86,7 +86,7 @@ export const MegaMenu = memo(function MegaMenu({
                   key={sub}
                   href={`/categories/${activeCategory.slug}?sub=${sub.toLowerCase().replace(/\s+/g, '-')}`}
                   onClick={onClose}
-                  className="group flex items-center px-2 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+                  className="group flex items-center px-2 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-500/0 group-hover:bg-violet-500 mr-2.5 transition-colors shrink-0" />
                   {sub}
@@ -98,7 +98,7 @@ export const MegaMenu = memo(function MegaMenu({
               <Link
                 href={`/categories/${activeCategory.slug}`}
                 onClick={onClose}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-white/5 hover:bg-gradient-to-r hover:from-violet-600/20 hover:to-fuchsia-600/20 border border-white/10 hover:border-violet-500/50 hover:shadow-[0_0_15px_rgba(124,58,237,0.3)] transition-all group"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-white/5 hover:bg-gradient-to-r hover:from-violet-600/20 hover:to-fuchsia-600/20 border border-white/10 hover:border-violet-500/50 hover:shadow-[0_0_15px_rgba(124,58,237,0.3)] transition-[border-color,box-shadow] group"
               >
                 Explore all {activeCategory.name} <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </Link>

@@ -55,7 +55,7 @@ export function ConfirmDialog({
               <button
                 onClick={onConfirm}
                 disabled={isLoading}
-                className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all ${btnClass}`}
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-[background-color,transform,box-shadow] ${btnClass}`}
               >
                 {isLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {confirmLabel}

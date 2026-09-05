@@ -111,7 +111,7 @@ export function CustomCursor() {
       >
         {/* Outer Circle Visuals (transitioned smoothly via CSS) */}
         <div
-          className={`rounded-full flex items-center justify-center font-bold text-[8px] uppercase tracking-wider text-black bg-transparent border border-violet-500 transition-all duration-300 ease-out ${
+          className={`rounded-full flex items-center justify-center font-bold text-[8px] uppercase tracking-wider text-black bg-transparent border border-violet-500 transition-[background-color,border-color,box-shadow,transform] duration-300 ease-out ${
             hovered
               ? hoverType === 'view'
                 ? 'w-14 h-14 bg-white/95 border-transparent scale-100 shadow-[0_0_20px_rgba(255,255,255,0.4)]'

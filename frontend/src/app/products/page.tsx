@@ -3,6 +3,7 @@
 import { Suspense, useState, useCallback } from 'react';
 import { ProductCard } from '@/components/product/ProductCard';
 import { ProductCardSkeleton } from '@/components/common/SkeletonLoader';
+import { Pagination } from '@/components/common/Pagination';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -105,7 +106,7 @@ function ProductsContent() {
 
             {/* Filter toggle */}
             <button onClick={toggleFilter}
-              className={cn('flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border',
+              className={cn('flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border',
                 filterOpen ? 'border-violet-500 bg-violet-500/10 text-violet-300' : 'glass text-white/60 hover:text-white border-white/10')}
               suppressHydrationWarning>
               <SlidersHorizontal size={14} />
@@ -133,7 +134,7 @@ function ProductsContent() {
                       {PRICE_RANGES.map((r) => (
                         <button key={r.label}
                           onClick={() => { setMinPrice(r.min || undefined); setMaxPrice(r.max); setPage(1); }}
-                          className={cn('px-3 py-1.5 rounded-lg text-xs transition-all border',
+                          className={cn('px-3 py-1.5 rounded-lg text-xs transition-colors border',
                             minPrice === (r.min || undefined) && maxPrice === r.max
                               ? 'border-violet-500 bg-violet-500/15 text-violet-300'
                               : 'border-white/10 text-white/50 hover:text-white hover:border-white/20')}
@@ -150,7 +151,7 @@ function ProductsContent() {
                     <div className="flex gap-2">
                       {[4, 3, 2].map((r) => (
                         <button key={r} onClick={() => { setMinRating(r === minRating ? undefined : r); setPage(1); }}
-                          className={cn('px-3 py-1.5 rounded-lg text-xs transition-all border',
+                          className={cn('px-3 py-1.5 rounded-lg text-xs transition-colors border',
                             minRating === r ? 'border-amber-500 bg-amber-500/15 text-amber-300' : 'border-white/10 text-white/50 hover:text-white')}
                           suppressHydrationWarning>
                           {r}★ & above
@@ -182,14 +183,7 @@ function ProductsContent() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2">
-              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => setPage(p)}
-                  className={cn('w-9 h-9 rounded-lg text-sm font-medium transition-all',
-                    page === p ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white')}
-                  suppressHydrationWarning>
-                  {p}
-                </button>
-              ))}
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </div>
           )}
         </div>

@@ -129,7 +129,7 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
           {/* Wishlist */}
           <button
             onClick={(e) => { e.preventDefault(); toggleWishlist(product._id); }}
-            className={`absolute top-3 right-3 p-2 rounded-xl glass transition-all duration-200 ${isWishlisted(product._id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+            className={`absolute top-3 right-3 p-2 rounded-xl glass transition-opacity duration-200 ${isWishlisted(product._id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
             suppressHydrationWarning
           >
             <Heart
@@ -191,7 +191,7 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
           onClick={handleAddToCart}
           disabled={isAdding || mainVariant?.stock === 0}
           className={cn(
-            'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200',
+            'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-[color,transform,box-shadow] duration-200',
             mainVariant?.stock === 0
               ? 'bg-white/5 text-white/20 cursor-not-allowed'
               : 'btn-primary'

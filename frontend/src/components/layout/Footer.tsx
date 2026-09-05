@@ -162,7 +162,7 @@ export const Footer = memo(function Footer() {
                 key={label}
                 href={href}
                 aria-label={label}
-                className="p-2 rounded-lg glass hover:border-violet-500/30 transition-all text-white/40 hover:text-white"
+                className="p-2 rounded-lg glass hover:border-violet-500/30 transition-colors text-white/40 hover:text-white"
               >
                 <Icon size={14} />
               </a>

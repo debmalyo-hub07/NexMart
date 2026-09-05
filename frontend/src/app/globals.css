@@ -128,11 +128,11 @@ h1, h2, h3, h4, h5, h6 {
   .text-secondary { color: var(--text-secondary); }
   .text-muted { color: var(--text-muted); }
 
-  /* Skeleton shimmer */
+  /* Skeleton — opacity pulse (GPU-composited; no per-frame background-position repaints).
+     No border-radius here on purpose: consumers apply their own rounded-* classes. */
   .skeleton {
-    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 2s linear infinite;
+    background: rgba(255, 255, 255, 0.04);
+    animation: skeletonPulse 1.8s ease-in-out infinite;
   }
 
   /* Hide scrollbar but keep scroll */
@@ -284,9 +284,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ── Keyframes ───────────────────────────────────────────────── */
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
 }
 
 @keyframes statsEnter {
@@ -297,6 +297,15 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Opacity pulse for the LiveSyncBadge dot. Self-contained on purpose: the badge
+   references this by name from an inline style, so it must not depend on Tailwind
+   emitting the `pulse` keyframes (which only happens when `animate-pulse` is used
+   somewhere in the markup). Visually identical to Tailwind's `pulse`. */
+@keyframes syncPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
 }
 
 /* ── Framer Motion page transitions ─────────────────────────── */

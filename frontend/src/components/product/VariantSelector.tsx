@@ -46,7 +46,7 @@ export function VariantSelector({ variants, selectedSku, onSelect }: VariantSele
                     onClick={() => matchingVariant && onSelect(matchingVariant.sku)}
                     disabled={!inStock}
                     className={cn(
-                      'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border',
+                      'px-4 py-2 rounded-xl text-sm font-medium transition-[color,background-color,border-color,box-shadow] duration-200 border',
                       isSelected
                         ? 'border-violet-500 bg-violet-500/20 text-white glow-violet'
                         : inStock
