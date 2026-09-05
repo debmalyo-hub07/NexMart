@@ -3,10 +3,14 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Pencil, Trash2, ChevronRight, Search, Check, X, Loader2, FolderTree } from 'lucide-react';
 import api from '@/lib/api';
 import { useUIStore } from '@/store/uiStore';
 import { liveQueryOptions } from '@/lib/syncConfig';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 type Category = {
   _id: string;
@@ -19,17 +23,19 @@ type Category = {
   isActive: boolean;
 };
 
-type FormState = {
-  name: string;
-  icon: string;
-  description: string;
-  parent: string;
-  displayOrder: number;
-};
+const categorySchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  icon: z.string().optional(),
+  description: z.string().max(500, 'Description must be under 500 characters').optional(),
+  parent: z.string().optional(),
+  displayOrder: z.coerce.number().int().min(0).optional(),
+});
+
+type CategoryFormData = z.infer<typeof categorySchema>;
+
+const defaultValues: CategoryFormData = { name: '', icon: '', description: '', parent: '', displayOrder: 0 };
 
 const EMOJI_PRESETS = ['📱', '💻', '📺', '👗', '💄', '🏠', '🛒', '⚽', '📚', '🎮', '🍕', '🚗', '✈️', '💊', '🎨', '📷', '🎵', '🧸'];
-
-const defaultForm: FormState = { name: '', icon: '', description: '', parent: '', displayOrder: 0 };
 
 export default function CategoriesPage() {
   const qc = useQueryClient();
@@ -37,12 +43,20 @@ export default function CategoriesPage() {
   const [search, setSearch] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<FormState>(defaultForm);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
 
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<CategoryFormData>({
+    resolver: zodResolver(categorySchema),
+    defaultValues,
+  });
+
+  const formName = watch('name') || '';
+  const formIcon = watch('icon') || '';
+
   const { data, isLoading } = useQuery({
-    queryKey: ['categories-manager'],
-    queryFn: () => api.get('/categories').then(r => {
+    queryKey: ['admin', 'categories-manager'],
+    queryFn: () => api.get('/categories?includeInactive=true').then(r => {
       const res = r.data;
       // Handle both {data: [...]} and plain array responses
       return Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
@@ -62,13 +76,13 @@ export default function CategoriesPage() {
 
   const openCreate = (parentId = '') => {
     setEditId(null);
-    setForm({ ...defaultForm, parent: parentId });
+    reset({ ...defaultValues, parent: parentId });
     setShowForm(true);
   };
 
   const openEdit = (cat: Category) => {
     setEditId(cat._id);
-    setForm({
+    reset({
       name: cat.name,
       icon: cat.icon || '',
       description: cat.description || '',
@@ -79,18 +93,18 @@ export default function CategoriesPage() {
   };
 
   const saveMutation = useMutation({
-    mutationFn: () => {
-      const payload = { ...form, parent: form.parent || null };
+    mutationFn: (values: CategoryFormData) => {
+      const payload = { ...values, parent: values.parent || null };
       return editId
         ? api.put(`/categories/${editId}`, payload)
         : api.post('/categories', payload);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['categories-manager'] });
-      qc.invalidateQueries({ queryKey: ['admin-categories'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'categories-manager'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
       showToast(editId ? 'Category updated' : 'Category created');
       setShowForm(false);
-      setForm(defaultForm);
+      reset(defaultValues);
       setEditId(null);
     },
     onError: () => showToast('Failed to save category', 'error'),
@@ -99,11 +113,15 @@ export default function CategoriesPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/categories/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['categories-manager'] });
-      qc.invalidateQueries({ queryKey: ['admin-categories'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'categories-manager'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
       showToast('Category deleted');
+      setPendingDeleteId(null);
     },
-    onError: () => showToast('Failed to delete category', 'error'),
+    onError: () => {
+      showToast('Failed to delete category', 'error');
+      setPendingDeleteId(null);
+    },
   });
 
   const toggleExpand = (id: string) =>
@@ -152,7 +170,7 @@ export default function CategoriesPage() {
           >
             <div className="flex justify-between items-center">
               <h2 className="font-syne font-semibold text-white">{editId ? 'Edit Category' : 'New Category'}</h2>
-              <button onClick={() => { setShowForm(false); setEditId(null); setForm(defaultForm); }} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5" suppressHydrationWarning>
+              <button onClick={() => { setShowForm(false); setEditId(null); reset(defaultValues); }} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5" suppressHydrationWarning>
                 <X size={16} />
               </button>
             </div>
@@ -160,11 +178,12 @@ export default function CategoriesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-white/60 mb-1.5 block">Category Name *</label>
-                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className="input" placeholder="e.g. Electronics" suppressHydrationWarning />
+                <input {...register('name')} className="input" placeholder="e.g. Electronics" suppressHydrationWarning />
+                {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name.message}</p>}
               </div>
               <div>
                 <label className="text-xs text-white/60 mb-1.5 block">Parent Category</label>
-                <select value={form.parent} onChange={e => setForm(p => ({ ...p, parent: e.target.value }))} className="input bg-space-900 appearance-none" suppressHydrationWarning>
+                <select {...register('parent')} className="input bg-space-900 appearance-none" suppressHydrationWarning>
                   <option value="">None (Top Level)</option>
                   {parents.map(p => (
                     <option key={p._id} value={p._id}>{p.icon} {p.name}</option>
@@ -174,14 +193,14 @@ export default function CategoriesPage() {
               <div>
                 <label className="text-xs text-white/60 mb-1.5 block">Icon Emoji</label>
                 <div className="space-y-2">
-                  <input value={form.icon} onChange={e => setForm(p => ({ ...p, icon: e.target.value }))} className="input" placeholder="e.g. 📱" suppressHydrationWarning />
+                  <input {...register('icon')} className="input" placeholder="e.g. 📱" suppressHydrationWarning />
                   <div className="flex flex-wrap gap-2">
                     {EMOJI_PRESETS.map(emoji => (
                       <button
                         key={emoji}
                         type="button"
-                        onClick={() => setForm(p => ({ ...p, icon: emoji }))}
-                        className={`w-9 h-9 rounded-lg text-xl flex items-center justify-center transition-all ${form.icon === emoji ? 'bg-violet-500/30 border border-violet-500' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}
+                        onClick={() => setValue('icon', emoji, { shouldValidate: true })}
+                        className={`w-9 h-9 rounded-lg text-xl flex items-center justify-center transition-all ${formIcon === emoji ? 'bg-violet-500/30 border border-violet-500' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}
                         suppressHydrationWarning
                       >
                         {emoji}
@@ -191,14 +210,20 @@ export default function CategoriesPage() {
                 </div>
               </div>
               <div>
+                <label className="text-xs text-white/60 mb-1.5 block">Display Order</label>
+                <input type="number" {...register('displayOrder')} className="input" placeholder="0" suppressHydrationWarning />
+                {errors.displayOrder && <p className="text-xs text-red-400 mt-1">{errors.displayOrder.message}</p>}
+              </div>
+              <div>
                 <label className="text-xs text-white/60 mb-1.5 block">Description</label>
-                <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="input py-2" rows={3} placeholder="Optional category description" suppressHydrationWarning />
+                <textarea {...register('description')} className="input py-2" rows={3} placeholder="Optional category description" suppressHydrationWarning />
+                {errors.description && <p className="text-xs text-red-400 mt-1">{errors.description.message}</p>}
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-2 border-t border-white/5">
-              <button onClick={() => { setShowForm(false); setEditId(null); setForm(defaultForm); }} className="btn-secondary" suppressHydrationWarning>Cancel</button>
-              <button onClick={() => saveMutation.mutate()} disabled={!form.name.trim() || saveMutation.isPending} className="btn-primary" suppressHydrationWarning>
+              <button onClick={() => { setShowForm(false); setEditId(null); reset(defaultValues); }} className="btn-secondary" suppressHydrationWarning>Cancel</button>
+              <button onClick={handleSubmit(values => saveMutation.mutate(values))} disabled={!formName.trim() || saveMutation.isPending} className="btn-primary" suppressHydrationWarning>
                 {saveMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <><Check size={15} /> {editId ? 'Update' : 'Create'}</>}
               </button>
             </div>
@@ -239,7 +264,7 @@ export default function CategoriesPage() {
                     <button onClick={() => openEdit(parent)} className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors" suppressHydrationWarning>
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => { if (confirm('Delete this category?')) deleteMutation.mutate(parent._id); }} className="p-2 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
+                    <button onClick={() => setPendingDeleteId(parent._id)} className="p-2 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -267,7 +292,7 @@ export default function CategoriesPage() {
                             <button onClick={() => openEdit(child)} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors" suppressHydrationWarning>
                               <Pencil size={13} />
                             </button>
-                            <button onClick={() => { if (confirm('Delete subcategory?')) deleteMutation.mutate(child._id); }} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
+                            <button onClick={() => setPendingDeleteId(child._id)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
                               <Trash2 size={13} />
                             </button>
                           </div>
@@ -291,6 +316,16 @@ export default function CategoriesPage() {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        title="Delete Category"
+        description="Are you sure you want to delete this category? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => pendingDeleteId && deleteMutation.mutate(pendingDeleteId)}
+        onCancel={() => setPendingDeleteId(null)}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 }
