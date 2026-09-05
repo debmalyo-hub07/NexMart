@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-05 (security incident) — leaked MongoDB Atlas credential rotated
+
+GitHub secret scanning flagged two `mongodb_atlas_db_uri_with_credentials` alerts: pre-squash-history commits (May 17) of `backend/db-cleanup.js` and `backend/migrate-users.js` contained the live Atlas connection string with embedded credentials — same user and cluster as the active `.env` credential, on a public repo with a fork and a 0.0.0.0/0 network rule. Current `main` was already clean (grep-verified; files read from `.env`). Remediated: **database password rotated** in Atlas (verified live — backend serves real data on the new credential), both alerts resolved as `revoked`, and **secret scanning + push protection enabled** on the repository so future pushes containing secrets are blocked at push time. Lesson recorded in CONTRIBUTING: `.env` only, always — the gitignore was correct; the leak predated it.
+
 ## 2026-09-05 (final) — Upstash restored + lifetime keep-alive
 
 The deleted free-tier database was replaced with `dynamic-werewolf-100212.upstash.io` (Mumbai region). Verified live: rate limiting counts down per request (X-RateLimit-Remaining 99→98), admin login + protected routes pass the real blacklist check, circuit breaker closed automatically. Added `.github/workflows/redis-keepalive.yml` — a weekly one-command ping (manual dispatch supported) with the URL/token as encrypted repo secrets, so the free tier (500K commands/month) never goes idle and never gets auto-deleted again. Total ongoing cost: ₹0.
