@@ -14,8 +14,8 @@ import { cn } from '@/lib/utils';
 
 const SORT_OPTIONS = [
   { label: 'Newest First', value: '-createdAt' },
-  { label: 'Price: Low to High', value: 'price' },
-  { label: 'Price: High to Low', value: '-price' },
+  { label: 'Price: Low to High', value: 'variants.0.price' },
+  { label: 'Price: High to Low', value: '-variants.0.price' },
   { label: 'Best Rating', value: '-ratings.average' },
 ];
 

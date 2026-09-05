@@ -5,7 +5,7 @@ import { IProduct } from '../types';
 import { sendPaginated } from '../utils/response';
 import { parsePagination, parseSortField } from '../utils/helpers';
 
-const ALLOWED_SORT = ['createdAt', 'ratings.average', 'name'];
+const ALLOWED_SORT = ['createdAt', 'ratings.average', 'name', 'variants.0.price'];
 
 export async function searchProducts(req: Request, res: Response): Promise<void> {
   const { page, limit, skip } = parsePagination(req.query, 20);
