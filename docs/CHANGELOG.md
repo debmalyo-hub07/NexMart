@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-05 (final) — Upstash restored + lifetime keep-alive
+
+The deleted free-tier database was replaced with `dynamic-werewolf-100212.upstash.io` (Mumbai region). Verified live: rate limiting counts down per request (X-RateLimit-Remaining 99→98), admin login + protected routes pass the real blacklist check, circuit breaker closed automatically. Added `.github/workflows/redis-keepalive.yml` — a weekly one-command ping (manual dispatch supported) with the URL/token as encrypted repo secrets, so the free tier (500K commands/month) never goes idle and never gets auto-deleted again. Total ongoing cost: ₹0.
+
 ## 2026-09-05 (later still) — circuit breaker: dead Upstash costs ~0ms per request
 
 Fail-open removed the 500s but every request still paid a failed Upstash round-trip (rate limiter on all routes, blacklist check on protected ones) — tens of ms with cached DNS failures, up to 2.5s when the DNS cache expired. The Redis client is now wrapped in a Proxy-based circuit breaker: after 3 consecutive failures all calls reject instantly for 30s, then a single half-open probe; success closes the circuit, so recovery is automatic the moment `.env` points at a live database. Measured: request 1 pays the trip, requests 4+ drop ~20ms in the DNS-cached state and are protected from the periodic 2.5s spikes.
