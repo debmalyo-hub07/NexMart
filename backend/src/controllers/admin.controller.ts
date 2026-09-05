@@ -6,13 +6,23 @@ import { DeliveryAssignment } from '../models/DeliveryAssignment';
 import { DeliveryAgent } from '../models/DeliveryAgent';
 import { Admin } from '../models/Admin';
 import { sendSuccess, sendNotFound, sendPaginated } from '../utils/response';
-import { parsePagination } from '../utils/helpers';
+import { parsePagination, parseSortField } from '../utils/helpers';
 import { sendAgentAssignmentEmail } from '../services/email.service';
 import { emitOrderStatusUpdate } from '../config/socket';
 import { upstashRedis } from '../config/redis';
 
+// Server-side sort allow-lists. The `sort` query param uses Mongo syntax:
+// 'field' for ascending, '-field' for descending. parseSortField falls back
+// to '-createdAt' when the param is absent or not allow-listed, so callers
+// that send no sort param keep the previous behaviour (mirrors the public
+// /products endpoint's ALLOWED_SORT pattern).
+const PRODUCT_SORT_FIELDS = ['createdAt', 'name', 'variants.0.price', 'variants.0.stock'];
+const ORDER_SORT_FIELDS = ['createdAt', 'orderId', 'total'];
+const USER_SORT_FIELDS = ['createdAt', 'name', 'email'];
+
 export async function getAllProducts(req: Request, res: Response): Promise<void> {
   const { page, limit, skip } = parsePagination(req.query);
+  const sort = parseSortField(req.query.sort as string, PRODUCT_SORT_FIELDS, '-createdAt');
   const filter: Record<string, unknown> = {};
   if (req.query.q) {
     const searchRegex = new RegExp(req.query.q as string, 'i');
@@ -20,7 +30,7 @@ export async function getAllProducts(req: Request, res: Response): Promise<void>
   }
 
   const [products, total] = await Promise.all([
-    Product.find(filter).sort('-createdAt').skip(skip).limit(limit).populate('category', 'name'),
+    Product.find(filter).sort(sort).skip(skip).limit(limit).populate('category', 'name'),
     Product.countDocuments(filter),
   ]);
 
@@ -82,12 +92,13 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
 
 export async function getAllOrders(req: Request, res: Response): Promise<void> {
   const { page, limit, skip } = parsePagination(req.query);
+  const sort = parseSortField(req.query.sort as string, ORDER_SORT_FIELDS, '-createdAt');
   const filter: Record<string, unknown> = {};
   if (req.query.status) filter.orderStatus = req.query.status;
   if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
 
   const [orders, total] = await Promise.all([
-    Order.find(filter).sort('-createdAt').skip(skip).limit(limit)
+    Order.find(filter).sort(sort).skip(skip).limit(limit)
       .populate('customer', 'name email phone')
       .populate('deliveryAgent', 'name'),
     Order.countDocuments(filter),
@@ -98,6 +109,7 @@ export async function getAllOrders(req: Request, res: Response): Promise<void> {
 
 export async function getAllUsers(req: Request, res: Response): Promise<void> {
   const { page, limit, skip } = parsePagination(req.query);
+  const sort = parseSortField(req.query.sort as string, USER_SORT_FIELDS, '-createdAt');
   const filter: Record<string, unknown> = {};
   if (req.query.search) {
     const s = new RegExp(req.query.search as string, 'i');
@@ -105,7 +117,7 @@ export async function getAllUsers(req: Request, res: Response): Promise<void> {
   }
 
   const [users, total] = await Promise.all([
-    Customer.find(filter).select('-password').sort('-createdAt').skip(skip).limit(limit),
+    Customer.find(filter).select('-password').sort(sort).skip(skip).limit(limit),
     Customer.countDocuments(filter),
   ]);
   sendPaginated(res, users, total, page, limit);

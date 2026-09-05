@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { DataTable, Column } from '@/components/admin/DataTable';
+import { DataTable, Column, SortState } from '@/components/admin/DataTable';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useUIStore } from '@/store/uiStore';
 import { Product } from '@/types';
@@ -16,20 +16,34 @@ import { liveQueryOptions } from '@/lib/syncConfig';
 export default function AdminProductsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  // Server-driven sort — initial value matches the backend default (-createdAt)
+  const [sort, setSort] = useState<SortState>({ key: 'createdAt', direction: 'desc' });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { showToast } = useUIStore();
   const queryClient = useQueryClient();
 
+  // Backend sort syntax: 'field' ascending, '-field' descending
+  const sortParam = `${sort.direction === 'desc' ? '-' : ''}${sort.key}`;
+
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-products', page, search],
-    queryFn: () => api.get(`/admin/products?page=${page}&limit=15${search ? `&q=${search}` : ''}`).then((r) => r.data),
+    queryKey: ['admin', 'products', page, search, sortParam],
+    queryFn: () => api.get(`/admin/products?page=${page}&limit=15&sort=${sortParam}${search ? `&q=${search}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
   });
+
+  const handleSort = (key: string) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'asc' },
+    );
+    setPage(1);
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/products/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
       showToast('Product deleted');
       setDeleteId(null);
     },
@@ -87,6 +101,8 @@ export default function AdminProductsPage() {
         onPageChange={setPage}
         searchable
         onSearch={(q) => { setSearch(q); setPage(1); }}
+        sort={sort}
+        onSortChange={handleSort}
         emptyMessage="No products found"
         actions={(row) => (
           <div className="flex items-center gap-2">

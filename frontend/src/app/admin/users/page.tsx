@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getApiError } from '@/lib/api';
-import { DataTable, Column } from '@/components/admin/DataTable';
+import { DataTable, Column, SortState } from '@/components/admin/DataTable';
 import { formatDate } from '@/lib/utils';
-import { User } from '@/types';
 import { getInitials } from '@/lib/utils';
 import Image from 'next/image';
 import { UserX, UserCheck } from 'lucide-react';
@@ -15,14 +14,28 @@ import { liveQueryOptions } from '@/lib/syncConfig';
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  // Server-driven sort — initial value matches the backend default (-createdAt)
+  const [sort, setSort] = useState<SortState>({ key: 'createdAt', direction: 'desc' });
   const { showToast } = useUIStore();
   const queryClient = useQueryClient();
 
+  // Backend sort syntax: 'field' ascending, '-field' descending
+  const sortParam = `${sort.direction === 'desc' ? '-' : ''}${sort.key}`;
+
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'users', page, search],
-    queryFn: () => api.get(`/admin/users?page=${page}&limit=15${search ? `&search=${search}` : ''}`).then((r) => r.data),
+    queryKey: ['admin', 'users', page, search, sortParam],
+    queryFn: () => api.get(`/admin/users?page=${page}&limit=15&sort=${sortParam}${search ? `&search=${search}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
   });
+
+  const handleSort = (key: string) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'asc' },
+    );
+    setPage(1);
+  };
 
   const toggleStatus = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -85,6 +98,8 @@ export default function AdminUsersPage() {
         onPageChange={setPage}
         searchable
         onSearch={(q) => { setSearch(q); setPage(1); }}
+        sort={sort}
+        onSortChange={handleSort}
         emptyMessage="No customers found"
         actions={(row) => (
           <button

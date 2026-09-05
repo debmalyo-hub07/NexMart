@@ -3,13 +3,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { DataTable, Column } from '@/components/admin/DataTable';
+import { DataTable, Column, SortState } from '@/components/admin/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useUIStore } from '@/store/uiStore';
-import { Order } from '@/types';
 import { formatPrice, formatDate } from '@/lib/utils';
 import { Eye, ChevronUp, ChevronDown } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { liveQueryOptions } from '@/lib/syncConfig';
 
 const ORDER_STATUSES = ['placed','confirmed','processing','shipped','out_for_delivery','delivered','cancelled','returned'];
@@ -17,16 +15,29 @@ const ORDER_STATUSES = ['placed','confirmed','processing','shipped','out_for_del
 export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  // Server-driven sort — initial value matches the backend default (-createdAt)
+  const [sort, setSort] = useState<SortState>({ key: 'createdAt', direction: 'desc' });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { showToast } = useUIStore();
   const queryClient = useQueryClient();
-  const router = useRouter();
+
+  // Backend sort syntax: 'field' ascending, '-field' descending
+  const sortParam = `${sort.direction === 'desc' ? '-' : ''}${sort.key}`;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'orders', page, statusFilter],
-    queryFn: () => api.get(`/admin/orders?page=${page}&limit=15${statusFilter ? `&status=${statusFilter}` : ''}`).then((r) => r.data),
+    queryKey: ['admin', 'orders', page, statusFilter, sortParam],
+    queryFn: () => api.get(`/admin/orders?page=${page}&limit=15&sort=${sortParam}${statusFilter ? `&status=${statusFilter}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
   });
+
+  const handleSort = (key: string) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'asc' },
+    );
+    setPage(1);
+  };
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -80,6 +91,8 @@ export default function AdminOrdersPage() {
         onPageChange={setPage}
         emptyMessage="No orders found"
         rowIdKey="_id"
+        sort={sort}
+        onSortChange={handleSort}
         expandableRender={(row) => {
           const items = (row.items as Array<Record<string, unknown>>) || [];
           const address = (row.shippingAddress as Record<string, string>) || {};
