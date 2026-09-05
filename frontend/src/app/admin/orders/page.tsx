@@ -24,7 +24,7 @@ export default function AdminOrdersPage() {
   const router = useRouter();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-orders', page, statusFilter],
+    queryKey: ['admin', 'orders', page, statusFilter],
     queryFn: () => api.get(`/admin/orders?page=${page}&limit=15${statusFilter ? `&status=${statusFilter}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
   });
@@ -33,11 +33,15 @@ export default function AdminOrdersPage() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/orders/${id}/status`, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
       showToast('Order status updated');
       setUpdatingId(null);
     },
-    onError: () => showToast('Update failed', 'error'),
+    onError: (err: unknown) => {
+      setUpdatingId(null);
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Update failed';
+      showToast(msg, 'error');
+    },
   });
 
   const columns: Column<Record<string, unknown>>[] = [
