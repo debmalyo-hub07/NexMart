@@ -234,7 +234,7 @@ export function ProductForm({ initialData, productId }: { initialData?: any; pro
   const [isDragging, setIsDragging] = useState(false);
 
   const { data: categoriesData } = useQuery({
-    queryKey: ['admin-categories'],
+    queryKey: ['admin', 'categories'],
     queryFn: () => api.get('/categories').then(r => r.data),
     staleTime: 30_000,
   });
@@ -308,7 +308,7 @@ export function ProductForm({ initialData, productId }: { initialData?: any; pro
         await api.post('/products', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         showToast('Product created successfully');
       }
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
       router.push('/admin/products');
     } catch {
       showToast('Failed to save product', 'error');
@@ -351,7 +351,7 @@ export function ProductForm({ initialData, productId }: { initialData?: any; pro
             <div className="space-y-4">
               {fields.map((field, index) => (
                 <div key={field.id} className="p-5 rounded-xl border border-white/10 bg-white/5 relative group transition-all hover:bg-white/10">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="relative">
                       <label className="text-xs text-white/60 mb-1.5 flex justify-between items-center">
                         <span>SKU</span>
@@ -366,6 +366,11 @@ export function ProductForm({ initialData, productId }: { initialData?: any; pro
                       <label className="text-xs text-white/60 mb-1.5 block">Price (₹)</label>
                       <input type="number" {...register(`variants.${index}.price`, { valueAsNumber: true })} className="input text-sm" placeholder="0" suppressHydrationWarning />
                       {errors.variants?.[index]?.price && <p className="text-xs text-red-400 mt-1">{errors.variants[index]?.price?.message}</p>}
+                    </div>
+                    <div>
+                      <label className="text-xs text-white/60 mb-1.5 block">MRP (₹)</label>
+                      <input type="number" step="0.01" {...register(`variants.${index}.comparePrice`, { setValueAs: (v) => (v === '' ? undefined : Number(v)) })} className="input text-sm" placeholder="MRP (optional)" suppressHydrationWarning />
+                      {errors.variants?.[index]?.comparePrice && <p className="text-xs text-red-400 mt-1">{errors.variants[index]?.comparePrice?.message}</p>}
                     </div>
                     <div>
                       <label className="text-xs text-white/60 mb-1.5 block">Stock</label>

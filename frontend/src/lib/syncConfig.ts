@@ -16,13 +16,13 @@ export const STATS_SYNC_MS = 10_000;
 
 /** Common options to attach to any React Query that needs live sync */
 export const liveQueryOptions = {
-  refetchInterval: LIVE_SYNC_MS,
-  refetchIntervalInBackground: true, // poll even when the tab is in background
+  refetchInterval: 60_000,            // 60s polling backstop — socket layer is primary
+  refetchIntervalInBackground: false, // pause polling when the tab is in background
   staleTime: LIVE_SYNC_MS,            // treat data as stale after the interval
 } as const;
 
 export const analyticsQueryOptions = {
   refetchInterval: ANALYTICS_SYNC_MS,
-  refetchIntervalInBackground: true,
+  refetchIntervalInBackground: false,
   staleTime: ANALYTICS_SYNC_MS,
 } as const;
