@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-05 (later still) — circuit breaker: dead Upstash costs ~0ms per request
+
+Fail-open removed the 500s but every request still paid a failed Upstash round-trip (rate limiter on all routes, blacklist check on protected ones) — tens of ms with cached DNS failures, up to 2.5s when the DNS cache expired. The Redis client is now wrapped in a Proxy-based circuit breaker: after 3 consecutive failures all calls reject instantly for 30s, then a single half-open probe; success closes the circuit, so recovery is automatic the moment `.env` points at a live database. Measured: request 1 pays the trip, requests 4+ drop ~20ms in the DNS-cached state and are protected from the periodic 2.5s spikes.
+
 ## 2026-09-05 (later) — Redis resilience: dead Upstash no longer takes the API down
 
 **Diagnosed:** every `/api/v1/*` request 500'd with `fetch failed` — `.env`'s `UPSTASH_REDIS_REST_URL` host no longer resolves in public DNS (deleted/renamed instance), and the global rate limiter's uncaught Upstash call failed every request (~4.4s DNS timeout, 5 retries with backoff).

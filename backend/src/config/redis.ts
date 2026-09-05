@@ -21,12 +21,62 @@ import { logger } from '../utils/logger';
 //   cache/blacklist hit; as a function it throws, so callers can fail open.
 // retry: disabled — 5 retries with exponential backoff on a dead host would
 //   multiply the hang on every request. Callers degrade instead.
-export const upstashRedis = new Redis({
+const realRedis = new Redis({
   url: env.UPSTASH_REDIS_REST_URL,
   token: env.UPSTASH_REDIS_REST_TOKEN,
   signal: () => AbortSignal.timeout(2500),
   retry: false,
 });
+
+// ── Circuit breaker ────────────────────────────────────────────
+// While Upstash is unreachable, every request still paid a failed round-trip
+// (rate limiter on all routes, blacklist check on protected ones) — tens of
+// ms with cached DNS failures, up to the full 2.5s when the DNS cache
+// expires. After BREAKER_THRESHOLD consecutive failures the circuit OPENS:
+// all calls reject instantly for BREAKER_COOLDOWN_MS, then one probe is
+// allowed (half-open). Success closes the circuit — recovery is automatic
+// the moment the URL in .env points at a live database again.
+const BREAKER_THRESHOLD = 3;
+const BREAKER_COOLDOWN_MS = 30_000;
+const breaker = { failures: 0, openUntil: 0 };
+
+function recordSuccess(): void {
+  breaker.failures = 0;
+  breaker.openUntil = 0;
+}
+
+function recordFailure(): void {
+  breaker.failures += 1;
+  if (breaker.failures >= BREAKER_THRESHOLD) {
+    breaker.openUntil = Date.now() + BREAKER_COOLDOWN_MS;
+    logger.error(
+      `Upstash Redis unreachable — circuit OPEN for ${BREAKER_COOLDOWN_MS / 1000}s. ` +
+      'Requests proceed WITHOUT Redis (rate limiting, blacklist, caches, OTP degraded). ' +
+      'Check UPSTASH_REDIS_REST_URL in .env.'
+    );
+  }
+}
+
+export const upstashRedis = new Proxy(realRedis, {
+  get(target, prop) {
+    const value = Reflect.get(target, prop, target);
+    if (typeof value !== 'function') return value;
+
+    return function circuitWrapped(this: unknown, ...args: unknown[]) {
+      if (Date.now() < breaker.openUntil) {
+        return Promise.reject(new Error('Upstash circuit open (Redis unreachable)'));
+      }
+      const result = (value as (...a: unknown[]) => unknown).apply(target, args);
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        return (result as Promise<unknown>).then(
+          (v) => { recordSuccess(); return v; },
+          (e) => { recordFailure(); throw e; }
+        );
+      }
+      return result; // sync method (pipeline builders etc.) — passthrough
+    };
+  },
+}) as Redis;
 
 // ── Rate Limiters ─────────────────────────────────────────────
 export const generalRateLimiter = new Ratelimit({
