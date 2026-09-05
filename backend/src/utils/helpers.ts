@@ -69,6 +69,17 @@ export function generateNumericOtp(length = 6): string {
   return otp;
 }
 
+/**
+ * Mask an email for logs: debmalyobarman2003@gmail.com → deb***@gmail.com
+ * Emails are PII — they never appear in full in log output.
+ */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return '***';
+  const visible = local.slice(0, 3);
+  return `${visible}${visible.length < local.length ? '***' : ''}@${domain}`;
+}
+
 /** Alias kept for compatibility */
 export const generateOtp = generateNumericOtp;
 
