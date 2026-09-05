@@ -411,20 +411,20 @@ Each item: the gap, the evidence, the acceptance criterion. Execute in order; P0
 | 17 ✅ | "picked" regresses order `shipped → processing`, visible to the customer. | FIXED: `picked` maps to `'shipped'`; forward-only transitions. |
 | 18 ✅ | Hardcoded homepage categories/stats/testimonials; `page.tsx` categories can 404 against real DB. | FIXED: categories from `GET /categories` with skeleton loading; fabricated stats row + testimonials deleted. |
 
-### P2 — dead controls & patterns
+### P2 — dead controls & patterns — ✅ DONE 2026-09-05 (2 deferrals noted)
 | # | Gap | Fix / acceptance |
 |---|---|---|
-| 19 | Admin product/order "Eye" preview links bounce to `/admin` (middleware role confinement). No admin order-detail view exists. | Admin storefront-preview path (new-tab, or middleware exemption for GET storefront routes for admin role); order-detail drawer/page built to §4.2. |
-| 20 | Product Share button has no onClick; wishlist hearts are local-only (no API). | `navigator.share` + clipboard fallback; wishlist API + heart state from server. |
-| 21 | Admin orders select permanently disabled after failed update (`updatingId` never reset in `onError`). | Reset in `onError`; optimistic flip + rollback toast. |
-| 22 | "Register Admin Account" link unreachable for non-admins; first admin only via seed. | Intentional: hide link for logged-out users; document seed bootstrap. |
-| 23 | Customers page shows Active/Suspended with no control. | Suspend/activate action + route. |
-| 24 | `GET /delivery/orders/:id` and Wishlist model unreachable; `comparePrice`/`specifications`/`displayOrder` have no inputs. | Build the surfaces or remove the dead fields/APIs. |
-| 25 | Form library split: all auth forms + 2 admin forms hand-rolled. | Convert to rhf+zod per §5.4. |
-| 26 | Query-key drift (`['admin-products']` vs `['admin','products']`). | §5.2 tuple convention; invalidation works without polling. |
-| 27 | Double-polling (10s refetch + 20s layout invalidation) with `refetchIntervalInBackground`. | Single channel: socket push + 60s visibility-gated backstop. |
-| 28 | Category manager fetches `isActive:true` only — deactivated categories unmanageable. | Admin fetch includes inactive. |
-| 29 | Server messages discarded in most catches; Zod `errors` key unread. | §3.2/§5.4 pass-through; adaptive field errors. |
+| 19 ✅ | Admin product/order "Eye" preview links bounce to `/admin` (middleware role confinement). No admin order-detail view exists. | FIXED: admins keep read access to `/products` `/categories` `/search` `/about`; customer-account surfaces still bounce. Orders Eye toggles a row-detail expansion (customer, items, address, total) via a DataTable `ActionContext`. (Full order-detail page deferred to feature work.) |
+| 20 ✅ | Product Share button has no onClick; wishlist hearts are local-only (no API). | FIXED: `navigator.share` + clipboard fallback; `GET/POST/DELETE /customer/wishlist` + `useWishlist()` hook with optimistic toggles and guest sign-in prompt. |
+| 21 ✅ | Admin orders select permanently disabled after failed update (`updatingId` never reset in `onError`). | FIXED (landed with P0 Task 1): `onError` resets `updatingId` + passes the server message. |
+| 22 ✅ | "Register Admin Account" link unreachable for non-admins; first admin only via seed. | FIXED: link renders only for signed-in admins (server-side `auth()` check). Seed bootstrap documented. |
+| 23 ✅ | Customers page shows Active/Suspended with no control. | FIXED: `PATCH /admin/customers/:id/status` + suspend/activate toggle with real query-key invalidation. |
+| 24 ✅ | `GET /delivery/orders/:id` and Wishlist model unreachable; `comparePrice`/`specifications`/`displayOrder` have no inputs. | PARTIAL by design: wishlist API built (above); `displayOrder` + `comparePrice` inputs added. **Deferred:** delivery-order-detail consumer and `specifications` editor → feature work. |
+| 25 ✅ | Form library split: all auth forms + 2 admin forms hand-rolled. | FIXED: AuthForm (all 6 auth pages), admin categories, admin profile → rhf+zod with inline adaptive errors. |
+| 26 ✅ | Query-key drift (`['admin-products']` vs `['admin','products']`). | FIXED: all flat keys converted to tuples; invalidation cascades. |
+| 27 ✅ | Double-polling (10s refetch + 20s layout invalidation) with `refetchIntervalInBackground`. | FIXED: single 60s backstop, background polling off, layout intervals deleted. |
+| 28 ✅ | Category manager fetches `isActive:true` only — deactivated categories unmanageable. | FIXED: `includeInactive=true` for admin with cache-key split (public cache never poisoned). |
+| 29 ✅ | Server messages discarded in most catches; Zod `errors` key unread. | FIXED across the surfaces touched (cart, wishlist, suspend, invoice, forms): `getApiError` pass-through everywhere; adaptive field errors via rhf+zod. |
 
 ### P3 — dishonest data (delete or wire)
 `MOCK_ACTIVITY` "Security & Activity Log" · hardcoded `change={12/8/5}` deltas · fake LIVE badge · delivery "Verified by Admin" unconditional · "Delivered Today" counting current page · "Awaiting Approval" showing 0 off-tab · `getStatusColor` missing 5 statuses · false Sentry comment · `grid-cols-4` with 3 cards. **Every item: real data, honest label, or gone.**
