@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getApiError } from '@/lib/api';
 import { DataTable, Column, SortState } from '@/components/admin/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useUIStore } from '@/store/uiStore';
 import { formatPrice, formatDate } from '@/lib/utils';
-import { Eye, ChevronUp, ChevronDown } from 'lucide-react';
+import { Eye, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { liveQueryOptions } from '@/lib/syncConfig';
 
 const ORDER_STATUSES = ['placed','confirmed','processing','shipped','out_for_delivery','delivered','cancelled','returned'];
@@ -18,6 +19,7 @@ export default function AdminOrdersPage() {
   // Server-driven sort — initial value matches the backend default (-createdAt)
   const [sort, setSort] = useState<SortState>({ key: 'createdAt', direction: 'desc' });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [refundId, setRefundId] = useState<string | null>(null);
   const { showToast } = useUIStore();
   const queryClient = useQueryClient();
 
@@ -51,6 +53,19 @@ export default function AdminOrdersPage() {
       setUpdatingId(null);
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Update failed';
       showToast(msg, 'error');
+    },
+  });
+
+  const refundMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/admin/orders/${id}/refund`),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
+      showToast(res.data?.message || 'Refund initiated successfully');
+      setRefundId(null);
+    },
+    onError: (err: unknown) => {
+      setRefundId(null);
+      showToast(getApiError(err), 'error');
     },
   });
 
@@ -128,10 +143,24 @@ export default function AdminOrdersPage() {
                 <p>{[address.addressLine1, address.city, address.state, address.pincode].filter(Boolean).join(', ')}</p>
               </div>
 
-              {/* Total */}
-              <div className="border-t border-white/5 pt-3 flex items-center justify-between">
+              {/* Total + refund */}
+              <div className="border-t border-white/5 pt-3 flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Total</p>
-                <p className="text-sm font-semibold text-acid-400">{formatPrice((row.total as number) ?? 0)}</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-semibold text-acid-400">{formatPrice((row.total as number) ?? 0)}</p>
+                  {row.paymentMethod === 'online' && row.paymentStatus === 'paid' && (
+                    <button
+                      type="button"
+                      onClick={() => setRefundId(row._id as string)}
+                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <RotateCcw size={12} /> Refund payment
+                    </button>
+                  )}
+                  {row.paymentStatus === 'refunded' && (
+                    <span className="badge-amber text-xs">Refunded</span>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -162,6 +191,16 @@ export default function AdminOrdersPage() {
             </div>
           </div>
         )}
+      />
+
+      <ConfirmDialog
+        open={!!refundId}
+        title="Refund payment"
+        description="Refund the full amount of this order via Razorpay? The payment status will be marked as refunded. This cannot be undone."
+        confirmLabel="Refund"
+        isLoading={refundMutation.isPending}
+        onConfirm={() => refundId && refundMutation.mutate(refundId)}
+        onCancel={() => setRefundId(null)}
       />
     </div>
   );

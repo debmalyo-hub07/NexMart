@@ -103,3 +103,13 @@ export function emitAgentStatusUpdate(agentId: string, status: string): void {
     logger.error('Socket emitAgentStatusUpdate failed:', err);
   }
 }
+
+// Real-time assignment notification for the delivery agent's room. The email
+// is the durable channel; this makes the agent's dashboard update instantly.
+export function emitDeliveryAssigned(agentId: string, orderId: string, data: object = {}): void {
+  try {
+    getIO().to(`user:${agentId}`).emit('delivery:assigned', { orderId, ...data });
+  } catch (err) {
+    logger.error('Socket emitDeliveryAssigned failed:', err);
+  }
+}

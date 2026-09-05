@@ -6,6 +6,7 @@
 export const SOCKET_EVENTS = {
   orderStatusUpdated: 'order:status_updated',
   orderNew: 'order:new',
+  deliveryAssigned: 'delivery:assigned',
   stockUpdated: 'product:stock_updated',
   dashboardStats: 'dashboard:stats_updated',
   agentStatusUpdated: 'agent:status_updated',

@@ -83,12 +83,10 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
 
     if (order) {
       const customer = order.customer as unknown as { name?: string; email?: string; _id: { toString(): string } };
-      try {
-        if (customer?.email) {
-          await sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, orderStatus);
-        }
-      } catch (err) {
-        console.error('Order status email failed:', err);
+      // Fire-and-forget — SMTP latency never sits in the agent's request path
+      if (customer?.email) {
+        void sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, orderStatus)
+          .catch((err) => console.error('Order status email failed:', err));
       }
       emitOrderStatusUpdate(customer._id.toString(), order.orderId, orderStatus);
     }

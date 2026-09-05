@@ -208,16 +208,16 @@ export async function verifyPayment(req: Request, res: Response): Promise<void> 
   // Emit real-time update
   emitOrderStatusUpdate(userId, order.orderId, 'confirmed');
 
-  // Email the customer their confirmation (never throws into the request)
+  // Email the customer their confirmation — fire-and-forget so SMTP latency
+  // never sits in the payment-verification request path.
   // order.customer is a raw ObjectId here (not populated) — fetch it
-  const customerDoc = await Customer.findById(order.customer).select('name email');
-  try {
+  void Customer.findById(order.customer).select('name email').then((customerDoc) => {
     if (customerDoc?.email) {
-      await sendOrderStatusEmail(customerDoc.email, customerDoc.name, order.orderId, 'confirmed');
+      return sendOrderStatusEmail(customerDoc.email, customerDoc.name, order.orderId, 'confirmed')
+        .catch((err) => console.error('Order confirmation email failed:', err));
     }
-  } catch (err) {
-    console.error('Order confirmation email failed:', err);
-  }
+    return undefined;
+  }).catch((err) => console.error('Order confirmation email lookup failed:', err));
 
   // Queue invoice generation (async, non-blocking)
   await queueInvoiceGeneration(order._id.toString());
@@ -255,6 +255,20 @@ export async function getOrderById(req: Request, res: Response): Promise<void> {
 }
 
 // ── Update Order Status (Admin/Delivery) ──────────────────────
+
+// Forward-only transition graph (CLAUDE.md §4.3: an order never moves
+// backwards; cancellation/return are the only exits from the happy path).
+const ALLOWED_ORDER_TRANSITIONS: Record<string, string[]> = {
+  placed: ['confirmed', 'cancelled'],
+  confirmed: ['processing', 'shipped', 'cancelled'],
+  processing: ['shipped', 'cancelled'],
+  shipped: ['out_for_delivery', 'returned'],
+  out_for_delivery: ['delivered', 'returned'],
+  delivered: ['returned'],
+  cancelled: [],
+  returned: [],
+};
+
 export async function updateOrderStatus(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;
   const { status, note } = z.object({
@@ -262,16 +276,23 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
     note: z.string().optional(),
   }).parse(req.body);
 
-  const order = await Order.findByIdAndUpdate(
-    req.params.id,
-    {
-      orderStatus: status,
-      $push: { statusHistory: { status, timestamp: new Date(), updatedBy: userId, note } },
-    },
-    { new: true }
-  ).populate('customer', 'email name');
-
+  // Fetch first so the guard and the write act on the same read (no
+  // findByIdAndUpdate racing a stale transition check).
+  const order = await Order.findById(req.params.id).populate('customer', 'email name');
   if (!order) { sendNotFound(res, 'Order not found'); return; }
+
+  // Idempotent no-op: re-applying the current status succeeds without
+  // polluting the history.
+  if (order.orderStatus !== status) {
+    const allowed = ALLOWED_ORDER_TRANSITIONS[order.orderStatus] || [];
+    if (!allowed.includes(status)) {
+      sendBadRequest(res, `Order cannot move from "${order.orderStatus}" to "${status}". Allowed from "${order.orderStatus}": ${allowed.join(', ') || 'none (terminal)'}.`);
+      return;
+    }
+    order.orderStatus = status;
+    order.statusHistory.push({ status, timestamp: new Date(), updatedBy: userId, note } as any);
+    await order.save();
+  }
 
   const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
 
@@ -280,13 +301,11 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
     await queueInvoiceGeneration(order._id.toString());
   }
 
-  // Email the customer on meaningful transitions (never throws into the request)
-  try {
-    if (customer?.email) {
-      await sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, status);
-    }
-  } catch (err) {
-    console.error('Order status email failed:', err);
+  // Email the customer on meaningful transitions — fire-and-forget so SMTP
+  // latency never sits in the request path.
+  if (customer?.email) {
+    void sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, status)
+      .catch((err) => console.error('Order status email failed:', err));
   }
 
   emitOrderStatusUpdate(customer._id.toString(), order.orderId, status);

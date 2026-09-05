@@ -5,11 +5,13 @@ import { Product } from '../models/Product';
 import { DeliveryAssignment } from '../models/DeliveryAssignment';
 import { DeliveryAgent } from '../models/DeliveryAgent';
 import { Admin } from '../models/Admin';
-import { sendSuccess, sendNotFound, sendPaginated } from '../utils/response';
+import { sendSuccess, sendNotFound, sendBadRequest, sendError, sendPaginated } from '../utils/response';
 import { parsePagination, parseSortField } from '../utils/helpers';
-import { sendAgentAssignmentEmail } from '../services/email.service';
-import { emitOrderStatusUpdate } from '../config/socket';
+import { sendAgentAssignmentEmail, sendOrderStatusEmail } from '../services/email.service';
+import { emitOrderStatusUpdate, emitDeliveryAssigned } from '../config/socket';
+import { refundPayment } from '../services/razorpay.service';
 import { upstashRedis } from '../config/redis';
+import { logger } from '../utils/logger';
 
 // Server-side sort allow-lists. The `sort` query param uses Mongo syntax:
 // 'field' for ascending, '-field' for descending. parseSortField falls back
@@ -174,8 +176,61 @@ export async function assignDeliveryAgent(req: Request, res: Response): Promise<
   }
 
   emitOrderStatusUpdate(order.customer.toString(), order.orderId, 'shipped');
+  // Real-time assignment notification for the agent (email stays the
+  // durable channel; the socket event makes the dashboard update instantly)
+  emitDeliveryAssigned(agent._id.toString(), order.orderId, {
+    customerName: (order.shippingAddress as { fullName?: string } | undefined)?.fullName,
+  });
 
   sendSuccess(res, order, 'Delivery agent assigned');
+}
+
+// ── Refund a paid order (full refund via Razorpay) ─────────────
+export async function refundOrder(req: Request, res: Response): Promise<void> {
+  const adminId = (req as any).user?.userId as string | undefined;
+
+  const order = await Order.findById(req.params.id).populate('customer', 'name email');
+  if (!order) { sendNotFound(res, 'Order not found'); return; }
+
+  if (order.paymentMethod !== 'online') {
+    sendBadRequest(res, 'Only online payments can be refunded. COD orders have no payment to refund.');
+    return;
+  }
+  if (order.paymentStatus !== 'paid') {
+    sendBadRequest(res, `Only paid orders can be refunded (current payment status: ${order.paymentStatus}).`);
+    return;
+  }
+  if (!order.razorpayPaymentId) {
+    sendBadRequest(res, 'This order has no Razorpay payment ID on file — refund it from the Razorpay dashboard.');
+    return;
+  }
+
+  try {
+    const refund = await refundPayment(order.razorpayPaymentId);
+
+    order.paymentStatus = 'refunded';
+    order.statusHistory.push({
+      status: order.orderStatus, // the fulfilment status is unchanged; the PAYMENT is refunded
+      timestamp: new Date(),
+      updatedBy: adminId,
+      note: `Payment refunded via Razorpay (refund ${refund.id}, ₹${(refund.amount / 100).toFixed(2)})`,
+    } as any);
+    await order.save();
+
+    const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
+    emitOrderStatusUpdate(customer._id.toString(), order.orderId, order.orderStatus);
+    if (customer?.email) {
+      void sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, 'cancelled')
+        .catch((err) => console.error('Refund email failed:', err));
+    }
+
+    logger.info(`Refund: order ${order.orderId} refunded (refund ${refund.id}, status ${refund.status}).`);
+    sendSuccess(res, { refundId: refund.id, refundStatus: refund.status, orderStatus: order.orderStatus }, 'Refund initiated successfully');
+  } catch (err: any) {
+    // SDK detail to the server log only — the admin gets a clean message
+    console.error('Razorpay refund failed:', err?.error?.description || err?.message || err);
+    sendError(res, 'The refund could not be processed. Please try again or use the Razorpay dashboard.', 503);
+  }
 }
 
 export async function getRevenueAnalytics(req: Request, res: Response): Promise<void> {

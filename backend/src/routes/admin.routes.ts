@@ -6,6 +6,7 @@ import {
   getDeliveryAgents,
   getAllAgents,
   assignDeliveryAgent,
+  refundOrder,
   getRevenueAnalytics,
   getAllProducts,
   updateAdminProfile,
@@ -104,5 +105,6 @@ router.delete('/agents/:id', async (req, res) => {
 router.get('/products', getAllProducts);
 router.get('/orders', getAllOrders);
 router.post('/orders/:orderId/assign/:agentId', assignDeliveryAgent);
+router.post('/orders/:id/refund', refundOrder);
 
 export default router;

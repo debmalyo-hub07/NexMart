@@ -1,9 +1,13 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { LiveSyncBadge } from '@/components/common/LiveSyncBadge';
+import { useSocket } from '@/hooks/useSocket';
+import { SOCKET_EVENTS } from '@/lib/socketEvents';
+import { useQueryClient } from '@tanstack/react-query';
+import { useUIStore } from '@/store/uiStore';
 import { Menu } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -19,12 +23,27 @@ const drawerTransition = { type: 'spring' as const, damping: 25, stiffness: 200 
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { on } = useSocket();
+  const queryClient = useQueryClient();
+  const { showToast } = useUIStore();
 
   const openSidebar  = useCallback(() => setMobileSidebarOpen(true),  []);
   const closeSidebar = useCallback(() => setMobileSidebarOpen(false), []);
 
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith('/admin/login') || pathname?.startsWith('/admin/register');
+
+  // Real-time new-order notification: the backend emits 'order:new' to the
+  // admin room the moment an order is placed — toast + instant data refresh
+  // instead of waiting for the 60s polling backstop.
+  useEffect(() => {
+    if (isAuthPage) return;
+    const unsubscribe = on<{ orderId: string }>(SOCKET_EVENTS.orderNew, (payload) => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+      showToast(`New order received${payload?.orderId ? ` (${payload.orderId})` : ''}`, 'success');
+    });
+    return unsubscribe;
+  }, [on, queryClient, showToast, isAuthPage]);
 
   if (isAuthPage) {
     return <div className="min-h-screen bg-space-900">{children}</div>;

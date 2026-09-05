@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-06 — stability gap fixes (risk register rows 1–6)
+
+- **Order status transition guard:** forward-only state graph enforced server-side (`placed→confirmed→…→delivered`, cancellation/return as the only exits); invalid moves get a 400 naming the allowed set; re-applying the current status is an idempotent no-op. Verified live.
+- **Stale-order reaper + payment reconciliation:** every 15 min, online orders still `pending` 30+ min after creation are reconciled against Razorpay first (paid-but-unconfirmed → confirmed, invoice queued, customer notified) and only then cancelled with automatic restocking. COD orders are never auto-reaped. In-process, crash-safe, bounded to 50/cycle.
+- **Admin refunds:** `POST /admin/orders/:id/refund` — full Razorpay refund with idempotency guards (online + paid + has payment ID), history entry, socket + email notification, SDK errors logged server-side only. "Refund payment" button (ConfirmDialog-gated) in the admin order-detail panel. Verified live (non-paid rejection).
+- **Real-time role notifications:** admin gets a toast + instant refresh on `order:new` (was 60s-poll only); the delivery agent gets a toast + instant refresh on the new `delivery:assigned` event emitted to their room on assignment.
+- **Non-blocking emails:** all three status-email call sites are fire-and-forget — SMTP latency no longer sits in any request path.
+- **Webhook-secret boot check:** production boots abort loudly without `RAZORPAY_WEBHOOK_SECRET`; dev logs a warning.
+
 ## 2026-09-05 (security incident) — leaked MongoDB Atlas credential rotated
 
 GitHub secret scanning flagged two `mongodb_atlas_db_uri_with_credentials` alerts: pre-squash-history commits (May 17) of `backend/db-cleanup.js` and `backend/migrate-users.js` contained the live Atlas connection string with embedded credentials — same user and cluster as the active `.env` credential, on a public repo with a fork and a 0.0.0.0/0 network rule. Current `main` was already clean (grep-verified; files read from `.env`). Remediated: **database password rotated** in Atlas (verified live — backend serves real data on the new credential), both alerts resolved as `revoked`, and **secret scanning + push protection enabled** on the repository so future pushes containing secrets are blocked at push time. Lesson recorded in CONTRIBUTING: `.env` only, always — the gitignore was correct; the leak predated it.

@@ -10,12 +10,24 @@ import { connectDatabase } from './config/database';
 import { initializeSocket } from './config/socket';
 import { seedAdmin } from './seed/adminSeed';
 import { startInvoiceWorker } from './queues/invoiceQueue';
+import { startOrderReaper } from './services/orderReaper';
 import { env } from './config/env';
 import { logger } from './utils/logger';
 
 async function bootstrap(): Promise<void> {
   try {
     logger.info('🚀 Starting NexMart API...');
+
+    // 0. Config guards — fail loudly before serving traffic.
+    // The webhook is the source of truth for payments made by customers who
+    // close the tab mid-checkout; without its secret it 503s silently.
+    if (env.NODE_ENV === 'production' && !env.RAZORPAY_WEBHOOK_SECRET) {
+      logger.error('FATAL: RAZORPAY_WEBHOOK_SECRET is not set — payment webhooks cannot be verified. Aborting.');
+      process.exit(1);
+    }
+    if (env.NODE_ENV !== 'production' && !env.RAZORPAY_WEBHOOK_SECRET) {
+      logger.warn('⚠️  RAZORPAY_WEBHOOK_SECRET not set — the webhook endpoint will 503 until configured.');
+    }
 
     // 1. Connect MongoDB
     await connectDatabase();
@@ -35,6 +47,10 @@ async function bootstrap(): Promise<void> {
     // 6. Start invoice worker (in-process async queue — no Redis required)
     startInvoiceWorker();
     logger.info('✅ Invoice worker started (in-process queue)');
+
+    // 7. Start the stale-order reaper (cancels abandoned checkouts, restocks,
+    //    reconciles paid-but-unconfirmed orders via the Razorpay API)
+    startOrderReaper();
 
     // 7. Start listening
     server.listen(parseInt(env.PORT), () => {

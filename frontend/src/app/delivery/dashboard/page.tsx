@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { DataTable, Column } from '@/components/admin/DataTable';
@@ -11,6 +11,8 @@ import { Truck, MapPin, Package, ChevronDown, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ClockCalendar } from '@/components/common/ClockCalendar';
 import { liveQueryOptions } from '@/lib/syncConfig';
+import { useSocket } from '@/hooks/useSocket';
+import { SOCKET_EVENTS } from '@/lib/socketEvents';
 
 // 'assigned' is the model default (display-only — the backend won't accept it as an update target)
 const DELIVERY_STATUSES = ['assigned', 'picked', 'out_for_delivery', 'delivered', 'attempted', 'returned'];
@@ -20,6 +22,18 @@ export default function DeliveryDashboardPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { showToast } = useUIStore();
   const queryClient = useQueryClient();
+  const { on } = useSocket();
+
+  // Real-time assignment notification: the backend emits 'delivery:assigned'
+  // to the agent's room the moment an admin assigns an order — toast +
+  // instant refresh instead of waiting for the polling backstop.
+  useEffect(() => {
+    const unsubscribe = on<{ orderId: string; customerName?: string }>(SOCKET_EVENTS.deliveryAssigned, (payload) => {
+      queryClient.invalidateQueries({ queryKey: ['delivery', 'my-deliveries'] });
+      showToast(`New order assigned${payload?.orderId ? ` (${payload.orderId})` : ''}`, 'success');
+    });
+    return unsubscribe;
+  }, [on, queryClient]);
 
   // Phase 8 — Auto-sync every 20 seconds (lightweight polling, no UI freeze)
   const { data, isLoading } = useQuery({
