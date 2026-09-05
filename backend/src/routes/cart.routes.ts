@@ -1,17 +1,18 @@
 import { Router } from 'express';
-import { getCart, addToCart, updateCartItem, removeCartItem, clearCart } from '../controllers/cart.controller';
-import { protectCustomer } from '../middleware/auth';
+import { getCart, addToCart, updateCartItem, removeCartItem, clearCart, mergeGuestCart } from '../controllers/cart.controller';
+import { optionalCustomerAuth, protectCustomer } from '../middleware/auth';
 
 const router = Router();
 
-// optionalAuth — works for both guests and authenticated users
-// We bypass optionalCustomerAuth and just use a dummy one for now, or just let controller handle it
-router.use((req, res, next) => next());
+// optionalCustomerAuth binds the cart to the account when logged in,
+// guests keep the x-session-id scope. Never rejects.
+router.use(optionalCustomerAuth);
 
 router.get('/', getCart);
 router.post('/items', addToCart);
 router.put('/items/:itemId', updateCartItem);
 router.delete('/items/:itemId', removeCartItem);
 router.delete('/', clearCart);
+router.post('/merge', protectCustomer, mergeGuestCart);
 
 export default router;

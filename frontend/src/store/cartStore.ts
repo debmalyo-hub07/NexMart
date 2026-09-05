@@ -51,10 +51,16 @@ export const useCartStore = create<CartState>()(
       },
 
       updateItem: async (itemId, quantity) => {
+        const prev = get().items;
+        set({ items: prev.map((i) => (i._id === itemId ? { ...i, quantity } : i)) });
         try {
           const { data } = await api.put(`/cart/items/${itemId}`, { quantity });
           set({ items: data.data?.items || [] });
-        } catch {}
+        } catch (err) {
+          set({ items: prev }); // rollback
+          const { useUIStore } = await import('@/store/uiStore');
+          useUIStore.getState().showToast(getApiError(err), 'error');
+        }
       },
 
       removeItem: async (itemId) => {
@@ -63,9 +69,11 @@ export const useCartStore = create<CartState>()(
         set({ items: prev.filter((i) => i._id !== itemId) });
         try {
           const { data } = await api.delete(`/cart/items/${itemId}`);
-          set({ items: data.data?.items || [] });
-        } catch {
+          set({ items: data.data?.items || prev.filter((i) => i._id !== itemId) });
+        } catch (err) {
           set({ items: prev }); // rollback
+          const { useUIStore } = await import('@/store/uiStore');
+          useUIStore.getState().showToast(getApiError(err), 'error');
         }
       },
 
@@ -73,7 +81,12 @@ export const useCartStore = create<CartState>()(
         try {
           await api.delete('/cart');
           set({ items: [] });
-        } catch {}
+        } catch (err) {
+          // Cart stays visible if the server refuses; order success already cleared
+          // via the client state, so surface but don't block.
+          const { useUIStore } = await import('@/store/uiStore');
+          useUIStore.getState().showToast(getApiError(err), 'error');
+        }
       },
 
       itemCount: () => get().items.reduce((sum, item) => sum + item.quantity, 0),

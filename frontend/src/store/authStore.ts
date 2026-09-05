@@ -14,6 +14,7 @@ interface AuthState {
   setUser: (user: User, token: string) => void;
   refreshUser: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
+  reset: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,10 +33,18 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token, isAuthenticated: true });
       },
 
+      reset: () => {
+        set({ user: null, token: null, isAuthenticated: false });
+      },
+
       // role must be passed so the credentials provider hits the right backend endpoint
       login: async (email, password, role = 'customer') => {
         set({ isLoading: true });
         try {
+          // Call direct login API to set the httpOnly cookie on the browser
+          const endpointRole = role === 'agent' ? 'delivery' : role;
+          await api.post(`/auth/${endpointRole}/login`, { email, password });
+
           const { signIn, getSession } = await import('next-auth/react');
           const result = await signIn('credentials', {
             email,
@@ -67,12 +76,28 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
             });
 
-            // Fire and forget profile fetch in the background to get full details (like address)
+            // Fire and forget profile fetch + guest-cart merge in the background
             api.get(`/${resolvedRole}/profile`).then(({ data }) => {
               if (data?.data) {
                 set((state) => ({ user: { ...state.user!, ...data.data } }));
               }
             }).catch(() => {});
+
+            if (resolvedRole === 'customer') {
+              const { useCartStore } = await import('@/store/cartStore');
+              const guestItems = useCartStore.getState().items;
+              if (guestItems.length > 0) {
+                api.post('/cart/merge', {
+                  items: guestItems.map((i) => ({ product: i.product?._id ?? i.product, variant: i.variant, quantity: i.quantity })),
+                }).then(({ data }) => {
+                  if (data?.data?.items) {
+                    useCartStore.setState({ items: data.data.items });
+                  }
+                }).catch(() => {
+                  // Merge failure is non-fatal — the guest cart stays in localStorage
+                });
+              }
+            }
             
           } else {
             throw new Error('Session not established');
@@ -90,6 +115,17 @@ export const useAuthStore = create<AuthState>()(
           
           const { signOut } = await import('next-auth/react');
           
+          // Clear query cache
+          try {
+            const { clearQueryCache } = await import('@/app/providers');
+            clearQueryCache();
+          } catch (e) {
+            console.error('Error clearing query cache:', e);
+          }
+
+          // Reset Zustand state
+          get().reset();
+
           // Fire and forget the backend logout so it doesn't block the UI
           api.post('/auth/logout').catch(() => {});
           
@@ -106,7 +142,7 @@ export const useAuthStore = create<AuthState>()(
           await signOut({ callbackUrl: cbUrl });
         } catch {
           clearToken();
-          set({ user: null, token: null, isAuthenticated: false });
+          get().reset();
         }
       },
 
@@ -128,7 +164,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'nexmart-auth',
-      partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
+      // NOTE: `token` is deliberately NOT persisted. The JWT lives only in the
+      // HTTP-only `nexmart_*_session` cookie (sent automatically via withCredentials).
+      // Persisting it to localStorage would expose it to XSS. It is kept in-memory
+      // only for the current tab session (used for the Bearer fallback in providers.tsx).
+      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
   )
 );
