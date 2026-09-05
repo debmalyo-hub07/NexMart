@@ -4,38 +4,27 @@ import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import Link from 'next/link';
-import { ArrowRight, ShoppingBag, Shield, Truck, Star } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { GlowOrb } from '@/components/common/GlowOrb';
-import { Counter } from '@/components/common/Counter';
 import { ProductCard } from '@/components/product/ProductCard';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { ProductCardSkeleton } from '@/components/common/SkeletonLoader';
-// Direct import — page.tsx is 'use client', so Three.js is safe to bundle here.
-// Avoids the lazy-chunk download delay caused by dynamic({ ssr: false }).
-import { HeroBackground } from '@/components/common/HeroBackground';
+import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 
-const categories = [
-  { name: 'Electronics', slug: 'electronics', emoji: '💻', color: 'from-violet-600/20 to-violet-900/20' },
-  { name: 'Fashion', slug: 'fashion', emoji: '👗', color: 'from-pink-600/20 to-pink-900/20' },
-  { name: 'Home & Living', slug: 'home-living', emoji: '🏠', color: 'from-amber-600/20 to-amber-900/20' },
-  { name: 'Books', slug: 'books', emoji: '📚', color: 'from-acid-400/20 to-acid-600/20' },
-  { name: 'Sports', slug: 'sports', emoji: '⚽', color: 'from-blue-600/20 to-blue-900/20' },
-  { name: 'Beauty', slug: 'beauty', emoji: '✨', color: 'from-rose-600/20 to-rose-900/20' },
-];
+const HeroBackground = dynamic(
+  () => import('@/components/common/HeroBackground').then((mod) => mod.HeroBackground),
+  { ssr: false }
+);
 
-const stats = [
-  { label: 'Products Listed', value: 250000, suffix: '+' },
-  { label: 'Happy Customers', value: 500000, suffix: '+' },
-  { label: 'Cities Delivered', value: 500, suffix: '+' },
-  { label: 'Seller Partners', value: 10000, suffix: '+' },
-];
-
-const testimonials = [
-  { name: 'Priya S.', city: 'Mumbai', rating: 5, text: 'Amazing! Got my order in 2 days. Quality exceeded expectations.' },
-  { name: 'Rahul M.', city: 'Delhi', rating: 5, text: 'Best prices online. Customer support was incredibly responsive.' },
-  { name: 'Ananya P.', city: 'Bengaluru', rating: 5, text: 'The website feels so premium. Love the dark design!' },
-];
+interface CategoryTile {
+  name: string;
+  slug: string;
+  parent?: { _id: string } | string | null;
+  icon?: string;
+  displayOrder: number;
+}
 
 export default function HomePage() {
   const textRef = useRef<HTMLHeadingElement>(null);
@@ -47,46 +36,72 @@ export default function HomePage() {
 
   const products = featuredData?.data || [];
 
-  useEffect(() => {
-    if (!textRef.current) return;
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['homepage', 'categories'],
+    queryFn: () => api.get('/categories').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
 
-    // Dynamically import ScrollTrigger to keep SSR safe
+  const categories = ((categoriesData?.data || []) as CategoryTile[])
+    .filter((c) => !c.parent)
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .slice(0, 8)
+    .map((c) => ({
+      name: c.name,
+      slug: c.slug,
+      emoji: c.icon || '🛍️',
+      color: 'from-violet-600/20 to-violet-900/20',
+    }));
+
+  useEffect(() => {
+    let ctx: gsap.Context;
+
     import('gsap/ScrollTrigger').then(({ ScrollTrigger }) => {
       gsap.registerPlugin(ScrollTrigger);
 
-      const chars = textRef.current?.querySelectorAll('.char');
-      if (chars?.length) {
-        gsap.fromTo(chars,
-          { opacity: 0, y: 60 },
-          { opacity: 1, y: 0, duration: 0.8, stagger: 0.03, ease: 'power4.out', delay: 0.2 }
-        );
-      }
+      ctx = gsap.context(() => {
+        const chars = textRef?.current?.querySelectorAll('.char');
+        if (chars?.length) {
+          gsap.fromTo(chars,
+            { opacity: 0, y: 60 },
+            { opacity: 1, y: 0, duration: 0.6, stagger: 0.03, ease: 'power4.out', delay: 0.2 }
+          );
+        }
 
-      // ScrollTrigger setups for sections
-      const sections = document.querySelectorAll('.gsap-section');
-      sections.forEach((section) => {
-        gsap.fromTo(section,
-          { opacity: 0, y: 40 },
-          {
-            opacity: 1,
-            y: 0,
-            duration: 0.8,
-            ease: 'power3.out',
-            scrollTrigger: {
-              trigger: section,
-              start: 'top 85%',
-            },
-          }
-        );
+        const sections = document.querySelectorAll('.gsap-section');
+        sections.forEach((section) => {
+          gsap.fromTo(section,
+            { opacity: 0, y: 40 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.4,
+              ease: 'power3.out',
+              scrollTrigger: {
+                trigger: section,
+                start: 'top 85%',
+              },
+            }
+          );
+        });
+
+        // Trigger ScrollTrigger refresh
+        ScrollTrigger.refresh();
       });
     });
+
+    return () => {
+      if (ctx) ctx.revert();
+    };
   }, []);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
       {/* Hero */}
       <section className="relative min-h-screen flex items-center pt-[72px] overflow-hidden">
-        <HeroBackground />
+        <Suspense fallback={<div className="absolute inset-0 bg-[#0a0a0f]" />}>
+          <HeroBackground />
+        </Suspense>
         <GlowOrb color="violet" size="xl" className="-top-32 -left-32 opacity-30" />
         <GlowOrb color="acid" size="lg" className="top-1/2 -right-48 opacity-20" />
         <div className="absolute inset-0 opacity-[0.03]" style={{
@@ -114,22 +129,6 @@ export default function HomePage() {
               </Link>
             </motion.div>
           </motion.div>
-          
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
-            className="flex items-center justify-center gap-10 sm:gap-24 mt-16 mb-8 w-full border-t border-white/5 pt-10">
-            <div className="text-center">
-              <p className="text-4xl font-bold text-white mb-1">10K+</p>
-              <p className="text-sm text-white/50">Products</p>
-            </div>
-            <div className="text-center">
-              <p className="text-4xl font-bold text-white mb-1">50K+</p>
-              <p className="text-sm text-white/50">Happy Customers</p>
-            </div>
-            <div className="text-center">
-              <p className="text-4xl font-bold text-white mb-1">4.8</p>
-              <p className="text-sm text-white/50">Avg. Rating</p>
-            </div>
-          </motion.div>
         </div>
       </section>
 
@@ -143,14 +142,23 @@ export default function HomePage() {
             <p className="text-white/50">Explore our wide range of product categories</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categories.map(({ name, slug, emoji, color }, i) => (
-              <motion.div key={slug} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
-                <Link href={`/categories/${slug}`} className={`block glass rounded-2xl p-5 text-center hover:scale-105 transition-all duration-300 bg-gradient-to-b ${color} border border-white/5 hover:border-white/15 group`}>
-                  <span className="text-5xl block mb-3 group-hover:scale-110 transition-transform duration-300">{emoji}</span>
-                  <p className="font-syne font-semibold text-white text-sm">{name}</p>
-                </Link>
-              </motion.div>
-            ))}
+            {categoriesLoading || categories.length === 0
+              ? Array(6).fill(0).map((_, i) => (
+                  <div key={i} className="glass rounded-2xl p-5 text-center bg-gradient-to-b from-violet-600/20 to-violet-900/20 border border-white/5">
+                    <span className="block mb-3 mx-auto h-12 w-12 rounded-full bg-white/10 animate-pulse" />
+                    <p className="font-syne font-semibold text-white text-sm">
+                      <span className="block h-4 w-20 mx-auto rounded bg-white/10 animate-pulse" />
+                    </p>
+                  </div>
+                ))
+              : categories.map(({ name, slug, emoji, color }, i) => (
+                  <motion.div key={slug} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
+                    <Link href={`/categories/${slug}`} className={`block glass rounded-2xl p-5 text-center hover:scale-105 transition-all duration-300 bg-gradient-to-b ${color} border border-white/5 hover:border-white/15 group`}>
+                      <span className="text-5xl block mb-3 group-hover:scale-110 transition-transform duration-300">{emoji}</span>
+                      <p className="font-syne font-semibold text-white text-sm">{name}</p>
+                    </Link>
+                  </motion.div>
+                ))}
           </div>
         </div>
       </section>
@@ -185,7 +193,7 @@ export default function HomePage() {
               initial={{ opacity: 0, x: -40 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.7, ease: 'easeOut' }}
+              transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="lg:sticky lg:top-28"
             >
               <span className="inline-block text-[10px] font-semibold tracking-[0.2em] uppercase px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 mb-6">
@@ -255,7 +263,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, x: 30 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true, margin: '-60px' }}
-                  transition={{ duration: 0.55, ease: 'easeOut', delay }}
+                  transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94], delay }}
                   className="relative mb-10 last:mb-0"
                 >
                   {/* Timeline dot */}
@@ -274,31 +282,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Testimonials */}
-      <section className="section bg-space-800/30 gsap-section">
-        <div className="page-container">
-          <div className="text-center mb-12">
-            <h2 className="font-syne text-3xl md:text-4xl font-bold text-white mb-4">What Customers Say</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map(({ name, city, rating, text }, i) => (
-              <motion.div key={name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="card">
-                <div className="flex mb-3">
-                  {Array(rating).fill(0).map((_, j) => <Star key={j} size={14} className="fill-amber-400 text-amber-400" />)}
-                </div>
-                <p className="text-white/70 text-sm leading-relaxed mb-4">"{text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-violet-600/20 flex items-center justify-center text-xs font-bold text-violet-300">{name[0]}</div>
-                  <div>
-                    <p className="text-sm font-medium text-white">{name}</p>
-                    <p className="text-xs text-white/40">{city}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>    </div>
+    </div>
   );
 }
