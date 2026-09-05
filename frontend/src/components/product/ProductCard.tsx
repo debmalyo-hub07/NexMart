@@ -31,6 +31,8 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["10deg", "-10deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-10deg", "10deg"]);
 
+  const [coords, setCoords] = useState({ mouseX: 0, mouseY: 0 });
+
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const width = rect.width;
@@ -39,6 +41,7 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
     const mouseY = e.clientY - rect.top;
     x.set(mouseX / width - 0.5);
     y.set(mouseY / height - 0.5);
+    setCoords({ mouseX, mouseY });
   };
 
   const handleMouseLeave = () => {
@@ -74,22 +77,27 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
 
   return (
     <motion.div
-      className={cn('group relative glass rounded-2xl overflow-hidden glass-hover cursor-pointer transition-colors duration-300', className)}
+      className={cn('group relative glass rounded-2xl overflow-hidden glass-hover cursor-pointer transition-colors duration-300 card-glow-wrapper', className)}
       style={{
         rotateX,
         rotateY,
         transformPerspective: 1000,
         transformStyle: 'preserve-3d',
+        ...({
+          '--mouse-x': `${coords.mouseX}px`,
+          '--mouse-y': `${coords.mouseY}px`,
+        } as React.CSSProperties),
       }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.3 }}
     >
+      <div className="card-glow-overlay" />
       <div style={{ transform: 'translateZ(30px)' }}>
       <Link href={`/products/${product.slug}`}>
         {/* Image */}
-        <div className="relative h-52 bg-white/3 overflow-hidden">
+        <div className="relative h-52 bg-white/[0.03] overflow-hidden">
           {product.images[0] ? (
             <Image
               src={product.images[0]}

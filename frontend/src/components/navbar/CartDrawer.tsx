@@ -119,7 +119,7 @@ export const CartDrawer = memo(function CartDrawer() {
             animate="visible"
             exit="hidden"
             transition={drawerTransition}
-            className="fixed right-0 top-0 h-full w-full max-w-[420px] z-50 flex flex-col glass border-l border-white/8"
+            className="fixed right-0 top-0 h-full w-full max-w-[420px] z-50 flex flex-col glass border-l border-white/[0.08]"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/5 shrink-0">

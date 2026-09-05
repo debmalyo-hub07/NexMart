@@ -150,7 +150,7 @@ export const Navbar = memo(function Navbar() {
                     className={cn(
                       'relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
                       isActive
-                        ? 'text-white bg-white/8'
+                        ? 'text-white bg-white/[0.08]'
                         : 'text-white/60 hover:text-white hover:bg-white/5',
                     )}
                   >
@@ -158,7 +158,7 @@ export const Navbar = memo(function Navbar() {
                     {isActive && (
                       <motion.span
                         layoutId="nav-active-pill"
-                        className="absolute inset-0 rounded-full bg-white/8 -z-10"
+                        className="absolute inset-0 rounded-full bg-white/[0.08] -z-10"
                         transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
                       />
                     )}
@@ -176,7 +176,7 @@ export const Navbar = memo(function Navbar() {
                 <button
                   className={cn(
                     'flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
-                    megaMenuOpen ? 'text-white bg-white/8' : 'text-white/60 hover:text-white hover:bg-white/5',
+                    megaMenuOpen ? 'text-white bg-white/[0.08]' : 'text-white/60 hover:text-white hover:bg-white/5',
                   )}
                   suppressHydrationWarning
                 >
@@ -266,7 +266,7 @@ export const Navbar = memo(function Navbar() {
                       animate="visible"
                       exit="exit"
                       transition={userMenuTransition}
-                      className="absolute right-0 top-full mt-2 w-56 glass rounded-2xl p-2 border border-white/8 shadow-glow-violet"
+                      className="absolute right-0 top-full mt-2 w-56 glass rounded-2xl p-2 border border-white/[0.08] shadow-glow-violet"
                     >
                       <div className="px-3 py-2 border-b border-white/5 mb-1">
                         <p className="text-sm font-semibold text-white">{user?.name}</p>
@@ -372,7 +372,7 @@ export const Navbar = memo(function Navbar() {
                     href={href}
                     className={cn(
                       'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors',
-                      pathname === href ? 'text-white bg-white/8' : 'text-white/60 hover:text-white hover:bg-white/5',
+                      pathname === href ? 'text-white bg-white/[0.08]' : 'text-white/60 hover:text-white hover:bg-white/5',
                     )}
                     onClick={closeMobileNav}
                   >

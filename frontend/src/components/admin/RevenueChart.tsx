@@ -14,7 +14,7 @@ const CustomTooltip = memo(function CustomTooltip({
 }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="glass rounded-xl p-3 border border-white/8 text-sm">
+    <div className="glass rounded-xl p-3 border border-white/[0.08] text-sm">
       <p className="text-white/60 mb-1">{label}</p>
       {payload.map((p) => (
         <p key={p.name} className="font-semibold text-white">

@@ -97,11 +97,47 @@ function FloatingParticles() {
   );
 }
 
+import { useThree } from '@react-three/fiber';
+
+function SceneCleanup() {
+  const { scene, gl } = useThree();
+  useEffect(() => {
+    return () => {
+      scene.traverse((object: any) => {
+        if (!object.isMesh && !object.isPoints) return;
+        
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
+        
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach((material: any) => material.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+      });
+      gl.dispose();
+    };
+  }, [scene, gl]);
+  
+  return null;
+}
+
 export function HeroBackground() {
-  // Mount guard: prevents SSR crash + adds CSS fade-in so canvas appears
-  // near-instantly after hydration instead of waiting for lazy-bundle download
   const [ready, setReady] = useState(false);
+  // Pause the render loop entirely when the tab is backgrounded — no GPU/CPU
+  // burned animating a canvas nobody is looking at.
+  const [active, setActive] = useState(true);
+
   useEffect(() => { setReady(true); }, []);
+
+  useEffect(() => {
+    const onVisibility = () => setActive(!document.hidden);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   if (!ready) return <div className="absolute inset-0 z-0" />;
 
@@ -111,11 +147,12 @@ export function HeroBackground() {
       style={{ animation: 'heroFadeIn 0.5s ease forwards' }}
     >
       <style>{`@keyframes heroFadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
-      <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 1.5]} gl={{ powerPreference: 'high-performance', antialias: false }}>
+      <Canvas frameloop={active ? 'always' : 'never'} camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 1.5]} gl={{ powerPreference: 'high-performance', antialias: false }}>
         <ambientLight intensity={0.5} />
         <WireframeSphere />
         <OrbitingRings />
         <FloatingParticles />
+        <SceneCleanup />
         <Preload all />
       </Canvas>
     </div>

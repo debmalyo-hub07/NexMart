@@ -76,7 +76,7 @@ export const MegaMenu = memo(function MegaMenu({
 
           {/* Sub-categories panel */}
           <div className="w-[60%] p-6 bg-space-800/80">
-            <h3 className="text-xs font-bold text-white/50 tracking-widest uppercase mb-4 pb-2 border-b border-white/8 flex items-center gap-2">
+            <h3 className="text-xs font-bold text-white/50 tracking-widest uppercase mb-4 pb-2 border-b border-white/[0.08] flex items-center gap-2">
               <span className="text-lg">{activeCategory.icon}</span>
               {activeCategory.name}
             </h3>

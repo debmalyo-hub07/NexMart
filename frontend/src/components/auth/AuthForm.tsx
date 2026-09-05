@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { useUIStore } from '@/store/uiStore';
+import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { signIn } from 'next-auth/react';
 
 interface Field {
   name: string;
@@ -26,15 +27,32 @@ interface AuthFormProps {
   linkHref: string;
   redirectUrl: string;
   note?: string;
+  showGoogle?: boolean;
 }
 
-export function AuthForm({ type, role, title, fields, submitText, linkText, linkHref, redirectUrl, note }: AuthFormProps) {
+export function AuthForm({ type, role, title, fields, submitText, linkText, linkHref, redirectUrl, note, showGoogle }: AuthFormProps) {
   const router = useRouter();
   const { showToast } = useUIStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (type === 'login') {
+      const key = role === 'admin' 
+        ? 'nexmart_last_admin_email' 
+        : role === 'agent' 
+          ? 'nexmart_last_delivery_email' 
+          : null;
+      if (key) {
+        const savedEmail = localStorage.getItem(key);
+        if (savedEmail) {
+          setFormData(prev => ({ ...prev, email: savedEmail }));
+        }
+      }
+    }
+  }, [type, role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,22 +79,16 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
         }
       } else {
         // LOGIN flow
-        const res = await signIn('credentials', {
-          redirect: false,
-          email: formData.email,
-          password: formData.password,
-          role,
-        });
+        await useAuthStore.getState().login(formData.email, formData.password, role);
 
-        if (res?.error) {
-          // Check if backend says OTP required (unverified customer)
-          if (res.error.includes('requiresOtp') || res.error.toLowerCase().includes('verify your email')) {
-            const email = encodeURIComponent(formData.email);
-            showToast('Please verify your email first', 'error');
-            router.push(`/customer/verify-otp?email=${email}`);
-            return;
-          }
-          throw new Error(res.error);
+        // Save email on successful login
+        const key = role === 'admin' 
+          ? 'nexmart_last_admin_email' 
+          : role === 'agent' 
+            ? 'nexmart_last_delivery_email' 
+            : null;
+        if (key && formData.email) {
+          localStorage.setItem(key, formData.email);
         }
 
         // Push to dashboard — no router.refresh() to avoid race condition
@@ -176,6 +188,29 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
             </span>
           </button>
         </form>
+
+        {showGoogle && (
+          <>
+            <div className="flex items-center gap-3 mt-5">
+              <div className="flex-1 h-px bg-white/[0.08]" />
+              <span className="text-xs text-white/40 font-inter">or</span>
+              <div className="flex-1 h-px bg-white/[0.08]" />
+            </div>
+            <button
+              type="button"
+              onClick={() => signIn('google', { callbackUrl: redirectUrl })}
+              className="w-full mt-4 flex items-center justify-center gap-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 rounded-xl py-3.5 text-sm font-medium text-white transition-colors font-inter"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.6-1.2 2.9-2.5 3.8v3.1h4c2.4-2.2 3.5-5.4 3.5-9.1z"/>
+                <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-4-3.1c-1.1.7-2.5 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.3v3.2C3.3 21.3 7.3 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.4 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3V6.5H1.3C.5 8.1 0 10 0 12s.5 3.9 1.3 5.5l4.1-3.2z"/>
+                <path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4C18 1.2 15.2 0 12 0 7.3 0 3.3 2.7 1.3 6.5l4.1 3.2c.9-2.8 3.5-4.9 6.6-4.9z"/>
+              </svg>
+              Continue with Google
+            </button>
+          </>
+        )}
 
         {note && (
           <p className="mt-5 text-xs text-amber-400/80 text-center bg-amber-400/10 p-3 rounded-xl border border-amber-400/20 font-inter">

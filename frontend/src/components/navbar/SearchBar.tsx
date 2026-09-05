@@ -127,8 +127,8 @@ export function SearchBar({ autoFocus, onClose }: SearchBarProps) {
 
   const containerClass = useMemo(() => `flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-200 ${
     isFocused
-      ? 'ring-1 ring-violet-500/50 bg-white/8'
-      : 'bg-white/5 hover:bg-white/7'
+      ? 'ring-1 ring-violet-500/50 bg-white/[0.08]'
+      : 'bg-white/5 hover:bg-white/[0.07]'
   }`, [isFocused]);
 
   const showDropdown = isFocused && (query.length === 0 || results.length > 0 || isLoading);
@@ -170,7 +170,7 @@ export function SearchBar({ autoFocus, onClose }: SearchBarProps) {
             animate="visible"
             exit="exit"
             transition={dropdownTransition}
-            className="absolute top-full left-0 right-0 mt-2 glass rounded-2xl border border-white/8 overflow-hidden z-50 shadow-glow-violet"
+            className="absolute top-full left-0 right-0 mt-2 glass rounded-2xl border border-white/[0.08] overflow-hidden z-50 shadow-glow-violet"
           >
             {/* No query — show trending + recent */}
             {!query && (
@@ -222,7 +222,7 @@ export function SearchBar({ autoFocus, onClose }: SearchBarProps) {
                     key={product._id}
                     onClick={() => { router.push(`/products/${product.slug}`); onClose?.(); }}
                     onMouseEnter={() => router.prefetch(`/products/${product.slug}`)}
-                    className="flex items-center gap-3 w-full p-3 hover:bg-white/4 transition-colors text-left"
+                    className="flex items-center gap-3 w-full p-3 hover:bg-white/[0.04] transition-colors text-left"
                     suppressHydrationWarning
                   >
                     {product.images[0] && (

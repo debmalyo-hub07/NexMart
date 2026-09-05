@@ -68,7 +68,10 @@ export function ReviewSection({ productId, ratings }: ReviewSectionProps) {
       setBody('');
       setRating(5);
     },
-    onError: () => showToast('Failed to submit review', 'error'),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to submit review';
+      showToast(msg, 'error');
+    },
   });
 
   const reviews: Review[] = data || [];
