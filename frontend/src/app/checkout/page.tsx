@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -10,7 +10,8 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatPrice } from '@/lib/utils';
-import api from '@/lib/api';
+import api, { getApiError } from '@/lib/api';
+import { paymentVerifyPath } from '@/lib/payment';
 import { CheckCircle, Loader2, CreditCard, Truck } from 'lucide-react';
 import Image from 'next/image';
 
@@ -38,11 +39,11 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod'>('online');
   const [isPlacing, setIsPlacing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const total = subtotal();
-  const shipping = total > 999 ? 0 : 49;
-  const tax = Math.round(total * 0.18);
-  const grandTotal = total + shipping + tax;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { register, handleSubmit, formState: { errors } } = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -51,6 +52,19 @@ export default function CheckoutPage() {
       phone: user?.phone || '',
     },
   });
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-space-900 flex items-center justify-center">
+        <Loader2 className="animate-spin text-violet-500" size={32} />
+      </div>
+    );
+  }
+
+  const total = subtotal();
+  const shipping = total > 999 ? 0 : 49;
+  const tax = Math.round(total * 0.18);
+  const grandTotal = total + shipping + tax;
 
   const onSubmit = async (addressData: AddressForm) => {
     if (items.length === 0) { showToast('Your cart is empty', 'error'); return; }
@@ -72,43 +86,53 @@ export default function CheckoutPage() {
       if (paymentMethod === 'cod') {
         clearCart();
         setOrderSuccess(true);
+        setIsPlacing(false);
         return;
       }
 
-      // Razorpay
+      // Online payment — keep the Pay button disabled until the modal resolves.
+      // (The old `finally { setIsPlacing(false) }` re-enabled it mid-payment.)
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onerror = () => {
+        setIsPlacing(false);
+        showToast('Could not load the payment window. Check your connection and try again.', 'error');
+      };
       document.body.appendChild(script);
+
       script.onload = () => {
         const rzp = new window.Razorpay({
           key: data.data.keyId,
-          amount: grandTotal * 100,
           currency: 'INR',
           name: 'NexMart',
           description: 'Order Payment',
-          order_id: data.data.razorpayOrderId,
+          order_id: data.data.razorpayOrderId, // amount comes from the server-created Razorpay order
           prefill: { name: user?.name, email: user?.email, contact: user?.phone },
           theme: { color: '#7C3AED' },
           handler: async (response: Record<string, string>) => {
             try {
-              await api.post('/orders/verify-payment', {
+              await api.post(paymentVerifyPath(data.data.orderId), {
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: response.razorpay_payment_id,
                 razorpaySignature: response.razorpay_signature,
               });
               clearCart();
               setOrderSuccess(true);
-            } catch {
-              showToast('Payment verification failed. Contact support.', 'error');
+            } catch (err: unknown) {
+              showToast(getApiError(err), 'error');
+            } finally {
+              setIsPlacing(false);
             }
+          },
+          ondismiss: () => {
+            setIsPlacing(false);
+            showToast('Payment window closed. Your order is saved as pending — complete payment from My Orders.', 'info');
           },
         });
         rzp.open();
       };
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Order failed';
-      showToast(msg, 'error');
-    } finally {
+      showToast(getApiError(err), 'error');
       setIsPlacing(false);
     }
   };
@@ -120,7 +144,7 @@ export default function CheckoutPage() {
           <CheckCircle size={48} className="text-acid-400" />
         </motion.div>
         <h2 className="font-syne text-3xl font-bold text-white mb-3">Order Placed!</h2>
-        <p className="text-white/60 mb-8">Your order has been confirmed. You'll receive a confirmation email shortly.</p>
+        <p className="text-white/60 mb-8">Your order has been confirmed. You can track it any time from My Orders.</p>
         <div className="flex gap-3 justify-center">
           <button onClick={() => router.push('/orders')} className="btn-primary">View Orders</button>
           <button onClick={() => router.push('/products')} className="btn-secondary">Continue Shopping</button>
