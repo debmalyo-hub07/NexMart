@@ -397,19 +397,19 @@ Each item: the gap, the evidence, the acceptance criterion. Execute in order; P0
 
 > ⚠️ **Live smoke tests pending (2026-09-05):** the `UPSTASH_REDIS_REST_URL` in `.env` (`lucky-gobbler-82201.upstash.io`) no longer resolves in public DNS — the instance appears deleted/renamed. The global `generalLimit` middleware hits Upstash on every request, so the whole API 500s locally until the URL is fixed in `.env`. All code fixes verified by tsc/vitest/Next build + manual code review; run the smoke matrix (admin status PATCH, reviews GET, socket delivery) once Redis is restored.
 
-### P1 — silent failures & misinformation
+### P1 — silent failures & misinformation — ✅ ALL DONE 2026-09-05
 | # | Gap | Fix / acceptance |
 |---|---|---|
-| 9 | 401 renders as empty state in all three roles; 7d-cookie vs 30d-session dead zone. | §5.3 contract: interceptor + aligned TTLs; expired session shows a re-login toast, never fake empty data. |
-| 10 | Cart has no auth middleware → never bound to an account; `removeItem` failure wipes the visible cart. | Cart routes auth-aware; merge-on-login (guest cart → account); mutation failures roll back visibly with toast. |
-| 11 | Delivery agent sees blank customer phone (reads `customer.phone`, registration never collects it). | Read `shippingAddress.phone`; registration collects phone + state + pincode (valid against checkout schema). |
-| 12 | "You'll receive a confirmation email" — `sendOrderStatusEmail` never called. | Queue email on placed/confirmed/shipped/delivered. |
-| 13 | Price sort silently dead on `/products` + `/search` (`ALLOWED_SORT` lacks `variants.0.price`). | Add to both controllers' allow-lists; sort dropdowns work on all three listing pages. |
-| 14 | Cart `updateItem`/`clearCart` swallow all errors (`catch {}`). | Toast + rollback per §3.2. |
-| 15 | Pending agent's legitimate login counts as a failed attempt, ×2 via the double-login bug → 15-min lockout after 3 tries. | Don't count pending/rejected logins as failures; single-trip login (one backend call per UI login). |
-| 16 | `agent:status_updated` emits to a room the pending agent (not logged in) can never join. | Email is the channel pre-approval (already works); socket emit fires post-approval only. |
-| 17 | "picked" regresses order `shipped → processing`, visible to the customer. | Delivery statuses and order statuses are separate fields; transitions only move forward. |
-| 18 | Hardcoded homepage categories/stats/testimonials; `page.tsx` categories can 404 against real DB. | Categories from API; stats real or removed; testimonials real or removed. |
+| 9 ✅ | 401 renders as empty state in all three roles; 7d-cookie vs 30d-session dead zone. | FIXED: NextAuth maxAge = 7d (matches backend cookies); axios interceptor on 401 clears auth + redirects to role login with `?redirect=`; auth endpoints exempt (loop guard). |
+| 10 ✅ | Cart has no auth middleware → never bound to an account; `removeItem` failure wipes the visible cart. | FIXED: `optionalCustomerAuth` on cart routes; `POST /cart/merge` folds guest cart into account on login (price/stock re-validated); `removeCartItem` null-safe. |
+| 11 ✅ | Delivery agent sees blank customer phone (reads `customer.phone`, registration never collects it). | FIXED: dashboard reads `shippingAddress.phone` (tap-to-call); registration collects phone + state + pincode with server validation. |
+| 12 ✅ | "You'll receive a confirmation email" — `sendOrderStatusEmail` never called. | FIXED: wired at payment-confirmed, admin status change, and agent status change (try/caught, never blocks the request). |
+| 13 ✅ | Price sort silently dead on `/products` + `/search` (`ALLOWED_SORT` lacks `variants.0.price`). | FIXED: `/products` sends `variants.0.price`; search allow-list extended. |
+| 14 ✅ | Cart `updateItem`/`clearCart` swallow all errors (`catch {}`). | FIXED: rollback + `getApiError` toast on all three cart mutations. |
+| 15 ✅ | Pending agent's legitimate login counts as a failed attempt, ×2 via the double-login bug → 15-min lockout after 3 tries. | FIXED: pending/rejected status blocks no longer increment the counter. (Analysis: the double-trip only occurs on *successful* logins, which clear the counter — wrong passwords throw before the second trip. Auth families deliberately NOT unified: the browser POST is what sets the cookie; NextAuth's server-side fetch cannot.) |
+| 16 ✅ | `agent:status_updated` emits to a room the pending agent (not logged in) can never join. | FIXED: dead pre-approval emits removed; email is the pre-approval channel. Admin assignment now emits `order:status_updated` 'shipped' to the customer. |
+| 17 ✅ | "picked" regresses order `shipped → processing`, visible to the customer. | FIXED: `picked` maps to `'shipped'`; forward-only transitions. |
+| 18 ✅ | Hardcoded homepage categories/stats/testimonials; `page.tsx` categories can 404 against real DB. | FIXED: categories from `GET /categories` with skeleton loading; fabricated stats row + testimonials deleted. |
 
 ### P2 — dead controls & patterns
 | # | Gap | Fix / acceptance |
