@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -31,7 +29,6 @@
 }
 
 html {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -39,7 +36,7 @@ html {
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-inter), sans-serif;
   line-height: 1.6;
   min-height: 100vh;
   overflow-x: hidden;
@@ -47,7 +44,7 @@ body {
 
 /* ── Typography ──────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-outfit), sans-serif;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -307,3 +304,82 @@ h1, h2, h3, h4, h5, h6 {
 .page-enter-active { opacity: 1; transform: translateY(0); transition: all 0.4s ease; }
 .page-exit { opacity: 1; }
 .page-exit-active { opacity: 0; transition: all 0.2s ease; }
+
+/* ── Premium Styling Additions ── */
+.nav-link-glow {
+  position: relative;
+}
+.nav-link-glow::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #7C3AED, #D946EF);
+  opacity: 0;
+  filter: drop-shadow(0 2px 8px rgba(124, 58, 237, 0.8));
+  transition: opacity 0.3s ease;
+}
+.nav-link-glow:hover::after,
+.nav-link-glow.active::after {
+  opacity: 1;
+}
+
+.admin-sidebar-active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(217, 70, 239, 0.05) 100%) !important;
+  border-left: 3px solid #7C3AED !important;
+  box-shadow: inset 4px 0 15px -4px rgba(124, 58, 237, 0.3);
+  color: white !important;
+}
+
+/* Glowing inputs on focus */
+.input:focus,
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(124, 58, 237, 0.7) !important;
+  box-shadow: 0 0 15px rgba(124, 58, 237, 0.25), 0 0 0 1px rgba(124, 58, 237, 0.4) !important;
+  background-color: rgba(26, 26, 36, 0.6) !important;
+}
+
+/* CTA button glow */
+.btn-primary:hover {
+  box-shadow: 0 0 25px rgba(167, 139, 250, 0.6), 0 4px 20px rgba(217, 70, 239, 0.4) !important;
+}
+
+/* Mouse follow card glow overlay */
+.card-glow-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+.card-glow-overlay {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    400px circle at var(--mouse-x, 0) var(--mouse-y, 0),
+    rgba(124, 58, 237, 0.08),
+    transparent 40%
+  );
+  z-index: 1;
+  transition: opacity 0.5s ease;
+  opacity: 0;
+}
+.card-glow-wrapper:hover .card-glow-overlay {
+  opacity: 1;
+}
+
+/* ── Custom Cursor Global Suppression ────────────────────────── */
+@media (pointer: fine) {
+  .custom-cursor-active,
+  .custom-cursor-active * {
+    cursor: none !important;
+  }
+}
+
+

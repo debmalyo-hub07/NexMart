@@ -4,7 +4,6 @@ import { SessionProvider } from 'next-auth/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Toast } from '@/components/common/Toast';
-import { SmoothScrollProvider } from '@/components/common/SmoothScrollProvider';
 
 import { useSession } from 'next-auth/react';
 import { useAuthStore } from '@/store/authStore';
@@ -48,29 +47,39 @@ function AuthSync() {
   return null;
 }
 
+let globalQueryClient: QueryClient | null = null;
+
+export function clearQueryCache() {
+  if (globalQueryClient) {
+    globalQueryClient.clear();
+  }
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
-    () => new QueryClient({
-      defaultOptions: {
-        queries: {
-          staleTime: 30 * 1000,          // 30s — balance freshness vs cache hits
-          gcTime: 10 * 60 * 1000,        // 10min in memory — return-to-page is instant
-          retry: 0,                       // fail fast, don't retry — avoids 1s+ delays
-          refetchOnWindowFocus: false,
-          refetchOnReconnect: false,
+    () => {
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30 * 1000,          // 30s — balance freshness vs cache hits
+            gcTime: 10 * 60 * 1000,        // 10min in memory — return-to-page is instant
+            retry: 0,                       // fail fast, don't retry — avoids 1s+ delays
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+          },
         },
-      },
-    })
+      });
+      globalQueryClient = client;
+      return client;
+    }
   );
 
   return (
     <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
       <QueryClientProvider client={queryClient}>
-        <SmoothScrollProvider>
-          <AuthSync />
-          {children}
-          <Toast />
-        </SmoothScrollProvider>
+        <AuthSync />
+        {children}
+        <Toast />
       </QueryClientProvider>
     </SessionProvider>
   );

@@ -45,9 +45,12 @@ module.exports = {
         },
       },
       fontFamily: {
-        syne: ['Outfit', 'sans-serif'],
-        dm: ['"Inter"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        // Legacy aliases kept so existing markup keeps working — CLAUDE.md v3 §2.2 renames them over time.
+        syne: ['var(--font-outfit)', 'sans-serif'],
+        dm: ['var(--font-inter)', 'sans-serif'],
+        outfit: ['var(--font-outfit)', 'sans-serif'],
+        inter: ['var(--font-inter)', 'sans-serif'],
+        mono: ['var(--font-mono)', 'monospace'],
       },
       backgroundImage: {
         'glow-violet': 'radial-gradient(ellipse at center, rgba(124, 58, 237, 0.3) 0%, transparent 70%)',

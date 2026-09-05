@@ -12,6 +12,7 @@ export default function CustomerLogin() {
       linkText="New here? Register"
       linkHref="/customer/register"
       redirectUrl="/"
+      showGoogle
       fields={[
         { name: 'email', label: 'Email Address', type: 'email' },
         { name: 'password', label: 'Password', type: 'password' },
