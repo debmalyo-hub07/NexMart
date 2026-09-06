@@ -55,6 +55,10 @@ const envSchema = z.object({
 
   // Email (Brevo SMTP)
   SMTP_HOST: z.string().default('smtp-relay.brevo.com'),
+  // Brevo API key (separate from the SMTP key) — enables the HTTP API email
+  // path, which is the reliable channel on hosts that block outbound SMTP
+  // (Render). Optional: without it, email goes over SMTP.
+  BREVO_API_KEY: z.string().optional(),
   SMTP_PORT: z.string().default('587'),
   SMTP_SECURE: z.string().default('false'),
   SMTP_USER: z.string().min(1),
