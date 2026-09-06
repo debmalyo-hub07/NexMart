@@ -11,6 +11,9 @@ services:
     plan: free
     region: singapore # closest to your ap-south-1 Atlas + Upstash region
     rootDir: backend
+    # Pin the Node major we build/boot-test with locally (Render's default
+    # drifted to a toolchain where old tsconfig options fail the build).
+    nodeVersion: "24.0" # resolved to the latest 24.x on Render
     buildCommand: npm install && npm run build
     startCommand: node dist/server.js
     healthCheckPath: /health
