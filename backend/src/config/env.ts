@@ -19,7 +19,9 @@ const envSchema = z.object({
   // Upstash Redis
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
-  REDIS_URL: z.string().min(1),
+  // Legacy from the BullMQ era — no backend code reads it. Optional so a
+  // missing leftover var can never block a deploy.
+  REDIS_URL: z.string().optional(),
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: z.string().min(1),
@@ -34,16 +36,22 @@ const envSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 
   // Auth
-  AUTH_SECRET: z.string().min(1),
+  // AUTH_SECRET is the FRONTEND's NextAuth secret — the backend never reads
+  // it (grep-verified). Optional here so it can't block a backend deploy;
+  // set it on the Cloudflare Pages side where it belongs.
+  AUTH_SECRET: z.string().optional(),
   JWT_SECRET_ADMIN: z.string().min(1),
   JWT_SECRET_CUSTOMER: z.string().min(1),
   JWT_SECRET_AGENT: z.string().min(1),
   JWT_EXPIRES_IN: z.string().default('7d'),
   SESSION_MAXAGE: z.string().default('2592000'),
 
-  // Google OAuth
-  GOOGLE_CLIENT_ID: z.string().min(1),
-  GOOGLE_CLIENT_SECRET: z.string().min(1),
+  // Google OAuth — consumed by the frontend (NextAuth provider). The
+  // backend's /auth/google/callback takes its inputs from the request body,
+  // so the vars aren't read by backend code; optional to avoid blocking
+  // deploys when Google sign-in isn't configured.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
 
   // Email (Brevo SMTP)
   SMTP_HOST: z.string().default('smtp-relay.brevo.com'),
