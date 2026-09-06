@@ -21,6 +21,5 @@ const AdminSchema = new Schema<IAdmin>(
 );
 
 AdminSchema.index({ role: 1 });
-AdminSchema.index({ email: 1 }, { unique: true });
 
 export const Admin = mongoose.model<IAdmin>('Admin', AdminSchema);

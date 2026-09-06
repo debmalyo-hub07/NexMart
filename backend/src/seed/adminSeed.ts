@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import { Admin } from '../models/Admin';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
-import { maskEmail } from '../utils/helpers';
 
 export async function seedAdmin(): Promise<void> {
   if (env.ADMIN_SEED_ENABLED !== 'true') {
@@ -13,7 +12,7 @@ export async function seedAdmin(): Promise<void> {
   try {
     const existing = await Admin.findOne({ email: env.ADMIN_SEED_EMAIL });
     if (existing) {
-      logger.info(`ℹ️  Super-admin already exists: ${maskEmail(env.ADMIN_SEED_EMAIL)}`);
+      logger.info('ℹ️  Admin bootstrap: account already present.');
       return;
     }
 
@@ -26,7 +25,7 @@ export async function seedAdmin(): Promise<void> {
       role: 'admin',
     });
 
-    logger.info(`✅ Super-admin seeded: ${maskEmail(env.ADMIN_SEED_EMAIL)}`);
+    logger.info('✅ Admin bootstrap: first admin account created.');
   } catch (error) {
     logger.error('❌ Admin seed failed:', error);
     throw error;

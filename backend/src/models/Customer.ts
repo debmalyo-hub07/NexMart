@@ -74,6 +74,5 @@ const CustomerSchema = new Schema<ICustomer>(
 );
 
 CustomerSchema.index({ role: 1 });
-CustomerSchema.index({ email: 1 }, { unique: true });
 
 export const Customer = mongoose.model<ICustomer>('Customer', CustomerSchema);

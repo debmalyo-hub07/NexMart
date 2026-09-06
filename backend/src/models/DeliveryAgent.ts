@@ -38,6 +38,5 @@ const DeliveryAgentSchema = new Schema<IDeliveryAgent>(
 
 DeliveryAgentSchema.index({ role: 1, isApproved: 1 });
 DeliveryAgentSchema.index({ role: 1, status: 1 });
-DeliveryAgentSchema.index({ email: 1 }, { unique: true });
 
 export const DeliveryAgent = mongoose.model<IDeliveryAgent>('DeliveryAgent', DeliveryAgentSchema);
