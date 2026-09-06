@@ -14,7 +14,11 @@ services:
     # Pin the Node major we build/boot-test with locally (Render's default
     # drifted to a toolchain where old tsconfig options fail the build).
     nodeVersion: "24.0" # resolved to the latest 24.x on Render
-    buildCommand: npm install && npm run build
+    # --include=dev is REQUIRED: NODE_ENV=production makes npm skip
+    # devDependencies, which are build tools here (typescript + @types/*).
+    # Without it the build ran a fallback TS 7 (removed old tsconfig options,
+    # no @types) and failed twice. Lockfile pins typescript 5.9.3.
+    buildCommand: npm install --include=dev && npm run build
     startCommand: node dist/server.js
     healthCheckPath: /health
     autoDeploy: true
