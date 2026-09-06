@@ -1,0 +1,15 @@
+# Netlify configuration — Next.js monorepo
+#
+# The dashboard's custom publish path ('frontend/.next') bypassed the Next
+# Runtime, deploying raw .next output as static files (no functions, no
+# index.html at root → 404). This file pins the documented-correct settings:
+# base-relative publish directory '.next' lets Netlify's framework detection
+# run the Next Runtime, which transforms the build into functions + serving.
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
