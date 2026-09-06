@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { env } from '../config/env';
 import { sendUnauthorized, sendForbidden } from '../utils/response';
 import { isTokenBlacklisted } from '../config/redis';
@@ -10,7 +10,8 @@ import { DeliveryAgent } from '../models/DeliveryAgent';
 
 export function generateToken(payload: any, secret: string, expiresIn: string): string {
   // Every token carries a unique jti so it can be revoked (blacklisted) on logout.
-  return jwt.sign({ ...payload, jti: uuidv4() }, secret, { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] });
+  // Node's built-in randomUUID replaces the uuid package (CVE in <11.1.1).
+  return jwt.sign({ ...payload, jti: randomUUID() }, secret, { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] });
 }
 
 const getCookieToken = (req: Request, cookieName: string): string | null => {
