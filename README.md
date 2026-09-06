@@ -191,6 +191,7 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 | Doc | Purpose |
 |-----|---------|
 | [CLAUDE.md](./CLAUDE.md) | **Read first.** Reality snapshot, design law, interaction contracts, P0–P4 roadmap with status |
+| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Free-tier (₹0) deployment: Cloudflare Pages + Render with keep-alive |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | Dated record of every change wave |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | How to make changes (the plan → execute → verify → document workflow) |
 | [docs/superpowers/plans/](./docs/superpowers/plans/) | Implementation plans per wave |
