@@ -1,0 +1,39 @@
+# Render free-tier keep-alive
+#
+# Free Render services spin down after 15 minutes without traffic and take
+# ~60s to wake — unacceptable for a payment API. This workflow pings the
+# health endpoint every 10 minutes, which keeps the service warm 24/7.
+# Full uptime needs ~730 of the 750 free instance-hours per month, so this
+# cadence stays just under the cap.
+#
+# Required repository secret:
+#   RENDER_HEALTH_URL   e.g. https://nexmart-api.onrender.com/health
+#
+# Manual run: Actions → "Render keep-alive" → Run workflow.
+
+name: "Render keep-alive"
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render
+        run: |
+          if [ -z "${{ secrets.RENDER_HEALTH_URL }}" ]; then
+            echo "::error::RENDER_HEALTH_URL secret is not set. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "${{ secrets.RENDER_HEALTH_URL }}")
+          echo "Render /health responded: $CODE"
+          # 200 = warm and healthy. Any other code (including 000 on timeout)
+          # is surfaced but non-fatal: Render may be mid-redeploy. Two
+          # consecutive failures would show as red runs in the Actions tab —
+          # that's the signal to check the Render dashboard.
+          if [ "$CODE" != "200" ]; then
+            echo "::warning::Render responded $CODE (not 200) — possibly a cold start or redeploy in progress."
+          fi

@@ -1,0 +1,81 @@
+# Render blueprint — NexMart backend
+#
+# Free instance: spins down after 15 min idle and wakes in ~60s. The
+# keep-alive GitHub Action (.github/workflows/render-keepalive.yml) pings
+# /health every 10 minutes so real visitors never hit the cold start.
+# 24/7 uptime needs ~730 of the 750 free instance-hours — inside the cap.
+services:
+  - type: web
+    name: nexmart-api
+    runtime: node
+    plan: free
+    region: singapore # closest to your ap-south-1 Atlas + Upstash region
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Set these in the Render dashboard (or `render secret set`) — NOT here.
+      # Group: database
+      - key: MONGODB_URI
+        sync: false
+      # Group: cache / rate limiting (Upstash REST)
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      # Group: payments
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false # REQUIRED in production — the server aborts without it
+      # Group: auth — three separate secrets, 32+ chars each
+      - key: JWT_SECRET_ADMIN
+        sync: false
+      - key: JWT_SECRET_CUSTOMER
+        sync: false
+      - key: JWT_SECRET_AGENT
+        sync: false
+      - key: ADMIN_SECRET_KEY
+        sync: false
+      - key: ADMIN_SEED_EMAIL
+        sync: false
+      - key: ADMIN_SEED_PASSWORD
+        sync: false
+      # Group: public URLs — fill after the first deploy, using the real
+      # *.onrender.com and *.pages.dev URLs, then redeploy:
+      - key: APP_URL
+        sync: false # e.g. https://nexmart.pages.dev
+      - key: CORS_ORIGIN
+        sync: false # same as APP_URL — the CSRF origin check requires an exact match
+      - key: SOCKET_CORS_ORIGIN
+        sync: false # same as APP_URL
+      # Group: email (Brevo)
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      # Group: media
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # Server-side helper for the NextAuth server fetch
+      - key: API_URL
+        sync: false # e.g. https://nexmart-api.onrender.com/api/v1
+      # Fixed values
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000 # Render injects its own PORT at runtime; this is the fallback
