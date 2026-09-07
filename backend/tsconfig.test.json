@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  // Full type-check INCLUDING tests (the production build excludes them —
+  // see tsconfig.json). Run via `npm run typecheck`.
+  "exclude": ["node_modules", "dist"]
+}
