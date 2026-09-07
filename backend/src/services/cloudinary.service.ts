@@ -1,5 +1,7 @@
 import cloudinary from '../config/cloudinary';
 import { Readable } from 'stream';
+import { parseCloudinaryPublicId } from '../utils/cloudinaryUrl';
+import { env } from '../config/env';
 
 export interface UploadResult {
   url: string;
@@ -71,4 +73,15 @@ export async function uploadPdfBuffer(
 
 export async function deleteCloudinaryAsset(publicId: string): Promise<void> {
   await cloudinary.uploader.destroy(publicId);
+}
+
+// Delete a delivery URL's underlying asset. Strict parser: only URLs on our
+// cloud under nexmart/ parse to a public_id — anything else is a no-op false,
+// so a stray/foreign URL can never trigger a deletion (B11: product images
+// used to be orphaned in the CDN forever when the product was deleted).
+export async function deleteImageByUrl(url: string): Promise<boolean> {
+  const publicId = parseCloudinaryPublicId(url, env.CLOUDINARY_CLOUD_NAME);
+  if (!publicId) return false;
+  const result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+  return result.result === 'ok';
 }

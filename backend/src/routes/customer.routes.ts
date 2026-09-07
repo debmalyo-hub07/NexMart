@@ -12,6 +12,7 @@ import {
   resendOtp,
 } from '../controllers/roleAuth.controller';
 import { getWishlist, addToWishlist, removeFromWishlist } from '../controllers/wishlist.controller';
+import { passwordChangeSchema } from '../utils/validation';
 
 const router = Router();
 
@@ -48,12 +49,23 @@ router.put('/profile', async (req: any, res) => {
 });
 
 router.put('/password', async (req: any, res) => {
-  const { password } = req.body;
-  if (!password) return res.status(400).json({ success: false, message: 'Password is required' });
-  
+  // B5: requires the CURRENT password (verified with bcrypt) and enforces the
+  // same strength policy as the frontend modal — previously any authenticated
+  // request could set a 1-character password without knowing the old one.
+  const { currentPassword, password } = passwordChangeSchema.parse(req.body);
+
+  const customer = await Customer.findById(req.user.id);
+  if (!customer || !customer.password) {
+    return res.status(404).json({ success: false, message: 'Account not found' });
+  }
+
   const bcrypt = require('bcryptjs');
+  const isMatch = await bcrypt.compare(currentPassword, customer.password);
+  if (!isMatch) {
+    return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+  }
+
   const hashedPassword = await bcrypt.hash(password, 12);
-  
   await Customer.findByIdAndUpdate(req.user.id, { password: hashedPassword });
   res.json({ success: true, message: 'Password updated successfully' });
 });

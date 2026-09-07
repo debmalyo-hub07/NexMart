@@ -360,6 +360,16 @@ export const loginCustomer = async (req: Request, res: Response) => {
     });
   }
 
+  // B3: a suspended account cannot log in (previously isActive was never
+  // checked — suspension was cosmetic and suspended customers kept ordering)
+  if (!customer.isActive) {
+    return res.status(403).json({
+      success: false,
+      message: 'Your account has been suspended. Please contact support.',
+      data: null,
+    });
+  }
+
   // Success: Clear failed attempts
   await clearFailedLoginAttempts(ip);
 
@@ -469,18 +479,20 @@ export const loginAgent = async (req: Request, res: Response) => {
     return res.status(401).json({ success: false, message: 'Invalid credentials', data: null });
   }
 
-  // 3. Status checks
-  if (agent.status === 'pending' || !agent.isApproved) {
-    return res.status(403).json({
-      success: false,
-      message: 'Your account is pending admin approval.',
-      data: null,
-    });
-  }
+  // 3. Status checks — rejected is checked FIRST: reject sets isApproved=false,
+  // and the pending branch's `!agent.isApproved` used to shadow it, showing
+  // rejected agents a misleading "pending admin approval" message (B6).
   if (agent.status === 'rejected') {
     return res.status(403).json({
       success: false,
       message: 'Your registration was not approved. Contact support.',
+      data: null,
+    });
+  }
+  if (agent.status === 'pending' || !agent.isApproved) {
+    return res.status(403).json({
+      success: false,
+      message: 'Your account is pending admin approval.',
       data: null,
     });
   }

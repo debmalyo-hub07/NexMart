@@ -49,6 +49,10 @@ Razorpay Dashboard → Settings → Webhooks → Add:
 - **Secret:** the same value as `RAZORPAY_WEBHOOK_SECRET`
 - **Events:** `payment.captured`, `payment.failed`, `order.paid`
 
+> ⚠️ **Create the webhook in the SAME mode as your API keys.** Razorpay keeps Test-mode and Live-mode webhooks separate: a webhook created while the dashboard is in normal/live mode never receives events from test-mode payments (and vice versa). With the current test keys (`rzp_test_*`), create it under **Test mode**; when you switch to live keys, add the Live-mode webhook too, with the same secret. The backend verifies one secret, so both modes can point at the same endpoint. Without a matching-mode webhook, payment confirmation relies solely on the client-side verify call — the order reaper still reconciles pending online orders against Razorpay every 15 minutes, so paid-but-unconfirmed orders self-heal, but the webhook is the real-time source of truth.
+>
+> ⚠️ **Webhooks that fail for 24 hours are auto-disabled** (any non-2xx response or >5s timeout counts as a failure; deliveries retry with exponential backoff for 24h first). This is why a webhook pointed at `localhost` always ends up disabled — Razorpay's servers can never reach it, regardless of mode. Don't leave dead webhooks in the dashboard; delete them and create the webhook only when a public URL exists. If one does get disabled (Razorpay emails the alert address), fix the endpoint and re-enable it manually from the dashboard. URLs must use port 80/443 (`https://…` — tunnels like ngrok work for local testing; raw `:4000` URLs are rejected).
+
 ### Keep-alive (do this after the Render URL exists)
 
 1. GitHub repo → **Settings → Secrets and variables → Actions → New secret**

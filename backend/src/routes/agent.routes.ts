@@ -1,14 +1,17 @@
 import { Router } from 'express';
 import { protectAgent } from '../middleware/auth';
 import { checkIP } from '../middleware/ipWhitelist';
-import { authLimit } from '../middleware/rateLimiter';
+import { authLimit, registerLimit } from '../middleware/rateLimiter';
 import { DeliveryAgent } from '../models/DeliveryAgent';
 import { registerAgent, loginAgent } from '../controllers/roleAuth.controller';
 
 const router = Router();
 
 // --- Auth Routes (Unprotected but rate-limited) ---
-router.post('/auth/register', authLimit, registerAgent);
+// Registration uses the same 3/hour registerLimit as customer/admin signup —
+// it previously sat behind the 10/min authLimit, 200× weaker than the other
+// roles' registration guard (B9).
+router.post('/auth/register', registerLimit, registerAgent);
 router.post('/auth/login', authLimit, loginAgent);
 
 // --- Protected Routes ---

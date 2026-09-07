@@ -15,7 +15,9 @@ export class AppError extends Error {
 }
 
 export function notFoundHandler(req: Request, res: Response): void {
-  res.status(404).json({ success: false, message: `Route ${req.method} ${req.url} not found` });
+  // No route/method echo in the response body (CLAUDE.md §5.3) — the request
+  // line is already in the server log via morgan for debugging.
+  res.status(404).json({ success: false, message: 'Resource not found' });
 }
 
 export function globalErrorHandler(
@@ -25,6 +27,13 @@ export function globalErrorHandler(
   _next: NextFunction
 ): void {
   logger.error(`[Error] ${err.message}`, { stack: err.stack });
+
+  // Malformed request body (body-parser SyntaxError) — 400 with a clean
+  // message, not a 500 that leaks the parser's internals (B7)
+  if (err.name === 'SyntaxError' && (err as { type?: string }).type === 'entity.parse.failed') {
+    res.status(400).json({ success: false, message: 'Invalid JSON in request body.' });
+    return;
+  }
 
   // Zod validation error
   if (err instanceof ZodError) {

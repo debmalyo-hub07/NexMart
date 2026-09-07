@@ -12,6 +12,7 @@ import { Customer } from '../models/Customer';
 import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendError, sendPaginated } from '../utils/response';
 import { AuthenticatedRequest, OrderStatus } from '../types';
 import { generateOrderId, generateDeliveryId, verifyRazorpaySignature, parsePagination } from '../utils/helpers';
+import { ALLOWED_ORDER_TRANSITIONS } from '../utils/orderTransitions';
 import { env } from '../config/env';
 
 const addressSchema = z.object({
@@ -185,7 +186,10 @@ export async function verifyPayment(req: Request, res: Response): Promise<void> 
   const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature, env.RAZORPAY_KEY_SECRET);
 
   if (!isValid) {
-    await Order.findOneAndUpdate({ razorpayOrderId }, { paymentStatus: 'failed' });
+    // B4: scope the failure mark to THIS customer's order — the unscoped
+    // update let any authenticated customer poison another customer's
+    // paymentStatus by posting a bad signature with a known razorpayOrderId.
+    await Order.findOneAndUpdate({ razorpayOrderId, customer: userId }, { paymentStatus: 'failed' });
     sendError(res, 'Payment verification failed. Invalid signature.', 400);
     return;
   }
@@ -256,18 +260,9 @@ export async function getOrderById(req: Request, res: Response): Promise<void> {
 
 // ── Update Order Status (Admin/Delivery) ──────────────────────
 
-// Forward-only transition graph (CLAUDE.md §4.3: an order never moves
+// Forward-only transition graph lives in utils/orderTransitions and is shared
+// with the delivery-agent status path (CLAUDE.md §4.3: an order never moves
 // backwards; cancellation/return are the only exits from the happy path).
-const ALLOWED_ORDER_TRANSITIONS: Record<string, string[]> = {
-  placed: ['confirmed', 'cancelled'],
-  confirmed: ['processing', 'shipped', 'cancelled'],
-  processing: ['shipped', 'cancelled'],
-  shipped: ['out_for_delivery', 'returned'],
-  out_for_delivery: ['delivered', 'returned'],
-  delivered: ['returned'],
-  cancelled: [],
-  returned: [],
-};
 
 export async function updateOrderStatus(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;

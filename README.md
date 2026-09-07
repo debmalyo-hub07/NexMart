@@ -111,11 +111,13 @@ Health check: `http://localhost:4000/health`
 - Honest approval-status badge; per-row spinners
 
 ### ⚡ Backend
-- Role-isolated auth: three JWT secrets, three httpOnly cookies (`nexmart_{admin|customer|delivery}_session`)
-- Upstash Redis: sliding-window rate limits (global + auth + OTP + payment), JWT blacklist, caches
-- Razorpay order creation with server-authoritative amounts + HMAC signature verification + webhook
-- Cloudinary uploads, in-process invoice queue (PDFKit), Brevo transactional emails
+- Role-isolated auth: three JWT secrets, three httpOnly cookies (`nexmart_{admin|customer|delivery}_session`); suspension enforced per-request
+- Upstash Redis: sliding-window rate limits (global + auth + OTP + payment + registration), JWT blacklist, login lockouts, caches
+- Razorpay order creation with server-authoritative amounts + HMAC signature verification + idempotent webhook; stale-order reaper reconciles pending payments every 15 min
+- Forward-only order state machine shared by admin and delivery paths (`utils/orderTransitions.ts`)
+- Cloudinary uploads (destroyed with the records that own them), in-process invoice queue (PDFKit) — invoices on payment-verify, webhook, and both delivery paths — Brevo transactional emails
 - Helmet, CORS, CSRF origin check, mongo-sanitize, hpp, Winston logging
+- E2E-audited live 2026-09-07 across all three roles (see `docs/CHANGELOG.md`)
 
 ---
 
@@ -135,7 +137,7 @@ Health check: `http://localhost:4000/health`
 | Realtime | Socket.IO (canonical event names in `frontend/src/lib/socketEvents.ts`) |
 | Email | Brevo SMTP |
 | Charts | Recharts |
-| Tests | Vitest (`frontend/src/lib/*.test.ts`) |
+| Tests | Vitest — `frontend/src/lib/*.test.ts` + backend unit tests (`backend/src/utils/__tests__/`) |
 
 ---
 
@@ -162,6 +164,7 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 | Where | Command | What |
 |-------|---------|------|
 | `backend/` | `npm run dev` / `build` / `start` | nodemon / tsc / production server |
+| `backend/` | `npm test` | Vitest unit tests (order transition graph, cart-merge & password schemas, Cloudinary URL parser) |
 | `frontend/` | `npm run dev` / `build` / `start` | dev server / production build / serve |
 | `frontend/` | `npm test` | Vitest unit tests |
 | `frontend/` | `npm run lint` | ESLint (next/core-web-vitals) |

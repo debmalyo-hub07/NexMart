@@ -5,11 +5,12 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, X, Lock, Eye, EyeOff } from 'lucide-react';
-import api from '@/lib/api';
+import api, { getApiError } from '@/lib/api';
 import { useUIStore } from '@/store/uiStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const passwordSchema = z.object({
+  currentPassword: z.string().min(1, 'Enter your current password'),
   password: z.string().min(8, 'Password must be at least 8 characters')
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Must contain uppercase, lowercase, and number'),
   confirmPassword: z.string()
@@ -29,19 +30,25 @@ export function PasswordModal({ isOpen, onClose }: PasswordModalProps) {
   const { showToast } = useUIStore();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
   });
 
   const onSubmit = async (data: PasswordFormData) => {
+    setServerError(null);
     try {
-      await api.put('/customer/password', { password: data.password });
+      await api.put('/customer/password', { currentPassword: data.currentPassword, password: data.password });
       showToast('Password updated successfully');
       reset();
       onClose();
     } catch (error) {
-      showToast('Failed to update password', 'error');
+      // Current-password mismatches and strength failures come from the server —
+      // surface its message instead of a generic failure.
+      const message = getApiError(error);
+      setServerError(message);
+      showToast(message, 'error');
     }
   };
 
@@ -72,6 +79,21 @@ export function PasswordModal({ isOpen, onClose }: PasswordModalProps) {
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
+                  <label className="text-xs font-medium text-white/60 mb-1.5 block">Current Password</label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+                    <input
+                      {...register('currentPassword')}
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      className="input pl-10 pr-10"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  {errors.currentPassword && <p className="text-xs text-red-400 mt-1">{errors.currentPassword.message}</p>}
+                </div>
+
+                <div>
                   <label className="text-xs font-medium text-white/60 mb-1.5 block">New Password</label>
                   <div className="relative">
                     <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
@@ -80,6 +102,7 @@ export function PasswordModal({ isOpen, onClose }: PasswordModalProps) {
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       className="input pl-10 pr-10"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -101,6 +124,7 @@ export function PasswordModal({ isOpen, onClose }: PasswordModalProps) {
                       type={showConfirmPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       className="input pl-10 pr-10"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -112,6 +136,8 @@ export function PasswordModal({ isOpen, onClose }: PasswordModalProps) {
                   </div>
                   {errors.confirmPassword && <p className="text-xs text-red-400 mt-1">{errors.confirmPassword.message}</p>}
                 </div>
+
+                {serverError && <p className="text-xs text-red-400 mt-1">{serverError}</p>}
 
                 <div className="pt-4 flex gap-3">
                   <button type="button" onClick={onClose} className="flex-1 btn-secondary justify-center">

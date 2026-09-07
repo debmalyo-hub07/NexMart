@@ -33,6 +33,7 @@ Frontend  : Next.js 15.3.2 App Router · React 19 · TypeScript · Tailwind 3.4
             framer-motion 11 · GSAP 3.12 + ScrollTrigger · Lenis 1.3
             three 0.184 + @react-three/fiber (homepage hero only) · recharts
 Backend   : Express · Mongoose · Socket.IO · Upstash Redis · Razorpay test mode
+Tests     : vitest — backend (transition graph, schemas, URL parser) + frontend (lib)
 DB        : MongoDB Atlas (collections use Mongoose-default plural names)
 Media     : Cloudinary (res.cloudinary.com, dumb origin — no URL transforms yet)
 ```
@@ -57,12 +58,12 @@ There is **no** `/admin/dashboard`, no `/customer/dashboard`, no `/products/[id]
 ### 1.4 Data layer as built
 - React Query is the fetching layer (30+ call sites). Admin + delivery pages spread `liveQueryOptions` from `src/lib/syncConfig.ts` (10s `refetchInterval`, in-background). Checkout, OTP, admin profile, and all auth forms still use raw `api` + `useState`.
 - Query defaults (`providers.tsx`): `retry: 0`, no refetch on focus/reconnect — this is why errors render as empty states (roadmap P1-9).
-- Cart is Zustand-only; `cartStore.fetchCart()` is never called; backend `/cart/*` has **no auth middleware** so carts are guest-scoped forever (roadmap P1-10).
+- Cart is Zustand-only; `cartStore.fetchCart()` is never called. `/cart/*` runs behind `optionalCustomerAuth` (account-bound when logged in, `x-session-id` guest otherwise) and `POST /cart/merge` folds the guest cart in on login — genuinely working since the 2026-09-07 B1 fix (the 2026-09-05 fix shipped with a payload-shape mismatch that 400'd every merge silently).
 - Backend collections: `admins`, `customers`, `deliveryagents`, `products`, `categories`, `orders`, `deliveryassignments` (Mongoose plural defaults — not the old spec's `*_users` names).
 - Response envelope: `{success, message, data}` + `meta:{page,limit,total,totalPages}`. Zod field errors return under `errors` — **no frontend code reads `errors` today**; new code must (§5.4).
 
 ### 1.5 Known-broken inventory
-The full ranked list with `file:line` evidence is §8. **P0 rows 1–8 were fixed 2026-09-05** (see §8 for the one remaining environment caveat: the Upstash Redis URL in `.env` no longer resolves, 500-ing every API request locally until updated). Still open today: the invoice `alert()`s on `/orders` (P4), plus the P1–P4 rows.
+The full ranked list with `file:line` evidence is §8. **P0–P4 were fixed 2026-09-05/06.** A **full live E2E audit on 2026-09-07** (temp accounts for all three roles, real orders, sockets, webhooks, security probes — data deleted afterwards) found 12 residual bugs, **B1–B12, all fixed the same day** (§8, P5 wave). Known-open items from that audit are listed in the P5 section.
 
 ---
 
@@ -216,7 +217,7 @@ CUSTOMER places order (POST /orders → 'placed')
 ADMIN confirms ('placed' → 'confirmed')        [today: 401 — broken route guard]
    → assigns agent (POST /admin/orders/:id/assign/:agentId → 'shipped')
    → SOCKET 'delivery:assigned' → agent room  [today: email only]
-AGENT: assigned → picked → in_transit → delivered
+AGENT: assigned → picked → out_for_delivery → delivered
    → SOCKET 'order:status_updated' → customer + admin rooms
    → email via queue at each customer-facing transition
 ```
@@ -267,7 +268,7 @@ Every arrow that says "today: broken" is roadmap P0/P1. **The UI contract for ev
 - Status updates: optimistic with per-row spinner, offline-tolerant (queue locally, sync on reconnect, "Saved offline — will sync" state).
 - Stats are honest: "Delivered Today" counts today's deliveries (today it counts the current page — P3).
 - Agent profile: approval status honest (today's unconditional "Verified by Admin" pill is P3).
-- Status model: `assigned → picked → in_transit → delivered` — "picked" must never regress an order from `shipped` (P1-17).
+- Status model: `assigned → picked → out_for_delivery → delivered` — forward-only on BOTH paths since 2026-09-07 (the shared graph in `utils/orderTransitions.ts` guards admin and delivery updates alike; "picked" maps to `shipped` and never regresses an order).
 
 ---
 
@@ -401,14 +402,14 @@ Each item: the gap, the evidence, the acceptance criterion. Execute in order; P0
 | # | Gap | Fix / acceptance |
 |---|---|---|
 | 9 ✅ | 401 renders as empty state in all three roles; 7d-cookie vs 30d-session dead zone. | FIXED: NextAuth maxAge = 7d (matches backend cookies); axios interceptor on 401 clears auth + redirects to role login with `?redirect=`; auth endpoints exempt (loop guard). |
-| 10 ✅ | Cart has no auth middleware → never bound to an account; `removeItem` failure wipes the visible cart. | FIXED: `optionalCustomerAuth` on cart routes; `POST /cart/merge` folds guest cart into account on login (price/stock re-validated); `removeCartItem` null-safe. |
+| 10 ✅ | Cart has no auth middleware → never bound to an account; `removeItem` failure wipes the visible cart. | FIXED 2026-09-05: `optionalCustomerAuth` on cart routes; `POST /cart/merge`; `removeCartItem` null-safe. **Re-broken and truly fixed 2026-09-07 (E2E audit B1):** the merge schema expected a bare array while the frontend sends `{items:[...]}` — every login merge 400'd silently. Schema now matches the frontend (`utils/validation.ts`). |
 | 11 ✅ | Delivery agent sees blank customer phone (reads `customer.phone`, registration never collects it). | FIXED: dashboard reads `shippingAddress.phone` (tap-to-call); registration collects phone + state + pincode with server validation. |
 | 12 ✅ | "You'll receive a confirmation email" — `sendOrderStatusEmail` never called. | FIXED: wired at payment-confirmed, admin status change, and agent status change (try/caught, never blocks the request). |
 | 13 ✅ | Price sort silently dead on `/products` + `/search` (`ALLOWED_SORT` lacks `variants.0.price`). | FIXED: `/products` sends `variants.0.price`; search allow-list extended. |
 | 14 ✅ | Cart `updateItem`/`clearCart` swallow all errors (`catch {}`). | FIXED: rollback + `getApiError` toast on all three cart mutations. |
 | 15 ✅ | Pending agent's legitimate login counts as a failed attempt, ×2 via the double-login bug → 15-min lockout after 3 tries. | FIXED: pending/rejected status blocks no longer increment the counter. (Analysis: the double-trip only occurs on *successful* logins, which clear the counter — wrong passwords throw before the second trip. Auth families deliberately NOT unified: the browser POST is what sets the cookie; NextAuth's server-side fetch cannot.) |
 | 16 ✅ | `agent:status_updated` emits to a room the pending agent (not logged in) can never join. | FIXED: dead pre-approval emits removed; email is the pre-approval channel. Admin assignment now emits `order:status_updated` 'shipped' to the customer. |
-| 17 ✅ | "picked" regresses order `shipped → processing`, visible to the customer. | FIXED: `picked` maps to `'shipped'`; forward-only transitions. |
+| 17 ✅ | "picked" regresses order `shipped → processing`, visible to the customer. | FIXED 2026-09-05: `picked` maps to `'shipped'`. **The "forward-only" half was admin-path-only until 2026-09-07 (E2E audit B2):** the delivery path accepted `delivered → picked`. Both paths now share one guarded graph (`utils/orderTransitions.ts`); same-status repeats are idempotent no-ops. |
 | 18 ✅ | Hardcoded homepage categories/stats/testimonials; `page.tsx` categories can 404 against real DB. | FIXED: categories from `GET /categories` with skeleton loading; fabricated stats row + testimonials deleted. |
 
 ### P2 — dead controls & patterns — ✅ DONE 2026-09-05 (2 deferrals noted)
@@ -430,9 +431,29 @@ Each item: the gap, the evidence, the acceptance criterion. Execute in order; P0
 ~~`MOCK_ACTIVITY` "Security & Activity Log"~~ deleted · ~~hardcoded `change={12/8/5}` deltas~~ deleted (no real period data exists — chips removed, not faked; StatsCard is now tri-state with retry) · ~~fake LIVE badge~~ now honest "SYNC" + 60s tooltip · ~~delivery "Verified by Admin" unconditional~~ status-conditional (approved/pending/rejected, icon+text) · ~~"Delivered Today" counting current page~~ dedicated stats fetch, today-scoped for real · ~~"Awaiting Approval" showing 0 off-tab~~ reads the pending query unconditionally · `getStatusColor` ~~missing 5 statuses~~ all mapped (approved/rejected/assigned/picked/attempted) + StatusBadge icons · ~~false Sentry comment~~ corrected · ~~`grid-cols-4` with 3 cards~~ grid-cols-3. **Also fixed en route:** `DeliveryAssignment` enum lacked `out_for_delivery` (mongoose rejected the save → that status option 500'd); dashboard status list gains display-only `assigned` (new assignments no longer render as "picked").
 
 ### P4 — polish & consistency — ✅ DONE 2026-09-05 (1 moot, 2 noted)
-Analytics skeleton wired (isLoading was destructured-unused) · RevenueChart + bar chart empty/error states · ~~invoice `alert()`s~~ toasts (the last in the app) · ~~`confirm()` category delete~~ ConfirmDialog · DataTable: 300ms debounced search + below-lg mobile card view + **real server-side sort** (allow-listed sort params added to the three admin endpoints; client-side one-page sort deleted; headers are buttons with `aria-sort`) · toast queue rewrite (per-toast timers, max 3, aria-live) · `/products` `/search` `/categories/[slug]` windowed pagination with prev/next (pages 11+ reachable) · ~~hero stat row wraps at 360px~~ MOOT — the fabricated stats row was deleted in P1 · `transition-all` purged (39 sites → specific properties) · skeleton shimmer → opacity pulse · admin single-scroll restructure (was nested overflow fighting iOS) · mega-menu viewport clamp · dead deps purged (react-dropzone, react-image-crop, date-fns, cva, @sentry/nextjs — 186 packages) · ~~non-functional Playwright workflow~~ deleted · `error.tsx` ~~`btn-glow`~~ → `btn-primary` · about-page dead link → `/customer/register` · unused imports swept · per-page admin `loading.tsx` ×6 · `not-found.tsx` with browse/home CTAs. **Noted, not blocking:** admin layout restructure is the one structural layout change — verify on a real iOS device; backend has no test runner yet (unit tests are frontend-only).
+Analytics skeleton wired (isLoading was destructured-unused) · RevenueChart + bar chart empty/error states · ~~invoice `alert()`s~~ toasts (the last in the app) · ~~`confirm()` category delete~~ ConfirmDialog · DataTable: 300ms debounced search + below-lg mobile card view + **real server-side sort** (allow-listed sort params added to the three admin endpoints; client-side one-page sort deleted; headers are buttons with `aria-sort`) · toast queue rewrite (per-toast timers, max 3, aria-live) · `/products` `/search` `/categories/[slug]` windowed pagination with prev/next (pages 11+ reachable) · ~~hero stat row wraps at 360px~~ MOOT — the fabricated stats row was deleted in P1 · `transition-all` purged (39 sites → specific properties) · skeleton shimmer → opacity pulse · admin single-scroll restructure (was nested overflow fighting iOS) · mega-menu viewport clamp · dead deps purged (react-dropzone, react-image-crop, date-fns, cva, @sentry/nextjs — 186 packages) · ~~non-functional Playwright workflow~~ deleted · `error.tsx` ~~`btn-glow`~~ → `btn-primary` · about-page dead link → `/customer/register` · unused imports swept · per-page admin `loading.tsx` ×6 · `not-found.tsx` with browse/home CTAs. **Noted, not blocking:** admin layout restructure is the one structural layout change — verify on a real iOS device; ~~backend has no test runner~~ backend runs vitest since 2026-09-07 (`backend/ npm test`, unit tests for the transition graph, merge/password schemas, Cloudinary URL parser).
 
-> **All 43 rows closed.** Standing environment caveat: `UPSTASH_REDIS_REST_URL` in `.env` must be updated to a live database before any live smoke test — every API request 500s until then (global rate limiter).
+> **All 43 rows closed.** Standing environment caveat: `UPSTASH_REDIS_REST_URL` in `.env` must be a live database — the fail-open circuit breaker keeps the API serving without it, but rate limiting / blacklists / lockouts are bypassed while it's down.
+
+### P5 — live E2E audit fixes — ✅ DONE 2026-09-07 (B1–B12; all red/green verified against the running app)
+Full-platform audit: temp accounts per role, real COD + Razorpay-test orders through the entire lifecycle, socket + webhook + invoice + email verification, active security probing; all test data deleted afterwards and the DB verified at its pre-test baseline. Fixes (details in `docs/CHANGELOG.md` 2026-09-07):
+
+| # | Gap found live | Fix |
+|---|---|---|
+| B1 ✅ | Cart merge 400'd on every login (frontend `{items}` vs backend bare-array schema; swallowed catch hid it). | Shared schema in `utils/validation.ts` accepts the frontend shape. |
+| B2 ✅ | Delivery status path accepted `delivered → picked` (no forward-only guard); duplicate `shipped` history entries. | One shared transition graph (`utils/orderTransitions.ts`) guards both admin + delivery paths; same-status repeats are idempotent no-ops. |
+| B3 ✅ | Suspension was cosmetic — suspended customer logged in and ordered. | `isActive` checked at login and per-request in `protectCustomer` (existing tokens die); optional cart auth falls back to guest. |
+| B4 ✅ | Any customer could flip another customer's order to `paymentStatus:'failed'` with a bad signature + known rzp order id. | Failure-path update scoped by `customer: userId`. |
+| B5 ✅ | Password change needed no current password, no strength policy (1-char password accepted). | `currentPassword` bcrypt-verified + strength zod; PasswordModal gained the field and surfaces server messages. |
+| B6 ✅ | Rejected agents saw "pending admin approval". | Rejected-status check runs before the pending check. |
+| B7 ✅ | Malformed JSON → 500 leaking parser internals. | 400 with clean message. |
+| B8 ✅ | 404 handler echoed the route path (§5.3 violation). | Generic message; request line stays in morgan. |
+| B9 ✅ | Agent registration rate-limited 10/min (`authLimit`) vs 3/hour for other roles. | Aligned to `registerLimit`. |
+| B10 ✅ | Empty-cart response advertised a phantom `subtotal`. | Removed. |
+| B11 ✅ | `deleteProduct` orphaned Cloudinary images forever. | Images destroyed on delete (strict URL→public_id parser, our cloud + `nexmart/` only). |
+| B12 ✅ | Agent-delivered COD orders never got invoices. | Delivery path queues invoice generation on `delivered`. |
+
+**Known-open from the audit (accepted, revisit before any non-React consumer):** reviews store HTML unsanitized (inert in the React app — zero `dangerouslySetInnerHTML`); `/products?category=<slug>` 400s (frontend sends ObjectIds); registration/OTP-verify responses permit email enumeration; some product-form Zod messages are raw defaults; `backend npm run lint` references an uninstalled eslint; the Razorpay **dashboard webhook was created in normal/live mode while the keys are test-mode** — test payments never fire it (the reaper reconciles; see `docs/DEPLOYMENT.md` for creating it in the right mode).
 
 ### Done-definitions (apply per item)
 - Build passes (`npm run build` in `frontend/`).

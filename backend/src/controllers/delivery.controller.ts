@@ -4,9 +4,11 @@ import { Order } from '../models/Order';
 import { DeliveryAssignment } from '../models/DeliveryAssignment';
 import { emitOrderStatusUpdate } from '../config/socket';
 import { sendOrderStatusEmail } from '../services/email.service';
-import { sendSuccess, sendNotFound, sendPaginated } from '../utils/response';
+import { queueInvoiceGeneration } from '../queues/invoiceQueue';
+import { sendSuccess, sendNotFound, sendBadRequest, sendPaginated } from '../utils/response';
 import { AuthenticatedRequest, OrderStatus } from '../types';
 import { parsePagination } from '../utils/helpers';
+import { isTransitionAllowed, ALLOWED_ORDER_TRANSITIONS } from '../utils/orderTransitions';
 
 export async function getMyDeliveries(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;
@@ -52,13 +54,6 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
   const assignment = await DeliveryAssignment.findOne({ agent: userId, order: req.params.id });
   if (!assignment) { sendNotFound(res, 'Assignment not found'); return; }
 
-  // Update assignment
-  if (status === 'picked') assignment.pickedAt = new Date();
-  if (status === 'delivered') assignment.deliveredAt = new Date();
-  if (status === 'attempted') assignment.attemptedAt = new Date();
-  assignment.status = status as typeof assignment.status;
-  await assignment.save();
-
   // Map delivery status to order status
   // picked → 'shipped' (never 'processing': an order the admin already set to
   // 'shipped' must not be regressed backwards by the agent picking it up)
@@ -71,17 +66,33 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
   };
 
   const orderStatus = orderStatusMap[status];
-  if (orderStatus) {
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      {
-        orderStatus,
-        $push: { statusHistory: { status: orderStatus, timestamp: new Date(), updatedBy: userId, note } },
-      },
-      { new: true }
-    ).populate('customer', 'name email');
+  let order = await Order.findById(req.params.id).populate('customer', 'name email');
+  if (!order) { sendNotFound(res, 'Order not found'); return; }
 
-    if (order) {
+  // B2: forward-only guard, shared with the admin status path. An order never
+  // moves backwards (e.g. a delivered order cannot return to 'shipped' via a
+  // late 'picked'), and cancellation/return are the only exits.
+  if (orderStatus && order.orderStatus !== orderStatus && !isTransitionAllowed(order.orderStatus, orderStatus)) {
+    sendBadRequest(res, `Order cannot move from "${order.orderStatus}" to "${orderStatus}". Allowed from "${order.orderStatus}": ${(ALLOWED_ORDER_TRANSITIONS[order.orderStatus] || []).join(', ') || 'none (terminal)'}.`);
+    return;
+  }
+
+  // Update assignment
+  if (status === 'picked') assignment.pickedAt = new Date();
+  if (status === 'delivered') assignment.deliveredAt = new Date();
+  if (status === 'attempted') assignment.attemptedAt = new Date();
+  assignment.status = status as typeof assignment.status;
+  await assignment.save();
+
+  if (orderStatus) {
+    // Same-status repeats (e.g. 'picked' once the admin's assignment already
+    // set 'shipped') are idempotent no-ops: no order write, no duplicate
+    // statusHistory entry, no duplicate email/socket event.
+    if (order.orderStatus !== orderStatus) {
+      order.orderStatus = orderStatus;
+      order.statusHistory.push({ status: orderStatus, timestamp: new Date(), updatedBy: userId, note } as never);
+      await order.save();
+
       const customer = order.customer as unknown as { name?: string; email?: string; _id: { toString(): string } };
       // Fire-and-forget — SMTP latency never sits in the agent's request path
       if (customer?.email) {
@@ -89,6 +100,13 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
           .catch((err) => console.error('Order status email failed:', err));
       }
       emitOrderStatusUpdate(customer._id.toString(), order.orderId, orderStatus);
+
+      // B12: delivery confirmations get invoices too — previously only the
+      // admin status path and payment-verify queued them, so agent-delivered
+      // COD orders never had one.
+      if (orderStatus === 'delivered') {
+        await queueInvoiceGeneration(order._id.toString());
+      }
     }
   }
 

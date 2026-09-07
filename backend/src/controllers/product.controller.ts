@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Product } from '../models/Product';
 import { Category } from '../models/Category';
 import { Order } from '../models/Order';
-import { uploadImageBuffer } from '../services/cloudinary.service';
+import { uploadImageBuffer, deleteImageByUrl } from '../services/cloudinary.service';
 import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendPaginated } from '../utils/response';
 import { AuthenticatedRequest } from '../types';
 import { parsePagination, parseSortField, generateSlug } from '../utils/helpers';
@@ -176,6 +176,18 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
 export async function deleteProduct(req: Request, res: Response): Promise<void> {
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) { sendNotFound(res, 'Product not found'); return; }
+
+  // B11: destroy the product's CDN images too — they used to be orphaned in
+  // Cloudinary forever. Best-effort per image: a CDN error never blocks the
+  // DB delete that already happened.
+  for (const url of product.images || []) {
+    try {
+      await deleteImageByUrl(url);
+    } catch (err) {
+      console.error(`Cloudinary image cleanup failed for ${url}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
   await clearFeaturedProductsCache();
   sendSuccess(res, null, 'Product deleted');
 }

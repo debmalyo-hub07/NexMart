@@ -71,6 +71,9 @@ export const protectCustomer = async (req: Request, res: Response, next: NextFun
     if (await isTokenBlacklisted(decoded.jti)) return sendUnauthorized(res, 'Session expired. Please login again.');
     const customer = await Customer.findById(decoded.id);
     if (!customer) return sendUnauthorized(res, 'Customer not found');
+    // B3: suspension must kill existing sessions too, not just block login —
+    // tokens live 7 days, so the check has to happen per request.
+    if (!customer.isActive) return sendForbidden(res, 'Your account has been suspended. Please contact support.');
 
     (req as any).user = { id: customer.id, role: customer.role, ...decoded, userId: customer.id };
     next();
@@ -126,7 +129,9 @@ export const optionalCustomerAuth = async (req: Request, res: Response, next: Ne
     const decoded = jwt.verify(token, env.JWT_SECRET_CUSTOMER) as any;
     if (await isTokenBlacklisted(decoded.jti)) return next(); // fall back to guest
     const customer = await Customer.findById(decoded.id);
-    if (customer) {
+    // B3: suspended customers lose their account cart binding too — they fall
+    // back to guest like any unauthenticated visitor (this middleware never rejects).
+    if (customer?.isActive) {
       (req as any).user = { id: customer.id, role: customer.role, ...decoded, userId: customer.id };
     }
   } catch {

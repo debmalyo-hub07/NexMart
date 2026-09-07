@@ -4,6 +4,7 @@ import { Cart } from '../models/Cart';
 import { Product } from '../models/Product';
 import { sendSuccess, sendNotFound, sendBadRequest } from '../utils/response';
 import { AuthenticatedRequest } from '../types';
+import { cartMergeSchema } from '../utils/validation';
 
 function getCartFilter(req: Request): Record<string, unknown> {
   const user = (req as AuthenticatedRequest).user;
@@ -18,7 +19,10 @@ function getCartFilter(req: Request): Record<string, unknown> {
 export async function getCart(req: Request, res: Response): Promise<void> {
   const filter = getCartFilter(req);
   const cart = await Cart.findOne(filter).populate('items.product', 'name images slug variants');
-  sendSuccess(res, cart || { items: [], subtotal: 0 });
+  // No subtotal field is promised here: the Cart model has none, and populated
+  // carts never carried one — the empty-cart default used to advertise a
+  // phantom `subtotal: 0` (B10).
+  sendSuccess(res, cart || { items: [] });
 }
 
 export async function addToCart(req: Request, res: Response): Promise<void> {
@@ -98,17 +102,13 @@ export async function clearCart(req: Request, res: Response): Promise<void> {
   sendSuccess(res, null, 'Cart cleared');
 }
 
-const mergeItemsSchema = z.array(z.object({
-  product: z.string(),
-  variant: z.string(),
-  quantity: z.number().int().positive().max(10),
-}));
-
 // POST /cart/merge — merge the guest (localStorage) cart into the account
 // cart after login. Re-validates price/stock from the DB like addToCart.
+// Body shape: { items: [...] } — exactly what authStore.ts sends (B1 fix: the
+// old bare-array schema made every login merge fail validation).
 export async function mergeGuestCart(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;
-  const items = mergeItemsSchema.parse(req.body);
+  const items = cartMergeSchema.parse(req.body).items;
 
   let cart = await Cart.findOne({ user: userId });
   if (!cart) cart = new Cart({ user: userId, items: [] });

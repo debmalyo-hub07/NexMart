@@ -32,7 +32,7 @@ Anything larger than a one-file fix gets a plan in `docs/superpowers/plans/YYYY-
 
 ```bash
 cd frontend && npm test && npm run build   # tests + production build
-cd ../backend && npm run build             # tsc
+cd ../backend && npm test && npm run build # vitest + tsc
 
 # Grep gates
 grep -rEn "white/(3|4|6|7|8)\b" frontend/src/          # must be empty
@@ -61,6 +61,6 @@ One logical change per commit, imperative subject line, body explains *why*. Ref
 
 ## Testing
 
-- Unit: vitest (`frontend/src/lib/*.test.ts`) — `npm test` in `frontend/`.
-- Pure logic (route builders, event-name contracts, formatters) gets a test; UI verification is the build + the manual gates above.
-- Backend has no test runner yet (known gap); verify with `npm run build` + endpoint smoke tests against a running stack.
+- Unit: vitest — `npm test` in `frontend/` (`src/lib/*.test.ts`) and in `backend/` (`src/utils/__tests__/`: order transition graph, cart-merge + password schemas, Cloudinary URL parser).
+- Pure logic (route builders, event-name contracts, formatters, state machines, schemas) gets a test; UI verification is the build + the manual gates above.
+- Backend behavior changes get a live red/green check against a running stack when a unit test can't reach them (assert the correct behavior before the fix, re-run after).

@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-07 — full-platform E2E audit + 12 fixes (B1–B12)
+
+A live end-to-end test of every role flow (temp accounts for all three roles, real orders through COD + Razorpay test mode, sockets, webhooks, invoices, security probes), followed by fixes for everything it found. All test accounts and data were deleted afterwards; the DB was verified back to its pre-test baseline (1 pre-existing order, 1 customer, stock 18, 0 reviews).
+
+**High severity (E2E-verified broken → fixed → E2E-verified fixed):**
+
+- **B1 — Cart merge was broken end-to-end.** The frontend posts `{items: [...]}`; the backend schema expected a bare array — every login merge 400'd and the swallowed catch hid it. The schema now accepts exactly the frontend's shape (`utils/validation.ts`), so guest carts really do fold into account carts on login.
+- **B2 — Delivery status path had no forward-only guard.** `delivered → picked` was accepted, regressing orders to `shipped` in front of the customer. The transition graph now lives in one shared module (`utils/orderTransitions.ts`) enforced by **both** the admin and delivery paths; same-status repeats (e.g. `picked` once assignment already set `shipped`) are idempotent no-ops that no longer duplicate statusHistory entries.
+- **B3 — Customer suspension was cosmetic.** `isActive:false` was never checked — a suspended customer could log in and place orders. Now blocked at login *and* per-request in `protectCustomer` (existing 7-day tokens die immediately); suspended users fall back to guest in the cart's optional auth.
+- **B4 — Cross-tenant `paymentStatus` poisoning.** The invalid-signature path in payment verify updated by `razorpayOrderId` alone, so any authenticated customer could mark another customer's paid order `failed`. Now scoped by `customer: userId`.
+- **B5 — Password change needed no current password and had no strength policy** (a 1-char password was accepted live). Now requires the current password (bcrypt-verified, server message surfaces in the UI) and the same strength policy as the frontend modal; the PasswordModal gained the Current Password field and passes server errors through.
+
+**Medium/minor:**
+
+- **B6** — rejected agents saw "pending admin approval" (the `!isApproved` check shadowed the rejected branch); rejected is checked first now.
+- **B7** — malformed JSON returned **500** with the parser's internal message; now 400 with a clean message.
+- **B8** — the 404 handler echoed the route path (violates CLAUDE.md §5.3); now a generic "Resource not found" (the request line stays in morgan logs).
+- **B9** — agent registration sat behind the 10/min `authLimit` instead of the 3/hour `registerLimit` the other roles use; aligned.
+- **B10** — the empty-cart response advertised a phantom `subtotal: 0` (the Cart model has no subtotal field); removed.
+- **B11** — `deleteProduct` orphaned its Cloudinary images forever; deletion now destroys them (strict URL→public_id parser — only our cloud + `nexmart/` tree — verified via the Admin API; delivery URLs may serve from CDN edge cache briefly after deletion).
+- **B12** — agent-delivered COD orders never got an invoice (only the admin path and payment-verify queued them); the delivery path queues one on `delivered`.
+
+**Infrastructure:** backend now has a test runner — vitest (`backend/ npm test`, 22 unit tests over the transition graph, merge/password schemas, and the Cloudinary URL parser). TDD'd: watched failing first, then green. Backend `tsc` build, frontend vitest suite, and frontend production build all pass.
+
+**Data hygiene:** the leftover dummy agent `e2e-mtq73szc.agent@gmail.com` (from a previous test session) was removed along with its (zero) assignments.
+
+**Known-open (documented, not fixed):** reviews store HTML unsanitized (inert — zero `dangerouslySetInnerHTML` in the frontend; sanitize server-side before any non-React consumer); `/products?category=<slug>` 400s (frontend sends ObjectIds — latent API wart); registration + OTP-verify responses allow email enumeration; product-form Zod messages still include raw defaults ("String must contain at least 10 character(s)"); `backend npm run lint` references eslint but eslint isn't installed.
+
+**Razorpay config finding (dashboard, not code):** the webhook was created in the dashboard's **normal (live) mode** while the keys are test-mode — test payments will never fire it. The handler itself is production-grade (verified live with signed `payment.failed`/`payment.captured` events + idempotent replay); the order reaper covers the gap (reconciles pending online orders against Razorpay every 15 min). DEPLOYMENT.md now documents creating the webhook in the mode matching your keys.
+
 ## 2026-09-06 (later) — the Orbit-N logo mark
 
 Replaced the generic gradient-tile-plus-"N" with an ownable monogram: two bold brand-gradient stems carry the letter **N**, the diagonal becomes a thin violet orbital arc, and an acid-green node travels on it — the homepage hero (wireframe sphere + orbiting rings) miniaturized into a mark. The node is the action color: the product in orbit. Implemented as a scalable SVG (`Logo` component, token colors only) across all seven call sites (navbar desktop + mobile drawer, footer, admin sidebar, delivery header, auth screens, loader) plus a dark-tile `icon.svg` favicon. En route: the last three `gradient-text` (violet→acid, the retired contradictory gradient) uses converted to the brand violet→fuchsia — the codebase now has exactly one gradient.
