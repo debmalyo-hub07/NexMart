@@ -953,7 +953,7 @@ Start the backend (`cd backend && npm run dev`) and run these from a second term
 # 1. Admin can now change order status (was always 401):
 TOKEN=$(curl -s -X POST http://localhost:4000/api/v1/auth/admin/login \
   -H 'Content-Type: application/json' -c cookies.txt \
-  -d '{"email":"debmalyobarman2003@gmail.com","password":"Admin@1234"}' | head -c 200)
+  -d '{"email":"<ADMIN_SEED_EMAIL>","password":"<ADMIN_SEED_PASSWORD>"}' | head -c 200)
 curl -s -X PATCH http://localhost:4000/api/v1/orders/<ORDER_ID>/status \
   -H 'Content-Type: application/json' -b cookies.txt -d '{"status":"confirmed"}'
 # Expected: 200 {"success":true,...,"message":"Order status updated"}
