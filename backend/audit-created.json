@@ -1,0 +1,31 @@
+{
+  "customers": [
+    "6a9ef5805ca6c649d80b7612"
+  ],
+  "agents": [
+    "6a9ef5915ca6c649d80b76e7"
+  ],
+  "admins": [
+    "6a9ef58c5ca6c649d80b76a9"
+  ],
+  "orders": [
+    "6a9ef5955ca6c649d80b76fc",
+    "6a9ef59d5ca6c649d80b777b",
+    "6a9ef59e5ca6c649d80b778f"
+  ],
+  "products": [
+    "6a9ef5905ca6c649d80b76dd"
+  ],
+  "categories": [
+    "6a9ef58f5ca6c649d80b76d5"
+  ],
+  "carts": [
+    "6a9ef5885ca6c649d80b765d"
+  ],
+  "wishlists": [
+    "6a9ef5895ca6c649d80b768b"
+  ],
+  "assignments": [
+    "6a9ef5963c884d966d9399b5"
+  ]
+}

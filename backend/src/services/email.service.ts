@@ -190,6 +190,8 @@ export async function sendOrderStatusEmail(
     out_for_delivery: { label: 'Out for Delivery',   emoji: '&#128230;' },
     delivered:        { label: 'Order Delivered',    emoji: '&#9989;' },
     cancelled:        { label: 'Order Cancelled',    emoji: '&#10060;' },
+    refunded:         { label: 'Payment Refunded',   emoji: '&#128176;' },
+    returned:         { label: 'Order Returned',     emoji: '&#128260;' },
   };
 
   const info = statusConfig[status] || { label: `Status: ${status}`, emoji: '&#128203;' };

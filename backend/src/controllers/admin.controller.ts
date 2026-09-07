@@ -219,8 +219,11 @@ export async function refundOrder(req: Request, res: Response): Promise<void> {
 
     const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
     emitOrderStatusUpdate(customer._id.toString(), order.orderId, order.orderStatus);
+    // Audit §3.6: the PAYMENT is refunded — the fulfilment status is unchanged.
+    // Say "refunded", not "cancelled" (a delivered order that got its money
+    // back is not cancelled).
     if (customer?.email) {
-      void sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, 'cancelled')
+      void sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, 'refunded')
         .catch((err) => console.error('Refund email failed:', err));
     }
 

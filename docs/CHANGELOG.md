@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-07 (evening) — second full-platform audit + 7 fixes (C1–C7)
+
+A second live audit (102-check regression harness + socket/webhook/reaper/security probes) found 7 new issues; all fixed the same evening via TDD (56 backend tests, 6 new test files), live re-verified, test data deleted, DB restored to baseline. Full report: `docs/AUDIT-REPORT-2026-09-07-evening.md`. Reusable harnesses: `backend/audit-*.js`.
+
+**Critical:**
+
+- **C1 — Google OAuth account takeover.** `POST /auth/google/callback` trusted raw `{googleId, email, name, picture}` from the request body — a forged POST with any victim email returned a working customer token (bypassing email verification and issuing tokens for suspended accounts). The endpoint now accepts only a Google **ID token**, verified server-side against Google's tokeninfo endpoint (new `services/googleToken.service.ts`: audience must be our OAuth client, email must be verified at Google, fail-closed on any error); suspended accounts are refused; the frontend sends the token instead of raw identity. Live-verified: raw-identity probe → 400, forged token → 401.
+- **C2 — the order reaper had never worked.** `fetchOrderPayments` cast Razorpay SDK 2.9.2's `{entity, count, items}` collection object to an array; the sweep's `payments.find()` threw on **every** sweep and the outer try/catch silently swallowed it — abandoned checkouts were never cancelled or restocked, paid-but-unconfirmed orders never reconciled. Fixed (returns `payments.items`), plus per-order error isolation in the sweep (one bad order no longer poisons the cycle). Live-verified: a backdated stale order was auto-cancelled with stock restocked by the sweep.
+
+**High:**
+
+- **C3 — admin/agent cancel & return never restocked** (only the reaper's dead path did). A shared `utils/orderRestock.ts` helper now runs on `cancelled` and `returned` in both the admin and delivery status paths.
+- **C4 — failed online payments became zombies** (placed forever, stock leaked, reaper matched only `pending`). The reaper filter now sweeps `pending` AND `failed`; failed orders cancel + restock without a needless Razorpay call.
+
+**Medium:**
+
+- **C5 — delivered COD orders stayed `paymentStatus:'pending'` forever**, making revenue analytics (filter: `paid`) contradict the dashboard's total revenue. Both delivery paths mark COD `paid` on delivery.
+- **C6 — refund emails said "Order Cancelled"** for non-cancelled (often delivered) orders. New `refunded` and `returned` email labels; the refund path now tells the truth.
+- **C7 — webhook auto-disable root-caused** (the user observed test webhooks dying). Razorpay auto-disables webhooks after 24h of failed deliveries (non-2xx or >5s timeouts); localhost/dead-tunnel URLs guarantee failure. `docs/DEPLOYMENT.md` now documents the full policy and the local-dev strategy: don't create a dashboard webhook for local dev (the fixed reaper is the 15-min backstop; create the durable webhook only once the public Render URL exists).
+
+**Also:** the morning audit's own cleanup had missed one test customer (its marker regex checked `nexmart-audit` with a hyphen while the actual emails use `nexmart.audit.`) — the new marker-driven `audit-cleanup.js` also removes Cloudinary invoice PDFs and Redis rate-limit keys, and caught the leftover. Backend `tsc`, all 56 vitest tests, the full audit harness (102 PASS), and the frontend production build all pass.
+
+---
+
 ## 2026-09-07 — full-platform E2E audit + 12 fixes (B1–B12)
 
 A live end-to-end test of every role flow (temp accounts for all three roles, real orders through COD + Razorpay test mode, sockets, webhooks, invoices, security probes), followed by fixes for everything it found. All test accounts and data were deleted afterwards; the DB was verified back to its pre-test baseline (1 pre-existing order, 1 customer, stock 18, 0 reviews).

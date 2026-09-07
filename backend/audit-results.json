@@ -1,0 +1,683 @@
+{
+  "run": "mtris37p",
+  "created": {
+    "customers": [
+      "6a9ef5805ca6c649d80b7612"
+    ],
+    "agents": [
+      "6a9ef5915ca6c649d80b76e7"
+    ],
+    "admins": [
+      "6a9ef58c5ca6c649d80b76a9"
+    ],
+    "orders": [
+      "6a9ef5955ca6c649d80b76fc",
+      "6a9ef59d5ca6c649d80b777b",
+      "6a9ef59e5ca6c649d80b778f"
+    ],
+    "products": [
+      "6a9ef5905ca6c649d80b76dd"
+    ],
+    "categories": [
+      "6a9ef58f5ca6c649d80b76d5"
+    ],
+    "carts": [
+      "6a9ef5885ca6c649d80b765d"
+    ],
+    "wishlists": [
+      "6a9ef5895ca6c649d80b768b"
+    ],
+    "assignments": [
+      "6a9ef5963c884d966d9399b5"
+    ]
+  },
+  "results": [
+    {
+      "area": "setup",
+      "name": "reference product/category",
+      "tag": "PASS",
+      "detail": "product=Samsung Galaxy S25 5G (Silver Shadow, 256 GB) (12 GB RAM) sku=SAM-MOBI-4PSX-1 stock=16 cat=Mobiles & Tablets"
+    },
+    {
+      "area": "customer-auth",
+      "name": "register (POST /auth/customer/register)",
+      "tag": "PASS",
+      "detail": "status=201 msg=Account created! Please check your email for the verification code."
+    },
+    {
+      "area": "customer-auth",
+      "name": "registration sets unverified + OTP stored",
+      "tag": "PASS",
+      "detail": "emailVerified=false otpPresent=true"
+    },
+    {
+      "area": "customer-auth",
+      "name": "login blocked before email verify",
+      "tag": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "area": "customer-auth",
+      "name": "verify-otp rejects wrong code",
+      "tag": "PASS",
+      "detail": "status=400 msg=Invalid OTP. Please check and try again."
+    },
+    {
+      "area": "customer-auth",
+      "name": "verify-otp accepts correct code",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer-auth",
+      "name": "login after verify returns token",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer-auth",
+      "name": "login rejects wrong password",
+      "tag": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "area": "customer",
+      "name": "GET profile",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "PUT profile update",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "password change requires currentPassword (B5)",
+      "tag": "PASS",
+      "detail": "status=400 msg=Validation error"
+    },
+    {
+      "area": "customer",
+      "name": "password change enforces strength (B5)",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "customer",
+      "name": "password change valid succeeds",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "password change rejects wrong current password",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "customer",
+      "name": "POST address add",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "PUT address update",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "GET products list",
+      "tag": "PASS",
+      "detail": "status=200 count=1"
+    },
+    {
+      "area": "customer",
+      "name": "GET product by slug",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "price sort allowed (P1-13)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "GET search",
+      "tag": "PASS",
+      "detail": "status=200 count=1"
+    },
+    {
+      "area": "customer",
+      "name": "GET categories (public, active only)",
+      "tag": "PASS",
+      "detail": "status=200 count=52"
+    },
+    {
+      "area": "customer",
+      "name": "cart add item",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "cart get (no phantom subtotal, B10)",
+      "tag": "PASS",
+      "detail": "status=200 keys=_id,user,items,createdAt,updatedAt,__v"
+    },
+    {
+      "area": "customer",
+      "name": "cart update qty",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "cart remove item",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "cart merge accepts {items:[...]} (B1)",
+      "tag": "PASS",
+      "detail": "status=200 msg=Cart merged"
+    },
+    {
+      "area": "customer",
+      "name": "cart clear",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "wishlist add",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "wishlist get",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "wishlist remove",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "reviews get",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "customer",
+      "name": "review post (unverified purchase)",
+      "tag": "PASS",
+      "detail": "status=201 verified=false"
+    },
+    {
+      "area": "customer",
+      "name": "duplicate review blocked (one per customer)",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "admin-auth",
+      "name": "admin register denied without secret key",
+      "tag": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "area": "admin-auth",
+      "name": "admin register denied with wrong secret",
+      "tag": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "area": "admin-auth",
+      "name": "admin register with correct secret",
+      "tag": "PASS",
+      "detail": "status=201 msg=Admin registered successfully"
+    },
+    {
+      "area": "admin-auth",
+      "name": "admin login",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "dashboard stats",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "analytics",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "users list",
+      "tag": "PASS",
+      "detail": "status=200 total=2"
+    },
+    {
+      "area": "admin",
+      "name": "products list",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "orders list",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "create category",
+      "tag": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "area": "admin",
+      "name": "update category (deactivate)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "includeInactive shows deactivated (P2-28)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "create product",
+      "tag": "PASS",
+      "detail": "status=201 msg=\"Product created\""
+    },
+    {
+      "area": "admin",
+      "name": "update product",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "admin",
+      "name": "agents list",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "agent",
+      "name": "register (pending)",
+      "tag": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "area": "agent",
+      "name": "registration defaults to pending + not approved",
+      "tag": "PASS",
+      "detail": "status=pending"
+    },
+    {
+      "area": "agent",
+      "name": "login blocked while pending",
+      "tag": "PASS",
+      "detail": "status=403 msg=Your account is pending admin approval."
+    },
+    {
+      "area": "agent",
+      "name": "admin approves agent",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "agent",
+      "name": "login after approval",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "agent",
+      "name": "GET profile",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "agent",
+      "name": "GET my-orders",
+      "tag": "PASS",
+      "detail": "status=200 count=0"
+    },
+    {
+      "area": "order",
+      "name": "COD order create",
+      "tag": "PASS",
+      "detail": "status=201 msg=Order created"
+    },
+    {
+      "area": "order",
+      "name": "stock decremented on order",
+      "tag": "PASS",
+      "detail": "before=16 after=15"
+    },
+    {
+      "area": "order",
+      "name": "server recomputes totals (never trusts client)",
+      "tag": "PASS",
+      "detail": "total=59000 expected=59000"
+    },
+    {
+      "area": "order",
+      "name": "customer GET own order",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "order",
+      "name": "customer order list",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "order",
+      "name": "admin confirm COD (P0-2 route guard fix)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "order",
+      "name": "invalid transition confirmed→delivered rejected",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "order",
+      "name": "admin assign agent → shipped",
+      "tag": "PASS",
+      "detail": "status=200 orderStatus=shipped"
+    },
+    {
+      "area": "order",
+      "name": "agent sees assigned delivery",
+      "tag": "PASS",
+      "detail": "status=200 count=1"
+    },
+    {
+      "area": "order",
+      "name": "agent GET delivery order by id (P2-24)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "order",
+      "name": "agent mark picked (idempotent → shipped)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "order",
+      "name": "agent mark out_for_delivery",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "order",
+      "name": "agent mark delivered",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "order",
+      "name": "delivered→picked regression blocked (B2)",
+      "tag": "PASS",
+      "detail": "status=400 msg=Order cannot move from \"delivered\" to \"shipped\". Allowed from \"delivered\": returned."
+    },
+    {
+      "area": "order",
+      "name": "final order status delivered",
+      "tag": "PASS",
+      "detail": "orderStatus=delivered"
+    },
+    {
+      "area": "order",
+      "name": "delivered order enables verified-purchase review path",
+      "tag": "PASS",
+      "detail": "verified by delivered COD order containing product"
+    },
+    {
+      "area": "order",
+      "name": "invoice generated for agent-delivered COD (B12)",
+      "tag": "PASS",
+      "detail": "invoiceUrl=present"
+    },
+    {
+      "area": "order",
+      "name": "online order create + Razorpay order",
+      "tag": "PASS",
+      "detail": "status=201 rzp=present"
+    },
+    {
+      "area": "order",
+      "name": "keyId returned only for online",
+      "tag": "PASS",
+      "detail": "keyId=present"
+    },
+    {
+      "area": "order",
+      "name": "verify-payment rejects bad signature",
+      "tag": "PASS",
+      "detail": "status=400 msg=Payment verification failed. Invalid signature."
+    },
+    {
+      "area": "order",
+      "name": "bad signature marks own order paymentStatus=failed",
+      "tag": "PASS",
+      "detail": "paymentStatus=failed"
+    },
+    {
+      "area": "order",
+      "name": "verify-payment accepts valid signature → confirmed",
+      "tag": "PASS",
+      "detail": "status=200 orderStatus=confirmed"
+    },
+    {
+      "area": "order",
+      "name": "online paid order → paymentStatus=paid, orderStatus=confirmed, deliveryId set",
+      "tag": "PASS",
+      "detail": "pay=paid order=confirmed del=true"
+    },
+    {
+      "area": "order",
+      "name": "verify-payment idempotency (duplicate paymentId blocked)",
+      "tag": "PASS",
+      "detail": "status=400 msg=Payment already processed"
+    },
+    {
+      "area": "security",
+      "name": "protected route requires auth (401 no token)",
+      "tag": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "area": "security",
+      "name": "admin route rejects customer token",
+      "tag": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "area": "security",
+      "name": "admin route rejects agent token",
+      "tag": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "area": "security",
+      "name": "IDOR: customer cannot read another customer order",
+      "tag": "PASS",
+      "detail": "status=404"
+    },
+    {
+      "area": "security",
+      "name": "B4: cannot poison another customer payment status",
+      "tag": "PASS",
+      "detail": "before=pending after=pending httpStatus=400"
+    },
+    {
+      "area": "security",
+      "name": "cross-role: customer cannot login at admin portal",
+      "tag": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "area": "security",
+      "name": "cross-role: admin cannot login at customer portal",
+      "tag": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "area": "security",
+      "name": "NoSQL injection in login neutralized",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "security",
+      "name": "CSRF: mutation without Origin/Referer blocked",
+      "tag": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "area": "security",
+      "name": "malformed JSON → 400 clean (B7)",
+      "tag": "PASS",
+      "detail": "status=400 msg=Invalid JSON in request body."
+    },
+    {
+      "area": "security",
+      "name": "404 does not echo the route path (B8)",
+      "tag": "PASS",
+      "detail": "status=404 body={\"success\":false,\"message\":\"Resource not found\"}"
+    },
+    {
+      "area": "security",
+      "name": "B3: suspended customer cannot login",
+      "tag": "PASS",
+      "detail": "status=403 msg=Your account has been suspended. Please contact support."
+    },
+    {
+      "area": "security",
+      "name": "B3: suspended customer existing token dies per-request",
+      "tag": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "area": "security",
+      "name": "B6: rejected agent sees rejection (not pending)",
+      "tag": "PASS",
+      "detail": "status=403 msg=Your registration was not approved. Contact support."
+    },
+    {
+      "area": "security",
+      "name": "wishlist requires auth",
+      "tag": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "area": "security",
+      "name": "review post requires auth",
+      "tag": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "area": "security",
+      "name": "product delete rejects non-admin",
+      "tag": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "area": "security",
+      "name": "JWT blacklist on logout revokes token",
+      "tag": "PASS",
+      "detail": "logoutStatus=200 reuseStatus=401"
+    },
+    {
+      "area": "security",
+      "name": "email enumeration on register (distinct message)",
+      "tag": "INFO",
+      "detail": "status=400 msg=\"An account with this email already exists\" (known-open: reveals existence)"
+    },
+    {
+      "area": "security",
+      "name": "review HTML stored unsanitized (known-open)",
+      "tag": "INFO",
+      "detail": "stored=raw HTML persisted (inert in React; risk for non-React consumers)"
+    },
+    {
+      "area": "security",
+      "name": "socket auth test",
+      "tag": "INFO",
+      "detail": "socket.io-client unavailable: Cannot find module 'socket.io-client'\nRequire stack:\n- D:\\NexMart\\backend\\audit-harness.js"
+    },
+    {
+      "area": "security",
+      "name": "customer register duplicate route protection mismatch",
+      "tag": "INFO",
+      "detail": "/customer/auth/register uses authLimit(10/min) vs /auth/customer/register uses registerLimit(3/hr) — same controller"
+    },
+    {
+      "area": "security",
+      "name": "products?category=<slug> behavior (known-open)",
+      "tag": "INFO",
+      "detail": "status=400 — frontend must send ObjectId not slug; slug 400s"
+    },
+    {
+      "area": "webhook",
+      "name": "webhook rejects missing/invalid signature",
+      "tag": "PASS",
+      "detail": "status=400 msg=Missing signature or raw body"
+    },
+    {
+      "area": "webhook",
+      "name": "webhook accepts valid signature (200, no-op for unknown order)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "webhook",
+      "name": "webhook secret configured",
+      "tag": "PASS",
+      "detail": "RAZORPAY_WEBHOOK_SECRET present in env"
+    },
+    {
+      "area": "rate-limit",
+      "name": "auth limiter (10/min) engages under burst",
+      "tag": "PASS",
+      "detail": "429 after 6 attempts"
+    },
+    {
+      "area": "rate-limit",
+      "name": "failed-login lockout engages",
+      "tag": "PASS",
+      "detail": "429 after 6 wrong attempts"
+    }
+  ],
+  "summary": {
+    "PASS": 102,
+    "FAIL": 0,
+    "INFO": 5
+  }
+}

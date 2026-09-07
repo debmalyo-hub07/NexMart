@@ -1,10 +1,10 @@
 import { Order } from '../models/Order';
-import { Product } from '../models/Product';
 import { fetchOrderPayments } from './razorpay.service';
 import { sendOrderStatusEmail } from './email.service';
 import { emitOrderStatusUpdate } from '../config/socket';
 import { queueInvoiceGeneration } from '../queues/invoiceQueue';
 import { generateDeliveryId } from '../utils/helpers';
+import { restockOrderItems } from '../utils/orderRestock';
 import { logger } from '../utils/logger';
 
 /**
@@ -33,10 +33,17 @@ let running = false;
 
 async function reconcileOrCancel(order: any): Promise<'confirmed' | 'cancelled' | 'skipped'> {
   // Re-check under the reaper's own read — another request may have confirmed
-  // it between the query and now.
+  // it between the query and now. 'failed' orders are still cancellable
+  // (their payment is known-dead; the Razorpay check below only matters for
+  // 'pending' ones, which may turn out to be secretly paid).
   const fresh = await Order.findById(order._id);
-  if (!fresh || fresh.paymentStatus !== 'pending' || fresh.orderStatus !== 'placed') {
+  if (!fresh || !['pending', 'failed'].includes(fresh.paymentStatus) || fresh.orderStatus !== 'placed') {
     return 'skipped';
+  }
+  if (fresh.paymentStatus === 'failed') {
+    // Payment definitively failed (webhook or bad-signature verify path).
+    // A second capture on the same Razorpay order is not a thing — cancel now.
+    return cancelAndRestock(fresh, 'Auto-cancelled: payment failed');
   }
 
   // 1. Reconciliation: was it actually paid?
@@ -75,27 +82,22 @@ async function reconcileOrCancel(order: any): Promise<'confirmed' | 'cancelled' 
     return 'confirmed';
   }
 
-  // 2. Cancel + restock
+  // 2. Cancel + restock (shared path for abandoned and failed orders)
+  return cancelAndRestock(fresh, 'Auto-cancelled: payment not completed within 30 minutes');
+}
+
+async function cancelAndRestock(fresh: any, note: string): Promise<'cancelled'> {
   fresh.orderStatus = 'cancelled';
   fresh.statusHistory.push({
     status: 'cancelled',
     timestamp: new Date(),
     updatedBy: null,
-    note: 'Auto-cancelled: payment not completed within 30 minutes',
+    note,
   } as any);
   await fresh.save();
 
-  for (const item of fresh.items) {
-    try {
-      await Product.updateOne(
-        { _id: item.product, 'variants.sku': item.variant },
-        { $inc: { 'variants.$.stock': item.quantity } }
-      );
-    } catch (err) {
-      // A deleted product/variant must never abort the sweep
-      logger.error(`Reaper: restock failed for product ${item.product}:`, err instanceof Error ? err.message : err);
-    }
-  }
+  // Shared helper — a deleted product/variant must never abort the sweep
+  await restockOrderItems(fresh);
 
   emitOrderStatusUpdate(fresh.customer.toString(), fresh.orderId, 'cancelled');
   const populated = await Order.findById(fresh._id).populate('customer', 'name email') as any;
@@ -115,7 +117,9 @@ async function sweep(): Promise<void> {
     const staleBefore = new Date(Date.now() - STALE_AFTER_MS);
     const staleOrders = await Order.find({
       paymentMethod: 'online',
-      paymentStatus: 'pending',
+      // 'failed' joins 'pending' (audit §3.4): a failed payment previously
+      // left the order a zombie — placed forever, stock never released.
+      paymentStatus: { $in: ['pending', 'failed'] },
       orderStatus: 'placed',
       razorpayOrderId: { $exists: true, $ne: null },
       createdAt: { $lt: staleBefore },
@@ -125,12 +129,28 @@ async function sweep(): Promise<void> {
 
     let confirmed = 0;
     let cancelled = 0;
+    let errored = 0;
     for (const order of staleOrders) {
-      const result = await reconcileOrCancel(order);
+      // Per-order isolation (audit §3.2b): one bad order must not poison the
+      // rest of the cycle — previously a single throw skipped every remaining
+      // order until the next sweep.
+      let result: 'confirmed' | 'cancelled' | 'skipped';
+      try {
+        result = await reconcileOrCancel(order);
+      } catch (err) {
+        errored += 1;
+        logger.error(
+          `Reaper: error processing order ${(order as any).orderId}:`,
+          err instanceof Error ? err.message : err
+        );
+        continue;
+      }
       if (result === 'confirmed') confirmed += 1;
       if (result === 'cancelled') cancelled += 1;
     }
-    logger.info(`Reaper sweep: checked ${staleOrders.length}, confirmed ${confirmed}, cancelled ${cancelled}.`);
+    logger.info(
+      `Reaper sweep: checked ${staleOrders.length}, confirmed ${confirmed}, cancelled ${cancelled}, errored ${errored}.`
+    );
   } catch (err) {
     // The reaper must never crash the process
     logger.error('Reaper sweep failed:', err);
@@ -147,4 +167,10 @@ export function startOrderReaper(): void {
     timer.unref?.(); // don't keep the process alive just for the reaper
   }, INITIAL_DELAY_MS).unref?.();
   logger.info(`✅ Order reaper scheduled (every ${INTERVAL_MS / 60000} min, stale after ${STALE_AFTER_MS / 60000} min)`);
+}
+
+// Exported for tests: run one sweep immediately (the scheduler itself is
+// timer-driven and not worth faking).
+export function sweepNow(): Promise<void> {
+  return sweep();
 }

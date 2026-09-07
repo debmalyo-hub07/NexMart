@@ -1,0 +1,255 @@
+{
+  "results": [
+    {
+      "area": "setup",
+      "name": "run-1 accounts + products located",
+      "tag": "PASS",
+      "detail": "cust=nexmart.audit.mtris37p.cust@example.com agent=nexmart.audit.mtris37p.agent@example.com"
+    },
+    {
+      "area": "setup",
+      "name": "relogin customer",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "setup",
+      "name": "relogin admin",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "setup",
+      "name": "relogin agent",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "socket-flow",
+      "name": "invalid-token socket rejected",
+      "tag": "PASS",
+      "detail": "err=Invalid or expired token"
+    },
+    {
+      "area": "socket-flow",
+      "name": "guest socket allowed (public events only)",
+      "tag": "PASS",
+      "detail": "connected as guest role"
+    },
+    {
+      "area": "socket-flow",
+      "name": "order create for socket test",
+      "tag": "PASS",
+      "detail": "status=201 human=ORD-MTRIU3OR-YS5J"
+    },
+    {
+      "area": "socket-flow",
+      "name": "admin room receives 'order:new' on order create",
+      "tag": "PASS",
+      "detail": "payload={\"orderId\":\"ORD-MTRIU3OR-YS5J\",\"total\":59000,\"paymentMethod\":\"cod\"}"
+    },
+    {
+      "area": "socket-flow",
+      "name": "guest socket does NOT receive order:new",
+      "tag": "PASS",
+      "detail": "no leak"
+    },
+    {
+      "area": "socket-flow",
+      "name": "customer receives 'order:status_updated' (confirmed)",
+      "tag": "PASS",
+      "detail": "payload={\"orderId\":\"ORD-MTRIU3OR-YS5J\",\"status\":\"confirmed\"}"
+    },
+    {
+      "area": "socket-flow",
+      "name": "admin receives 'order:status_updated'",
+      "tag": "PASS",
+      "detail": "payload={\"orderId\":\"ORD-MTRIU3OR-YS5J\",\"status\":\"confirmed\",\"customerId\":\"6a9ef5805ca6c649d80b7612\"}"
+    },
+    {
+      "area": "socket-flow",
+      "name": "agent receives 'delivery:assigned'",
+      "tag": "PASS",
+      "detail": "payload={\"orderId\":\"ORD-MTRIU3OR-YS5J\",\"customerName\":\"Audit Cust\"}"
+    },
+    {
+      "area": "socket-flow",
+      "name": "customer receives final 'order:status_updated' (delivered)",
+      "tag": "FAIL",
+      "detail": "payload={\"orderId\":\"ORD-MTRIU3OR-YS5J\",\"status\":\"confirmed\"}"
+    },
+    {
+      "area": "socket-flow",
+      "name": "no duplicate consecutive statusHistory entries",
+      "tag": "PASS",
+      "detail": "history=placed → confirmed → shipped → out_for_delivery → delivered"
+    },
+    {
+      "area": "socket-flow",
+      "name": "'agent:status_updated' emitter has zero call sites",
+      "tag": "INFO",
+      "detail": "grep: emitAgentStatusUpdate defined in socket.ts but never imported by any controller — event is dead code (email is the channel; frontend polls)"
+    },
+    {
+      "area": "webhook-e2e",
+      "name": "online order created for webhook test",
+      "tag": "PASS",
+      "detail": "rzp=order_TZEOp413KcfHwe"
+    },
+    {
+      "area": "webhook-e2e",
+      "name": "signed payment.captured accepted (200)",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "webhook-e2e",
+      "name": "webhook marks paid + confirmed + deliveryId + paymentId",
+      "tag": "PASS",
+      "detail": "pay=paid order=confirmed del=true"
+    },
+    {
+      "area": "webhook-e2e",
+      "name": "statusHistory carries 'Confirmed via Razorpay webhook' note",
+      "tag": "PASS",
+      "detail": "note=Confirmed via Razorpay webhook"
+    },
+    {
+      "area": "webhook-e2e",
+      "name": "webhook replay is idempotent (no duplicate history)",
+      "tag": "PASS",
+      "detail": "notes=1"
+    },
+    {
+      "area": "webhook-e2e",
+      "name": "wrong-secret signature rejected 400",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "webhook-e2e",
+      "name": "payment.failed webhook → paymentStatus=failed",
+      "tag": "PASS",
+      "detail": "pay=failed"
+    },
+    {
+      "area": "flaws",
+      "name": "F-NEW-1: admin cancel restocks items?",
+      "tag": "PASS",
+      "detail": "restocked (good)"
+    },
+    {
+      "area": "flaws",
+      "name": "order qty=0 rejected",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "flaws",
+      "name": "order qty=-5 rejected",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "flaws",
+      "name": "order qty>stock rejected",
+      "tag": "PASS",
+      "detail": "status=400 msg=Insufficient stock for Samsung Galaxy S25 5G (Silver Shadow, 256 GB) (12 GB RAM)"
+    },
+    {
+      "area": "flaws",
+      "name": "order with nonexistent product rejected",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "flaws",
+      "name": "agent cannot update unassigned order",
+      "tag": "PASS",
+      "detail": "status=404 msg=Assignment not found"
+    },
+    {
+      "area": "flaws",
+      "name": "invoice IDOR: other customer invoice blocked",
+      "tag": "PASS",
+      "detail": "status=404"
+    },
+    {
+      "area": "flaws",
+      "name": "refund of COD order rejected clean",
+      "tag": "PASS",
+      "detail": "status=400 msg=Only online payments can be refunded. COD orders have no payment to refund."
+    },
+    {
+      "area": "flaws",
+      "name": "refund of unknown payment id → 503, no SDK leak",
+      "tag": "PASS",
+      "detail": "status=503 msg=The refund could not be processed. Please try again or use the Razorpay dashboard."
+    },
+    {
+      "area": "flaws",
+      "name": "GAP: customer self-cancel route missing",
+      "tag": "INFO",
+      "detail": "POST /orders/:id/cancel → 404 (customer cannot cancel their own placed order; only admin can)"
+    },
+    {
+      "area": "flaws",
+      "name": "GAP: agent profile update route missing",
+      "tag": "INFO",
+      "detail": "PUT /agent/profile → 404 (delivery profile page is read-only)"
+    },
+    {
+      "area": "flaws",
+      "name": "admin profile update exists",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "flaws",
+      "name": "guest cart via x-session-id works",
+      "tag": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "area": "flaws",
+      "name": "another guest session sees empty cart (no cross-session leak)",
+      "tag": "PASS",
+      "detail": "status=200 items=0"
+    },
+    {
+      "area": "flaws",
+      "name": "products?category=<ObjectId> works",
+      "tag": "PASS",
+      "detail": "status=200 count=2"
+    },
+    {
+      "area": "flaws",
+      "name": "products?category=<slug> still 400s (known-open)",
+      "tag": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "area": "flaws",
+      "name": "OTP resend throttled",
+      "tag": "PASS",
+      "detail": "lastStatus=429"
+    }
+  ],
+  "summary": {
+    "PASS": 35,
+    "FAIL": 1,
+    "INFO": 3
+  },
+  "created": {
+    "orders": [
+      "6a9ef5da5ca6c649d80b790d",
+      "6a9ef5de5ca6c649d80b794a",
+      "6a9ef5e05ca6c649d80b7977",
+      "6a9ef5e15ca6c649d80b798a",
+      "6a9ef5e35ca6c649d80b79af"
+    ],
+    "carts": [
+      "6a9ef5e55ca6c649d80b79d6"
+    ]
+  }
+}

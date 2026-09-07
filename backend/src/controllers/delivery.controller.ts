@@ -9,6 +9,7 @@ import { sendSuccess, sendNotFound, sendBadRequest, sendPaginated } from '../uti
 import { AuthenticatedRequest, OrderStatus } from '../types';
 import { parsePagination } from '../utils/helpers';
 import { isTransitionAllowed, ALLOWED_ORDER_TRANSITIONS } from '../utils/orderTransitions';
+import { restockOrderItems } from '../utils/orderRestock';
 
 export async function getMyDeliveries(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;
@@ -91,6 +92,19 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
     if (order.orderStatus !== orderStatus) {
       order.orderStatus = orderStatus;
       order.statusHistory.push({ status: orderStatus, timestamp: new Date(), updatedBy: userId, note } as never);
+
+      // Audit §3.5: delivered COD = cash collected — mark the payment paid
+      // (same rule the admin status path applies).
+      if (orderStatus === 'delivered' && order.paymentMethod === 'cod' && order.paymentStatus === 'pending') {
+        order.paymentStatus = 'paid';
+      }
+
+      // Audit §3.3: a returned order releases its reserved stock back to
+      // sellable inventory (the agent physically has the goods).
+      if (orderStatus === 'returned') {
+        await restockOrderItems(order);
+      }
+
       await order.save();
 
       const customer = order.customer as unknown as { name?: string; email?: string; _id: { toString(): string } };

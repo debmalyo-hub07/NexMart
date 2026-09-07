@@ -63,7 +63,7 @@ There is **no** `/admin/dashboard`, no `/customer/dashboard`, no `/products/[id]
 - Response envelope: `{success, message, data}` + `meta:{page,limit,total,totalPages}`. Zod field errors return under `errors` — **no frontend code reads `errors` today**; new code must (§5.4).
 
 ### 1.5 Known-broken inventory
-The full ranked list with `file:line` evidence is §8. **P0–P4 were fixed 2026-09-05/06.** A **full live E2E audit on 2026-09-07** (temp accounts for all three roles, real orders, sockets, webhooks, security probes — data deleted afterwards) found 12 residual bugs, **B1–B12, all fixed the same day** (§8, P5 wave). Known-open items from that audit are listed in the P5 section.
+The full ranked list with `file:line` evidence is §8. **P0–P4 were fixed 2026-09-05/06.** A **full live E2E audit on 2026-09-07** (temp accounts for all three roles, real orders, sockets, webhooks, security probes — data deleted afterwards) found 12 residual bugs, **B1–B12, all fixed the same day** (§8, P5 wave). A **second full audit the same evening** found 7 more (**C1–C7, all fixed** — §8, P6 wave; report: `docs/AUDIT-REPORT-2026-09-07-evening.md`). Known-open items from the audits are listed in the P5/P6 sections.
 
 ---
 
@@ -454,6 +454,22 @@ Full-platform audit: temp accounts per role, real COD + Razorpay-test orders thr
 | B12 ✅ | Agent-delivered COD orders never got invoices. | Delivery path queues invoice generation on `delivered`. |
 
 **Known-open from the audit (accepted, revisit before any non-React consumer):** reviews store HTML unsanitized (inert in the React app — zero `dangerouslySetInnerHTML`); `/products?category=<slug>` 400s (frontend sends ObjectIds); registration/OTP-verify responses permit email enumeration; some product-form Zod messages are raw defaults; `backend npm run lint` references an uninstalled eslint; the Razorpay **dashboard webhook was created in normal/live mode while the keys are test-mode** — test payments never fire it (the reaper reconciles; see `docs/DEPLOYMENT.md` for creating it in the right mode).
+
+### P6 — evening full-platform audit fixes — ✅ DONE 2026-09-07 (TDD; report in `docs/AUDIT-REPORT-2026-09-07-evening.md`)
+
+A second full live audit (temp accounts ×3 roles, sockets, webhooks, reaper, security probes) found 7 new issues; all fixed same evening, live re-verified, 56 backend tests green:
+
+| # | Gap | Fix |
+|---|---|---|
+| C1 ✅ | **Google OAuth account takeover**: `POST /auth/google/callback` trusted raw `{googleId,email}` from the body — forged login by email knowledge returned a working customer token. | New `services/googleToken.service.ts` verifies the Google **ID token** against Google's tokeninfo endpoint (audience = our client, email verified at Google, fail-closed); controller accepts only `idToken` + checks `isActive`; frontend `auth.ts` sends the token, never raw identity. |
+| C2 ✅ | **Order reaper never worked since it shipped**: `fetchOrderPayments` cast Razorpay SDK's `{entity,count,items}` collection to an array; `payments.find` threw on every sweep, silently swallowed. | Returns `payments.items`; per-order try/catch isolation in the sweep; `sweepNow()` export for tests. Live-verified: sweep cancels + restocks a backdated order. |
+| C3 ✅ | Admin/agent cancel & return never restocked (only the reaper's own path did). | Shared `utils/orderRestock.ts` helper called on `cancelled`/`returned` in BOTH status paths. |
+| C4 ✅ | `paymentStatus:'failed'` online orders were zombies (never reaped, stock leaked). | Reaper filter sweeps `pending` AND `failed`; failed orders cancel + restock without a Razorpay call. |
+| C5 ✅ | Delivered COD orders stayed `paymentStatus:'pending'` forever — revenue analytics (filter `paid`) contradicted dashboard totals. | Both delivery paths set `paid` on delivered COD; online orders untouched. |
+| C6 ✅ | Refund emailed customers "Order Cancelled" for non-cancelled orders. | New `refunded` (+ `returned`) email labels; refund path sends the truth. |
+| C7 ✅ | Webhook auto-disable mystery (user-observed). | Root cause: Razorpay auto-disables after 24h of failed deliveries (non-2xx/>5s); localhost/dead-tunnel URLs guarantee it. Fully documented in `docs/DEPLOYMENT.md` incl. local-dev strategy (no dashboard webhook for local dev; reaper is the backstop). |
+
+Audit artifacts (reusable harnesses) live in `backend/audit-*.js`. Also discovered en route: the morning P5 cleanup had missed one audit customer (marker-regex mismatch) — the new marker-driven `audit-cleanup.js` (by `/^nexmart\.audit\./` email, + Cloudinary invoice PDFs + Redis keys) caught and removed it.
 
 ### Done-definitions (apply per item)
 - Build passes (`npm run build` in `frontend/`).

@@ -13,6 +13,7 @@ import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendError, send
 import { AuthenticatedRequest, OrderStatus } from '../types';
 import { generateOrderId, generateDeliveryId, verifyRazorpaySignature, parsePagination } from '../utils/helpers';
 import { ALLOWED_ORDER_TRANSITIONS } from '../utils/orderTransitions';
+import { restockOrderItems } from '../utils/orderRestock';
 import { env } from '../config/env';
 
 const addressSchema = z.object({
@@ -286,7 +287,21 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
     }
     order.orderStatus = status;
     order.statusHistory.push({ status, timestamp: new Date(), updatedBy: userId, note } as any);
+
+    // Audit §3.5: a delivered COD order means the cash was collected — mark
+    // the payment paid so revenue analytics (paymentStatus:'paid') counts it.
+    // Online orders are already 'paid' at this point (payment-verify/webhook/reaper).
+    if (status === 'delivered' && order.paymentMethod === 'cod' && order.paymentStatus === 'pending') {
+      order.paymentStatus = 'paid';
+    }
+
     await order.save();
+
+    // Audit §3.3: cancelled and returned orders release their reserved stock
+    // back to sellable inventory. Fulfilment transitions consume stock — no restock.
+    if (status === 'cancelled' || status === 'returned') {
+      await restockOrderItems(order);
+    }
   }
 
   const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };

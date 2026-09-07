@@ -59,14 +59,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Handle Google OAuth — sync with backend
       if (account?.provider === 'google') {
         try {
+          // Send ONLY the ID token — the backend verifies it against Google's
+          // tokeninfo endpoint and derives the identity server-side. Never
+          // send raw identity fields (audit 2026-09-07 §3.1).
+          if (!account.id_token) {
+            console.error('Google sign-in missing ID token');
+            return false;
+          }
           const res = await fetch(`${process.env.API_URL}/api/v1/auth/google/callback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              googleId: account.providerAccountId,
-              email: user.email,
-              name: user.name,
-              picture: user.image,
+              idToken: account.id_token,
             }),
           });
 
