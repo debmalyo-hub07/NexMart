@@ -47,7 +47,7 @@ async function reconcileOrCancel(order: any): Promise<'confirmed' | 'cancelled' 
   }
 
   // 1. Reconciliation: was it actually paid?
-  let payments: Array<{ id: string; status: string }> = [];
+  let payments: Array<{ id: string; status: string }>;
   try {
     payments = await fetchOrderPayments(fresh.razorpayOrderId!);
   } catch (err) {

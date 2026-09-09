@@ -36,7 +36,6 @@ export async function getAllProducts(req: Request, res: Response): Promise<void>
     Product.countDocuments(filter),
   ]);
 
-  const stats = { products, total };
   sendPaginated(res, products, total, page, limit);
 }
 

@@ -10,7 +10,7 @@ import { emitOrderStatusUpdate, emitNewOrder } from '../config/socket';
 import { sendOrderStatusEmail } from '../services/email.service';
 import { Customer } from '../models/Customer';
 import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendError, sendPaginated } from '../utils/response';
-import { AuthenticatedRequest, OrderStatus } from '../types';
+import { AuthenticatedRequest } from '../types';
 import { generateOrderId, generateDeliveryId, verifyRazorpaySignature, parsePagination } from '../utils/helpers';
 import { ALLOWED_ORDER_TRANSITIONS } from '../utils/orderTransitions';
 import { restockOrderItems } from '../utils/orderRestock';

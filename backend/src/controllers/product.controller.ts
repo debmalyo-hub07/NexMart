@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Product } from '../models/Product';
-import { Category } from '../models/Category';
 import { Order } from '../models/Order';
 import { uploadImageBuffer, deleteImageByUrl } from '../services/cloudinary.service';
 import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendPaginated } from '../utils/response';
@@ -162,10 +161,6 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
   if (typeof req.body.isFeatured === 'string') req.body.isFeatured = req.body.isFeatured === 'true';
 
   const data = productSchema.partial().parse(req.body);
-
-  if (data.name) {
-    data.name = data.name; // keep
-  }
 
   const product = await Product.findByIdAndUpdate(id, data, { new: true });
   if (!product) { sendNotFound(res, 'Product not found'); return; }

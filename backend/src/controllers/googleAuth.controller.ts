@@ -55,7 +55,7 @@ export const googleAuthCallback = async (req: Request, res: Response) => {
     const { googleId, email, name, picture } = identity;
 
     // Check if an existing customer with this googleId or email exists
-    let customer = await Customer.findOne({
+    const customer = await Customer.findOne({
       $or: [{ googleId }, { email }],
     });
 
