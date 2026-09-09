@@ -42,6 +42,9 @@ None — no data or schema changes.
 - frontend: `npm run lint` → 0 (deprecation notice only); `test` → 2 pass; `build` → 0; plus a clean-env build (`.env.local` moved aside, placeholder env only) → 0, proving CI's secret-free frontend build.
 - GitHub Actions itself is verified on first push.
 
+## CI-caught fix (same session)
+The first GitHub Actions run went red on the backend `npm test` step (the frontend job passed). Root cause: the unit tests transitively import `config/env.ts`, which `process.exit(1)`s on missing env — so the suite required a real `.env` and only ever passed locally because dev machines have one. CI's clean environment exposed the hermeticity gap (which had been invisible precisely because there was no CI before). Fix: `backend/vitest.config.ts` now sets a deterministic `test.env` of dummy placeholders that satisfy the schema (every external call is mocked, so no real service is used). Verified by running `npm test` with the root `.env` moved aside → 56 pass. The safety net paid off on its first run.
+
 ## Rollback
 `git revert` the commit. No stateful changes. Deleting `ci.yml` disables the gate; reverting package.json/lockfile/tsconfig restores the prior toolchain.
 
