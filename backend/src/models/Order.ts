@@ -1,5 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import { IOrder, OrderStatus } from '../types';
+import { IOrder } from '../types';
 
 const AddressSchema = new Schema({
   label: String,

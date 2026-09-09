@@ -31,7 +31,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdenti
     );
   } catch (err) {
     logger.error('Google token verification unreachable:', err instanceof Error ? err.message : err);
-    throw new Error('Google sign-in failed: could not reach Google.');
+    throw new Error('Google sign-in failed: could not reach Google.', { cause: err });
   }
 
   if (!response.ok) {

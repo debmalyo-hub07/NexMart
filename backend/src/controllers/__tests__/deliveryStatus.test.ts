@@ -61,7 +61,7 @@ function wireMocks(order: any, assignment: any) {
     const doc: any = order;
     return {
       then: (res: any, rej: any) => Promise.resolve(doc).then(res, rej),
-      populate: (path: string, select: string) => ({
+      populate: (_path: string, _select: string) => ({
         then: (res: any, rej: any) => Promise.resolve(doc).then(res, rej),
       }),
     };

@@ -33,7 +33,7 @@ export async function razorpayWebhook(req: Request, res: Response): Promise<void
   }
 
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  let valid = false;
+  let valid: boolean;
   try {
     valid = crypto.timingSafeEqual(Buffer.from(signature, 'utf8'), Buffer.from(expected, 'utf8'));
   } catch {

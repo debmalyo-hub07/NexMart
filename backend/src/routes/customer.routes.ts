@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import { protectCustomer } from '../middleware/auth';
 import { checkIP } from '../middleware/ipWhitelist';
 import { authLimit, otpLimit } from '../middleware/rateLimiter';
@@ -59,7 +60,6 @@ router.put('/password', async (req: any, res) => {
     return res.status(404).json({ success: false, message: 'Account not found' });
   }
 
-  const bcrypt = require('bcryptjs');
   const isMatch = await bcrypt.compare(currentPassword, customer.password);
   if (!isMatch) {
     return res.status(400).json({ success: false, message: 'Current password is incorrect' });

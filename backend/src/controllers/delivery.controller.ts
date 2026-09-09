@@ -67,7 +67,7 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
   };
 
   const orderStatus = orderStatusMap[status];
-  let order = await Order.findById(req.params.id).populate('customer', 'name email');
+  const order = await Order.findById(req.params.id).populate('customer', 'name email');
   if (!order) { sendNotFound(res, 'Order not found'); return; }
 
   // B2: forward-only guard, shared with the admin status path. An order never

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { restockOrderItems, restockQuantityForOrder } from '../orderRestock';
+import { restockQuantityForOrder } from '../orderRestock';
 
 describe('restockOrderItems (audit §3.2b/§3.3: every cancel/failed path must restock)', () => {
   it('computes the total restock quantity for an order', () => {
