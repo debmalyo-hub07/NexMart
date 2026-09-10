@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getApiError } from '@/lib/api';
 import { DataTable, Column } from '@/components/admin/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useUIStore } from '@/store/uiStore';
 import { formatDate, formatPrice } from '@/lib/utils';
-import { Truck, MapPin, Package, ChevronDown, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Truck, MapPin, Package, ChevronDown, Loader2, RefreshCw } from 'lucide-react';
 import { ClockCalendar } from '@/components/common/ClockCalendar';
 import { liveQueryOptions } from '@/lib/syncConfig';
 import { useSocket } from '@/hooks/useSocket';
@@ -33,10 +32,10 @@ export default function DeliveryDashboardPage() {
       showToast(`New order assigned${payload?.orderId ? ` (${payload.orderId})` : ''}`, 'success');
     });
     return unsubscribe;
-  }, [on, queryClient]);
+  }, [on, queryClient, showToast]);
 
   // Phase 8 — Auto-sync every 20 seconds (lightweight polling, no UI freeze)
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['delivery', 'my-deliveries', page],
     queryFn: () => api.get(`/delivery/my-orders?page=${page}&limit=10`).then((r) => r.data),
     ...liveQueryOptions,
@@ -46,7 +45,7 @@ export default function DeliveryDashboardPage() {
   // cards count across all of the agent's recent assignments instead of just
   // the 10 rows on the currently visible table page. Keyed under
   // ['delivery', 'my-deliveries'] so status updates invalidate it too.
-  const { data: statsData } = useQuery({
+  const { data: statsData, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['delivery', 'my-deliveries', 'stats'],
     queryFn: () => api.get('/delivery/my-orders?page=1&limit=100').then((r) => r.data),
     ...liveQueryOptions,
@@ -60,7 +59,7 @@ export default function DeliveryDashboardPage() {
       showToast('Status updated');
       setUpdatingId(null);
     },
-    onError: () => { showToast('Update failed', 'error'); setUpdatingId(null); },
+    onError: (err: unknown) => { showToast(getApiError(err), 'error'); setUpdatingId(null); },
   });
 
   const assignments = data?.data || [];
@@ -157,28 +156,36 @@ export default function DeliveryDashboardPage() {
         </div>
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-5 border border-violet-500/20">
+          <div className="glass rounded-2xl border border-violet-500/20 p-5">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400"><Truck size={18} /></div>
               <p className="text-sm text-white/60">Out for Delivery</p>
             </div>
-            <p className="font-syne text-3xl font-bold text-violet-400">{outForDeliveryCount}</p>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass rounded-2xl p-5 border border-acid-400/20">
+            <p className="font-syne text-3xl font-bold text-violet-400">{statsError ? '—' : outForDeliveryCount}</p>
+          </div>
+          <div className="glass rounded-2xl border border-acid-400/20 p-5">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2.5 rounded-xl bg-acid-400/10 text-acid-400"><Package size={18} /></div>
               <p className="text-sm text-white/60">Delivered Today</p>
             </div>
-            <p className="font-syne text-3xl font-bold text-acid-400">{deliveredTodayCount}</p>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass rounded-2xl p-5 border border-white/5 sm:col-span-1 col-span-2">
+            <p className="font-syne text-3xl font-bold text-acid-400">{statsError ? '—' : deliveredTodayCount}</p>
+          </div>
+          <div className="glass col-span-2 rounded-2xl border border-white/5 p-5 sm:col-span-1">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2.5 rounded-xl bg-white/5"><Package size={18} className="text-white/40" /></div>
               <p className="text-sm text-white/60">Total Assigned</p>
             </div>
-            <p className="font-syne text-3xl font-bold text-white">{data?.meta?.total || 0}</p>
-          </motion.div>
+            <p className="font-syne text-3xl font-bold text-white">{isError ? '—' : (data?.meta?.total ?? 0)}</p>
+          </div>
         </div>
+        {statsError && !isError && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border border-amber-400/25 bg-amber-400/5 px-4 py-3 text-sm text-amber-200" role="status">
+            <span>Performance totals are temporarily unavailable. Your delivery list is still current.</span>
+            <button type="button" onClick={() => void refetchStats()} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-300/30 px-3 text-amber-100 transition-colors hover:bg-amber-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
+              <RefreshCw size={14} aria-hidden /> Retry totals
+            </button>
+          </div>
+        )}
 
         {/* My Deliveries Table */}
         <div>
@@ -187,6 +194,8 @@ export default function DeliveryDashboardPage() {
             columns={columns}
             data={(assignments as Record<string, unknown>[]) || []}
             isLoading={isLoading}
+            isError={isError}
+            onRetry={() => void refetch()}
             page={page}
             totalPages={totalPages}
             onPageChange={setPage}
@@ -195,14 +204,15 @@ export default function DeliveryDashboardPage() {
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <select
-                    defaultValue={row.status as string}
+                    value={row.status as string}
                     onChange={(e) => {
                       const orderId = (row.order as { _id: string })?._id;
                       if (!orderId || !e.target.value) return;
                       setUpdatingId(orderId);
                       updateStatus.mutate({ id: orderId, status: e.target.value });
                     }}
-                    className="text-xs glass border border-white/10 rounded-lg px-2 py-1.5 appearance-none cursor-pointer text-white/70 hover:text-white pr-6"
+                    disabled={updatingId === (row.order as { _id: string })?._id}
+                    className="min-h-12 rounded-lg border border-white/10 bg-space-800 px-2 py-1.5 pr-6 text-xs text-white/80"
                   >
                     {DELIVERY_STATUSES.map((s) => (
                       <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>

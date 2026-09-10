@@ -3,6 +3,8 @@
 // purpose: only our cloud, only the nexmart/ tree, only image deliveries —
 // anything else parses to null and the caller skips deletion.
 
+import { escapeRegExp } from './helpers';
+
 export function parseCloudinaryPublicId(url: string, cloudName: string): string | null {
   if (typeof url !== 'string' || !url) return null;
   // https://res.cloudinary.com/<cloud>/image/upload/[v<version>/]<public_id>.<ext>
@@ -13,8 +15,4 @@ export function parseCloudinaryPublicId(url: string, cloudName: string): string 
   const publicId = match[1];
   if (!publicId.startsWith('nexmart/')) return null;
   return publicId;
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

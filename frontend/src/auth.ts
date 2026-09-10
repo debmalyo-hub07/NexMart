@@ -3,6 +3,7 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
 import { BACKEND_SESSION_MAX_AGE_SECONDS } from '@/lib/sessionConstants';
+import { serverApiFetch } from '@/lib/serverApi';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -17,7 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Password', type: 'password' },
         role: { label: 'Role', type: 'text' },
       },
-      async authorize(credentials) {
+        async authorize(credentials, request) {
         const parsed = z.object({
           email: z.string().email(),
           password: z.string().min(1),
@@ -28,9 +29,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         try {
           const endpoint = `${process.env.API_URL}/api/v1/${parsed.data.role}/auth/login`;
-          const res = await fetch(endpoint, {
+          const res = await serverApiFetch(endpoint, {
+            request,
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: parsed.data.email, password: parsed.data.password }),
           });
 
@@ -66,9 +67,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             console.error('Google sign-in missing ID token');
             return false;
           }
-          const res = await fetch(`${process.env.API_URL}/api/v1/auth/google/callback`, {
+          const res = await serverApiFetch(`${process.env.API_URL}/api/v1/auth/google/callback`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               idToken: account.id_token,
             }),

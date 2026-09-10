@@ -40,7 +40,7 @@ Total: **₹0/month**, at `https://<name>.pages.dev` + `https://<name>.onrender.
 
    > **Chicken-and-egg note:** the Cloudflare URL isn't known until Step 2. Deploy with a placeholder for the three URL vars, get the Render URL, do Step 2, then come back and set the real values + redeploy. First deploy's URL-dependent features (CSRF on POST) won't work until the placeholder is replaced — that's expected.
 5. **First deploy** — watch the logs. The server boots, connects to Atlas, and logs the reaper + invoice worker. `RAZORPAY_WEBHOOK_SECRET` **must** be set: production boot aborts without it.
-6. **Verify:** `https://<render-service>.onrender.com/health` → `{"status":"ok",...,"env":"production"}`
+6. **Verify:** `https://<render-service>.onrender.com/health` → `{"status":"ok",...,"env":"production"}`. For a dependency-aware probe, `GET /health/ready` returns 200 only when MongoDB is connected (503 otherwise); `/health/live` is the cheap liveness check. `/health` remains as a compatibility alias for the Render blueprint's health check.
 
 ### Razorpay webhook (after first deploy)
 
@@ -91,6 +91,7 @@ Cloudflare's wizard needs the **Render URL** from Step 1 for the env var, so do 
      | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | your cloud name |
      | `API_URL` | same as `NEXT_PUBLIC_API_URL` (server-side NextAuth calls use it) |
      | `AUTH_SECRET` | a fresh 64-char random string (generate: `openssl rand -base64 48`) |
+     | `NEXTAUTH_URL` | `https://nexmart.pages.dev` — fallback Origin for server-side auth calls (`lib/serverApi.ts` derives it from the live request first; this covers direct-start cases) |
      | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from Google Cloud console |
 
 3. **Deploy.** First build takes a few minutes.

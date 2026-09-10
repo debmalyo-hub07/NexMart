@@ -31,6 +31,8 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  scroll-padding-top: var(--navbar-height);
+  color-scheme: dark;
 }
 
 body {
@@ -38,7 +40,7 @@ body {
   color: var(--text-primary);
   font-family: var(--font-inter), sans-serif;
   line-height: 1.6;
-  min-height: 100vh;
+  min-height: 100svh;
   overflow-x: hidden;
 }
 
@@ -118,7 +120,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, #A855F7 0%, #22D58D 100%);
+    background: linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -175,7 +177,7 @@ h1, h2, h3, h4, h5, h6 {
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white;
     background: linear-gradient(135deg, #8B5CF6, #D946EF);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, background-color 0.2s ease;
     position: relative;
     overflow: hidden;
     z-index: 1;
@@ -204,14 +206,14 @@ h1, h2, h3, h4, h5, h6 {
   .btn-secondary {
     @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white;
     @apply glass glass-hover;
-    transition: all 0.3s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, background-color 0.2s ease;
   }
 
   .btn-acid {
     @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm;
     background: linear-gradient(135deg, #22D58D, #22C55E);
     color: #0A0A0F;
-    transition: all 0.3s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
   }
   .btn-acid:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(34, 213, 141, 0.3); }
 
@@ -221,7 +223,7 @@ h1, h2, h3, h4, h5, h6 {
     background: rgba(255, 255, 255, 0.02);
     backdrop-filter: blur(24px);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
   }
   .card:hover { 
     transform: translateY(-4px); 
@@ -236,7 +238,7 @@ h1, h2, h3, h4, h5, h6 {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.15);
     outline: none;
-    transition: all 0.3s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   }
   .input:focus {
     border-color: rgba(124, 58, 237, 0.6);
@@ -285,7 +287,7 @@ h1, h2, h3, h4, h5, h6 {
   /* Admin sidebar nav item */
   .nav-item {
     @apply flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-white/60;
-    transition: all 0.2s ease;
+    transition: color 0.2s ease, background-color 0.2s ease;
   }
   .nav-item:hover { @apply text-white; background: rgba(255, 255, 255, 0.06); }
   .nav-item.active {
@@ -327,9 +329,9 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ── Framer Motion page transitions ─────────────────────────── */
 .page-enter { opacity: 0; transform: translateY(8px); }
-.page-enter-active { opacity: 1; transform: translateY(0); transition: all 0.4s ease; }
+.page-enter-active { opacity: 1; transform: translateY(0); transition: opacity 0.4s ease, transform 0.4s ease; }
 .page-exit { opacity: 1; }
-.page-exit-active { opacity: 0; transition: all 0.2s ease; }
+.page-exit-active { opacity: 0; transition: opacity 0.2s ease; }
 
 /* ── Premium Styling Additions ── */
 .nav-link-glow {
@@ -376,30 +378,6 @@ select:focus {
   box-shadow: 0 0 25px rgba(167, 139, 250, 0.6), 0 4px 20px rgba(217, 70, 239, 0.4) !important;
 }
 
-/* Mouse follow card glow overlay */
-.card-glow-wrapper {
-  position: relative;
-  overflow: hidden;
-  border-radius: 1rem;
-}
-.card-glow-overlay {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    400px circle at var(--mouse-x, 0) var(--mouse-y, 0),
-    rgba(124, 58, 237, 0.08),
-    transparent 40%
-  );
-  z-index: 1;
-  transition: opacity 0.5s ease;
-  opacity: 0;
-}
-.card-glow-wrapper:hover .card-glow-overlay {
-  opacity: 1;
-}
-
 /* ── Custom Cursor Global Suppression ────────────────────────── */
 @media (pointer: fine) {
   .custom-cursor-active,
@@ -408,4 +386,52 @@ select:focus {
   }
 }
 
+/* Responsive storefront primitives. Large blur layers and cursor glows are
+   intentionally disabled on coarse pointers; commerce content stays crisp. */
+.hero-grid {
+  background-image: linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
 
+.hero-poster {
+  background: radial-gradient(ellipse at 70% 15%, #2D0B69 0%, #0A0A0F 58%, #050508 100%);
+}
+
+.hover-reveal { opacity: 1; }
+.search-panel { animation: searchPanelIn 0.16s ease-out both; }
+
+@keyframes searchPanelIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hover-reveal { opacity: 0; }
+  .group:hover .hover-reveal,
+  .hover-reveal:focus-visible { opacity: 1; }
+}
+
+@media (pointer: coarse) {
+  .glass,
+  .glass-md { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .hero-glow { filter: blur(90px) !important; animation: none !important; }
+}
+
+/* Keep the fallback focus treatment available even when a legacy component
+   forgets to provide a utility class. */
+:focus-visible {
+  outline: 2px solid rgba(168, 85, 247, 0.9);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  :root { --navbar-height: 64px; }
+  .hero-glow { opacity: 0.12 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-glow,
+  .search-panel { animation: none !important; }
+  .hero-glow { opacity: 0.08 !important; }
+}

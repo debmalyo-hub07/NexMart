@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Search, User, Menu, X, ChevronDown, LogOut, LayoutDashboard, Package, Truck, Home, Tag } from 'lucide-react';
-import { useScrollDirection } from '@/hooks/useScrollDirection';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { Logo } from '@/components/common/Logo';
 import { useUIStore } from '@/store/uiStore';
+import { useDrawerBehavior } from '@/hooks/useDrawerBehavior';
 import { useQuery } from '@tanstack/react-query';
 import { CartDrawer } from '@/components/navbar/CartDrawer';
 import { SearchBar } from '@/components/navbar/SearchBar';
@@ -27,12 +27,6 @@ const PRIMARY_LINKS = [
 ];
 
 // Stable animation variants — defined at module level to prevent re-creation on render
-const headerTransition = { duration: 0.3, ease: 'easeInOut' as const };
-const mobileSearchVariants = {
-  hidden: { height: 0, opacity: 0 },
-  visible: { height: 'auto', opacity: 1 },
-  exit: { height: 0, opacity: 0 },
-};
 const mobileNavVariants = {
   hidden: { x: '-100%' },
   visible: { x: 0 },
@@ -49,8 +43,7 @@ const cartBadgeVariants = { hidden: { scale: 0 }, visible: { scale: 1 }, exit: {
 const chevronTransition = { duration: 0.2 };
 
 export const Navbar = memo(function Navbar() {
-  const { scrollDirection, isAtTop } = useScrollDirection();
-  const { itemCount, isOpen, setOpen } = useCartStore();
+  const { itemCount, setOpen } = useCartStore();
   const { user, isAuthenticated, logout } = useAuthStore();
   const { setSearchOpen, isSearchOpen } = useUIStore();
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
@@ -85,8 +78,11 @@ export const Navbar = memo(function Navbar() {
     setMounted(true);
   }, []);
 
-  const isHidden = scrollDirection === 'down' && !isAtTop;
   const count = itemCount();
+
+  // Mobile drawer modal behavior (scroll lock + Escape) — shared hook, same
+  // contract as the admin sidebar drawer.
+  useDrawerBehavior(mobileNavOpen, () => setMobileNavOpen(false));
 
   // Close menus on outside click
   useEffect(() => {
@@ -114,23 +110,14 @@ export const Navbar = memo(function Navbar() {
   const handleLogout = useCallback(() => { void logout(); setUserMenuOpen(false); }, [logout]);
 
   const headerClass = useMemo(() => cn(
-    'fixed top-0 left-0 right-0 z-50 will-change-transform',
-    isAtTop
-      ? 'bg-gradient-to-b from-space-900/90 to-transparent backdrop-blur-sm'
-      : 'glass border-b border-white/10 shadow-2xl shadow-black/40',
-  ), [isAtTop]);
-
-  const headerAnimate = useMemo(() => ({ y: isHidden ? -100 : 0 }), [isHidden]);
+    'fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-space-900/85 backdrop-blur-md',
+  ), []);
 
   return (
     <>
-      <motion.header
-        className={headerClass}
-        animate={headerAnimate}
-        transition={headerTransition}
-      >
+      <header className={headerClass}>
         <nav className="page-container">
-          <div className="flex items-center justify-between h-[72px] gap-4">
+          <div className="flex items-center justify-between h-[var(--navbar-height)] gap-4">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 shrink-0">
               <Logo size={30} className="shrink-0" />
@@ -204,6 +191,7 @@ export const Navbar = memo(function Navbar() {
               <button
                 className="md:hidden p-2.5 rounded-xl hover:bg-white/5 transition-colors text-white/70 hover:text-white"
                 onClick={toggleSearch}
+                aria-label={isSearchOpen ? 'Close search' : 'Open search'}
                 suppressHydrationWarning
               >
                 <Search size={20} />
@@ -214,6 +202,7 @@ export const Navbar = memo(function Navbar() {
                 className="relative p-2.5 rounded-xl hover:bg-white/5 transition-colors text-white/70 hover:text-white"
                 onClick={openCart}
                 id="cart-btn"
+                aria-label={`Open cart${count > 0 ? `, ${count} items` : ''}`}
                 suppressHydrationWarning
               >
                 <ShoppingCart size={20} />
@@ -239,6 +228,9 @@ export const Navbar = memo(function Navbar() {
                 ) : isAuthenticated && user ? (
                   <button
                     onClick={toggleUserMenu}
+                    aria-expanded={userMenuOpen}
+                    aria-haspopup="menu"
+                    aria-label="Open account menu"
                     className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors"
                   >
                     {user.profilePicture ? (
@@ -312,6 +304,9 @@ export const Navbar = memo(function Navbar() {
               <button
                 className="lg:hidden p-2.5 rounded-xl hover:bg-white/5 transition-colors text-white/70 hover:text-white"
                 onClick={toggleMobileNav}
+                aria-expanded={mobileNavOpen}
+                aria-controls="mobile-navigation"
+                aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
                 suppressHydrationWarning
               >
                 {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
@@ -321,20 +316,12 @@ export const Navbar = memo(function Navbar() {
         </nav>
 
         {/* Mobile search bar */}
-        <AnimatePresence>
-          {isSearchOpen && (
-            <motion.div
-              variants={mobileSearchVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="md:hidden px-4 pb-3 overflow-hidden"
-            >
-              <SearchBar autoFocus onClose={closeSearch} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.header>
+        {isSearchOpen && (
+          <div className="search-panel md:hidden px-4 pb-3">
+            <SearchBar autoFocus onClose={closeSearch} />
+          </div>
+        )}
+      </header>
 
       {/* Mobile Nav Drawer */}
       <AnimatePresence>
@@ -353,7 +340,11 @@ export const Navbar = memo(function Navbar() {
               animate="visible"
               exit="exit"
               transition={mobileNavTransition}
-              className="fixed left-0 top-0 h-full w-80 glass z-50 flex flex-col lg:hidden border-r border-white/5"
+              id="mobile-navigation"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
+              className="fixed left-0 top-0 z-50 flex h-[100dvh] w-[min(20rem,calc(100vw-1rem))] flex-col border-r border-white/5 bg-space-900/95 backdrop-blur-xl lg:hidden"
             >
               <div className="flex items-center justify-between p-6 border-b border-white/5">
                 <span className="flex items-center gap-2.5">

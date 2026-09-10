@@ -23,7 +23,7 @@ export async function generalLimit(req: Request, res: Response, next: NextFuncti
     res.setHeader('X-RateLimit-Remaining', remaining);
     res.setHeader('X-RateLimit-Reset', reset);
     if (!success) {
-      sendError(res, 'Too many requests. Please try again later.', 429);
+      sendError(res, 'Too many requests. Please try again later.', 429, 'RATE_LIMITED');
       return;
     }
   } catch (err) {
@@ -36,7 +36,7 @@ export async function authLimit(req: Request, res: Response, next: NextFunction)
   try {
     const { success } = await authRateLimiter.limit(getIdentifier(req));
     if (!success) {
-      sendError(res, 'Too many auth attempts. Please wait 1 minute.', 429);
+      sendError(res, 'Too many auth attempts. Please wait 1 minute.', 429, 'RATE_LIMITED');
       return;
     }
   } catch (err) {
@@ -49,7 +49,7 @@ export async function registerLimit(req: Request, res: Response, next: NextFunct
   try {
     const { success } = await registrationRateLimiter.limit(getIdentifier(req));
     if (!success) {
-      sendError(res, 'Too many registration attempts. Please try again after some time.', 429);
+      sendError(res, 'Too many registration attempts. Please try again after some time.', 429, 'RATE_LIMITED');
       return;
     }
   } catch (err) {
@@ -62,7 +62,7 @@ export async function paymentLimit(req: Request, res: Response, next: NextFuncti
   try {
     const { success } = await paymentRateLimiter.limit(getIdentifier(req));
     if (!success) {
-      sendError(res, 'Too many payment requests. Please wait.', 429);
+      sendError(res, 'Too many payment requests. Please wait.', 429, 'RATE_LIMITED');
       return;
     }
   } catch (err) {
@@ -75,7 +75,7 @@ export async function otpLimit(req: Request, res: Response, next: NextFunction):
   try {
     const { success } = await otpRateLimiter.limit(getIdentifier(req));
     if (!success) {
-      sendError(res, 'Too many OTP requests. Please wait.', 429);
+      sendError(res, 'Too many OTP requests. Please wait.', 429, 'RATE_LIMITED');
       return;
     }
   } catch (err) {

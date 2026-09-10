@@ -53,3 +53,8 @@ export async function disconnectDatabase(): Promise<void> {
   await mongoose.connection.close();
   logger.info('MongoDB connection closed');
 }
+
+/** Readiness is intentionally cheap and side-effect free. */
+export function isDatabaseReady(): boolean {
+  return mongoose.connection.readyState === 1;
+}

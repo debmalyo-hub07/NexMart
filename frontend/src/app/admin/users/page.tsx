@@ -10,19 +10,21 @@ import Image from 'next/image';
 import { UserX, UserCheck } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { liveQueryOptions } from '@/lib/syncConfig';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   // Server-driven sort — initial value matches the backend default (-createdAt)
   const [sort, setSort] = useState<SortState>({ key: 'createdAt', direction: 'desc' });
+  const [statusTarget, setStatusTarget] = useState<{ id: string; activate: boolean } | null>(null);
   const { showToast } = useUIStore();
   const queryClient = useQueryClient();
 
   // Backend sort syntax: 'field' ascending, '-field' descending
   const sortParam = `${sort.direction === 'desc' ? '-' : ''}${sort.key}`;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'users', page, search, sortParam],
     queryFn: () => api.get(`/admin/users?page=${page}&limit=15&sort=${sortParam}${search ? `&search=${search}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
@@ -43,6 +45,7 @@ export default function AdminUsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       showToast('Customer status updated');
+      setStatusTarget(null);
     },
     onError: (err: unknown) => showToast(getApiError(err), 'error'),
   });
@@ -86,13 +89,15 @@ export default function AdminUsersPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="font-syne text-2xl font-bold text-white">Customers</h1>
-        <p className="text-white/50 text-sm mt-1">{data?.meta?.total || 0} registered customers</p>
+          <p className="text-white/50 text-sm mt-1">{isError ? 'Customer data unavailable' : `${data?.meta?.total ?? 0} registered customers`}</p>
       </div>
 
       <DataTable
         columns={columns}
         data={(data?.data as Record<string, unknown>[]) || []}
         isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
         page={page}
         totalPages={data?.meta?.totalPages || 1}
         onPageChange={setPage}
@@ -104,14 +109,14 @@ export default function AdminUsersPage() {
         actions={(row) => (
           <button
             type="button"
-            onClick={() => toggleStatus.mutate({ id: row._id as string, isActive: !(row.isActive as boolean) })}
+            onClick={() => setStatusTarget({ id: row._id as string, activate: !(row.isActive as boolean) })}
             disabled={toggleStatus.isPending}
             className={(row.isActive
-              ? 'p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50'
-              : 'p-1.5 rounded-lg text-white/40 hover:text-acid-400 hover:bg-acid-400/10 transition-colors disabled:opacity-50')}
+              ? 'flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50'
+              : 'flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/40 hover:text-acid-400 hover:bg-acid-400/10 transition-colors disabled:opacity-50')}
             title={row.isActive ? 'Suspend customer' : 'Activate customer'}
           >
-            {row.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
+            {row.isActive ? <UserX size={14} aria-hidden /> : <UserCheck size={14} aria-hidden />}
           </button>
         )}
         expandableRender={(row) => {
@@ -141,6 +146,15 @@ export default function AdminUsersPage() {
             </div>
           );
         }}
+      />
+      <ConfirmDialog
+        open={!!statusTarget}
+        title={statusTarget?.activate ? 'Activate customer' : 'Suspend customer'}
+        description={statusTarget?.activate ? 'Restore this customer’s ability to use the storefront?' : 'Suspend this customer? Existing sessions will lose access to customer actions.'}
+        confirmLabel={statusTarget?.activate ? 'Activate' : 'Suspend'}
+        onConfirm={() => statusTarget && toggleStatus.mutate({ id: statusTarget.id, isActive: statusTarget.activate })}
+        onCancel={() => setStatusTarget(null)}
+        isLoading={toggleStatus.isPending}
       />
     </div>
   );

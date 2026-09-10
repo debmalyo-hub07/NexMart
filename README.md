@@ -83,7 +83,7 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
-Health check: `http://localhost:4000/health`
+Health checks: `http://localhost:4000/health/live` (liveness) · `http://localhost:4000/health/ready` (readiness — 503 until MongoDB is connected). `/health` remains as a compatibility alias.
 
 ---
 

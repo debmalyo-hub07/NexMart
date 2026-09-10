@@ -1,263 +1,175 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, TrendingUp, Clock } from 'lucide-react';
-import { useDebounce } from '@/hooks/useDebounce';
-import api from '@/lib/api';
-import { Product } from '@/types';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { Clock, Search, TrendingUp, X } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Product } from '@/types';
+import api from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface SearchBarProps {
   autoFocus?: boolean;
+  /** Input id — lets a visible label in the embedding page target the control. */
+  id?: string;
   onClose?: () => void;
 }
 
-const TRENDING = ['iPhone 16', 'Samsung TV', 'Nike Shoes', 'Laptop Stand', 'Wireless Earbuds'];
-
-// Stable animation variants — defined outside component to avoid recreation
-const dropdownVariants = {
-  hidden: { opacity: 0, y: 4 },
-  visible: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: 4 },
-};
-const dropdownTransition = { duration: 0.15 };
-
-export function SearchBar({ autoFocus, onClose }: SearchBarProps) {
+export function SearchBar({ autoFocus = false, id, onClose }: SearchBarProps) {
+  const router = useRouter();
+  const searchId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [query, setQuery] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [recent, setRecent] = useState<string[]>([]);
   const [results, setResults] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [recent, setRecent] = useState<string[]>([]);
-  const [mounted, setMounted] = useState(false);
-  const debouncedQuery = useDebounce(query, 180); // 180ms — snappy dropdown without excessive API calls
-  const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
-  // Track if a search request is still current to avoid stale updates
-  const searchAbortRef = useRef<AbortController | null>(null);
+  const [requestError, setRequestError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const debouncedQuery = useDebounce(query.trim(), 300);
 
-  // Mount flag — prevents localStorage access on SSR
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
-  // Read recent searches only after mount (client-only)
   useEffect(() => {
     if (!mounted) return;
     try {
       const stored = localStorage.getItem('nexmart_recent_searches');
-      if (stored) setRecent(JSON.parse(stored).slice(0, 5));
+      const parsed: unknown = stored ? JSON.parse(stored) : [];
+      if (Array.isArray(parsed)) setRecent(parsed.filter((item): item is string => typeof item === 'string').slice(0, 5));
     } catch {
-      // ignore parse errors
+      setRecent([]);
     }
   }, [mounted]);
 
   useEffect(() => {
-    if (!debouncedQuery || debouncedQuery.length < 2) {
+    if (debouncedQuery.length < 2) {
+      abortRef.current?.abort();
       setResults([]);
+      setIsLoading(false);
+      setRequestError(false);
       return;
     }
 
-    // Cancel any in-flight request
-    searchAbortRef.current?.abort();
+    abortRef.current?.abort();
     const controller = new AbortController();
-    searchAbortRef.current = controller;
+    abortRef.current = controller;
+    setIsLoading(true);
+    setRequestError(false);
 
-    const search = async () => {
-      setIsLoading(true);
-      try {
-        const { data } = await api.get(`/search?q=${encodeURIComponent(debouncedQuery)}&limit=5`, {
-          signal: controller.signal,
-        });
-        setResults(data.data || []);
-      } catch (err: unknown) {
-        if ((err as { name?: string })?.name !== 'CanceledError' && (err as { name?: string })?.name !== 'AbortError') {
+    api.get(`/search?q=${encodeURIComponent(debouncedQuery)}&limit=5`, { signal: controller.signal })
+      .then(({ data }) => setResults(Array.isArray(data?.data) ? data.data : []))
+      .catch((error: unknown) => {
+        const name = (error as { name?: string })?.name;
+        if (name !== 'CanceledError' && name !== 'AbortError') {
           setResults([]);
+          setRequestError(true);
         }
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      }
-    };
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
 
-    search();
+    return () => controller.abort();
+  }, [debouncedQuery, retryNonce]);
 
-    return () => {
-      controller.abort();
-    };
-  }, [debouncedQuery]);
-
-  const handleSearch = useCallback((q: string) => {
-    if (!q.trim()) return;
-    try {
-      const searches = [q, ...recent.filter((r) => r !== q)].slice(0, 5);
-      localStorage.setItem('nexmart_recent_searches', JSON.stringify(searches));
-      setRecent(searches);
-    } catch {
-      // ignore storage errors
-    }
-    setIsFocused(false);
-    router.push(`/search?q=${encodeURIComponent(q)}`);
+  const handleSearch = useCallback((value: string) => {
+    const next = value.trim();
+    if (!next) return;
+    const nextRecent = [next, ...recent.filter((item) => item !== next)].slice(0, 5);
+    try { localStorage.setItem('nexmart_recent_searches', JSON.stringify(nextRecent)); } catch { /* storage is optional */ }
+    setRecent(nextRecent);
+    setFocused(false);
+    router.push(`/search?q=${encodeURIComponent(next)}`);
     onClose?.();
-  }, [recent, router, onClose]);
+  }, [onClose, recent, router]);
 
-  const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value);
-  }, []);
-
-  const handleFocus = useCallback(() => setIsFocused(true), []);
-
-  const handleBlur = useCallback(() => {
-    // Small delay so clicks on dropdown items register first
-    setTimeout(() => setIsFocused(false), 100);
-  }, []);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSearch(query);
-  }, [handleSearch, query]);
-
-  const clearQuery = useCallback(() => setQuery(''), []);
-
-  const containerClass = useMemo(() => `flex items-center gap-2 px-4 py-2.5 rounded-xl transition-[background-color,box-shadow] duration-200 ${
-    isFocused
-      ? 'ring-1 ring-violet-500/50 bg-white/[0.08]'
-      : 'bg-white/5 hover:bg-white/[0.07]'
-  }`, [isFocused]);
-
-  const showDropdown = isFocused && (query.length === 0 || results.length > 0 || isLoading);
+  // One threshold drives both the dropdown's visibility and its content: below
+  // two trimmed characters show the intro panel (recent + explore copy), at or
+  // above it show results/error. Named so the two branches cannot disagree.
+  const trimmed = query.trim();
+  const showIntro = trimmed.length < 2;
+  const showDropdown = focused && (showIntro || isLoading || requestError || results.length > 0);
+  const containerClass = useMemo(() => [
+    'flex min-h-11 items-center gap-2 rounded-xl px-4 transition-[background-color,box-shadow] duration-200',
+    focused ? 'bg-white/[0.08] ring-1 ring-violet-500/60' : 'bg-white/5 hover:bg-white/[0.08]',
+  ].join(' '), [focused]);
 
   return (
     <div className="relative w-full">
-      <div className={containerClass}>
-        <Search size={16} className={isFocused ? 'text-violet-400' : 'text-white/40'} />
-        {/*
-          suppressHydrationWarning: browser extensions (password managers, autofill tools)
-          inject extra attributes like `fdprocessedid` after hydration — this suppresses
-          the resulting React warning without disabling SSR for the whole component.
-        */}
+      <form onSubmit={(event) => { event.preventDefault(); handleSearch(query); }} className={containerClass} role="search">
+        <Search size={16} className={focused ? 'text-violet-400' : 'text-white/50'} aria-hidden />
         <input
           ref={inputRef}
-          type="text"
+          id={id ?? `catalog-search-${searchId}`}
+          type="search"
           value={query}
-          onChange={handleQueryChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
+          onChange={(event) => setQuery(event.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => window.setTimeout(() => setFocused(false), 120)}
           placeholder="Search products, brands, categories..."
-          className="flex-1 bg-transparent text-sm text-white placeholder-white/30 outline-none"
-          suppressHydrationWarning
           autoComplete="off"
+          aria-label="Search products, brands, and categories"
+          className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
+          suppressHydrationWarning
         />
         {query && (
-          <button onClick={clearQuery} className="text-white/40 hover:text-white/70" suppressHydrationWarning>
-            <X size={14} />
+          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setQuery('')} className="flex min-h-8 min-w-8 items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white" aria-label="Clear search">
+            <X size={14} aria-hidden />
           </button>
         )}
-      </div>
+      </form>
 
-      <AnimatePresence>
-        {showDropdown && (
-          <motion.div
-            variants={dropdownVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            transition={dropdownTransition}
-            className="absolute top-full left-0 right-0 mt-2 glass rounded-2xl border border-white/[0.08] overflow-hidden z-50 shadow-glow-violet"
+      {showDropdown && (
+          <div
+            className="search-panel absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-white/15 bg-space-800/95 shadow-glow-violet backdrop-blur-xl"
           >
-            {/* No query — show trending + recent */}
-            {!query && (
-              <div className="p-4 space-y-4">
+            {showIntro ? (
+              <div className="space-y-4 p-4">
                 {mounted && recent.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Clock size={10} /> Recent
-                    </p>
-                    {recent.map((r) => (
-                      <button key={r} onClick={() => handleSearch(r)} className="block w-full text-left px-2 py-1.5 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors" suppressHydrationWarning>
-                        {r}
-                      </button>
-                    ))}
+                    <p className="mb-2 flex items-center gap-1.5 text-meta font-semibold uppercase tracking-wider text-white/55"><Clock size={11} aria-hidden /> Recent searches</p>
+                    <div className="flex flex-wrap gap-2">
+                      {recent.map((item) => <button key={item} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => handleSearch(item)} className="min-h-10 rounded-lg border border-white/10 px-3 text-sm text-white/70 hover:border-violet-500/50 hover:text-white">{item}</button>)}
+                    </div>
                   </div>
                 )}
                 <div>
-                  <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <TrendingUp size={10} /> Trending
-                  </p>
-                  {TRENDING.map((t) => (
-                    <button key={t} onClick={() => handleSearch(t)} className="block w-full text-left px-2 py-1.5 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors" suppressHydrationWarning>
-                      🔥 {t}
-                    </button>
-                  ))}
+                  <p className="mb-1 flex items-center gap-1.5 text-meta font-semibold uppercase tracking-wider text-white/55"><TrendingUp size={11} aria-hidden /> Explore the catalog</p>
+                  <p className="text-sm leading-relaxed text-white/60">Search by product, brand, or category to compare what is available now.</p>
                 </div>
               </div>
-            )}
-
-            {/* Search results */}
-            {query.length >= 2 && (
-              <div className="divide-y divide-white/5">
-                {isLoading && (
-                  <div className="p-4 space-y-3">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="flex gap-3 items-center">
-                        <div className="w-10 h-10 rounded-lg skeleton" />
-                        <div className="flex-1 space-y-1">
-                          <div className="h-3 w-2/3 rounded skeleton" />
-                          <div className="h-2.5 w-1/3 rounded skeleton" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {!isLoading && results.map((product) => (
-                  <button
-                    key={product._id}
-                    onClick={() => { router.push(`/products/${product.slug}`); onClose?.(); }}
-                    onMouseEnter={() => router.prefetch(`/products/${product.slug}`)}
-                    className="flex items-center gap-3 w-full p-3 hover:bg-white/[0.04] transition-colors text-left"
-                    suppressHydrationWarning
-                  >
-                    {product.images[0] && (
-                      <Image src={product.images[0]} alt={product.name} width={40} height={40} className="rounded-lg object-cover" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">{product.name}</p>
-                      <p className="text-xs text-white/40">{product.category?.name}</p>
-                    </div>
-                    <p className="text-sm font-semibold text-acid-400 shrink-0">
-                      {formatPrice(product.variants[0]?.price)}
-                    </p>
+            ) : isLoading ? (
+              <div className="space-y-3 p-4" aria-label="Searching">
+                {[1, 2, 3].map((item) => <div key={item} className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg skeleton" /><div className="h-3 w-2/3 rounded skeleton" /></div>)}
+              </div>
+            ) : requestError ? (
+              <div className="p-6 text-center" role="alert">
+                <p className="text-sm text-red-300">Search is temporarily unavailable.</p>
+                <button type="button" onClick={() => setRetryNonce((value) => value + 1)} className="mt-3 min-h-11 rounded-lg border border-red-400/30 px-3 text-sm text-red-200 hover:bg-red-400/10">Try again</button>
+              </div>
+            ) : results.length > 0 ? (
+              <div className="divide-y divide-white/10">
+                {results.map((product) => (
+                  <button key={product._id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { router.push(`/products/${product.slug}`); onClose?.(); }} className="flex min-h-16 w-full items-center gap-3 p-3 text-left hover:bg-white/[0.05]">
+                    {product.images?.[0] ? <Image src={product.images[0]} alt="" width={40} height={40} className="h-10 w-10 rounded-lg object-cover" /> : <div className="h-10 w-10 rounded-lg bg-white/5" aria-hidden />}
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm text-white">{product.name}</span><span className="block truncate text-meta text-white/50">{product.category?.name || 'Catalog'}</span></span>
+                    <span className="shrink-0 font-mono text-sm text-acid-400">{formatPrice(product.variants?.[0]?.price || 0)}</span>
                   </button>
                 ))}
-
-                {!isLoading && results.length > 0 && (
-                  <button
-                    onClick={() => handleSearch(query)}
-                    className="w-full p-3 text-sm text-violet-400 hover:text-violet-300 hover:bg-violet-500/5 transition-colors flex items-center justify-center gap-2"
-                    suppressHydrationWarning
-                  >
-                    <Search size={14} /> View all results for &ldquo;{query}&rdquo;
-                  </button>
-                )}
-
-                {!isLoading && results.length === 0 && query.length >= 2 && (
-                  <div className="p-6 text-center text-sm text-white/40">
-                    No results for &ldquo;{query}&rdquo;
-                  </div>
-                )}
+                <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => handleSearch(query)} className="flex min-h-11 w-full items-center justify-center gap-2 p-3 text-sm text-violet-300 hover:bg-violet-500/10 hover:text-white"><Search size={14} aria-hidden /> View all results</button>
               </div>
+            ) : (
+              <div className="p-6 text-center text-sm text-white/60">No results for &ldquo;{query.trim()}&rdquo;</div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+      )}
     </div>
   );
 }

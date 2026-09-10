@@ -25,7 +25,7 @@ export default function AdminProductsPage() {
   // Backend sort syntax: 'field' ascending, '-field' descending
   const sortParam = `${sort.direction === 'desc' ? '-' : ''}${sort.key}`;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'products', page, search, sortParam],
     queryFn: () => api.get(`/admin/products?page=${page}&limit=15&sort=${sortParam}${search ? `&q=${search}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
@@ -85,7 +85,7 @@ export default function AdminProductsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-syne text-2xl font-bold text-white">Products</h1>
-          <p className="text-white/50 text-sm mt-1">{data?.meta?.total || 0} total products</p>
+          <p className="text-white/50 text-sm mt-1">{isError ? 'Product data unavailable' : `${data?.meta?.total ?? 0} total products`}</p>
         </div>
         <Link href="/admin/products/new" className="btn-primary text-sm">
           <Plus size={15} /> Add Product
@@ -96,6 +96,8 @@ export default function AdminProductsPage() {
         columns={columns}
         data={(data?.data as Record<string, unknown>[]) || []}
         isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
         page={page}
         totalPages={data?.meta?.totalPages || 1}
         onPageChange={setPage}
@@ -106,14 +108,14 @@ export default function AdminProductsPage() {
         emptyMessage="No products found"
         actions={(row) => (
           <div className="flex items-center gap-2">
-            <Link href={`/products/${row.slug || ''}`} className={`p-1.5 rounded-lg transition-colors ${row.slug ? 'text-white/40 hover:text-violet-400 hover:bg-violet-500/10' : 'text-white/10 pointer-events-none'}`}>
-              <Eye size={14} />
+              <Link href={`/products/${row.slug || ''}`} aria-label="Preview product" className={`flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors ${row.slug ? 'text-white/40 hover:text-violet-400 hover:bg-violet-500/10' : 'text-white/10 pointer-events-none'}`}>
+              <Eye size={14} aria-hidden />
             </Link>
-            <Link href={`/admin/products/${row._id}/edit`} className="p-1.5 rounded-lg text-white/40 hover:text-acid-400 hover:bg-acid-400/10 transition-colors">
-              <Edit2 size={14} />
+            <Link href={`/admin/products/${row._id}/edit`} aria-label="Edit product" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/40 hover:text-acid-400 hover:bg-acid-400/10 transition-colors">
+              <Edit2 size={14} aria-hidden />
             </Link>
-            <button onClick={() => setDeleteId(row._id as string)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-              <Trash2 size={14} />
+            <button type="button" onClick={() => setDeleteId(row._id as string)} aria-label="Delete product" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              <Trash2 size={14} aria-hidden />
             </button>
           </div>
         )}

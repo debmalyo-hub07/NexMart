@@ -6,7 +6,7 @@ import { Order } from '../models/Order';
 import { uploadImageBuffer, deleteImageByUrl } from '../services/cloudinary.service';
 import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendPaginated } from '../utils/response';
 import { AuthenticatedRequest } from '../types';
-import { parsePagination, parseSortField, generateSlug } from '../utils/helpers';
+import { parsePagination, parseSortField, generateSlug, escapeRegExp, resolveCategoryFilter } from '../utils/helpers';
 import { upstashRedis } from '../config/redis';
 
 async function clearFeaturedProductsCache() {
@@ -47,11 +47,20 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
   const sort = parseSortField(req.query.sort as string, ALLOWED_SORT, '-createdAt');
 
   const filter: Record<string, unknown> = { isPublished: true };
-  if (req.query.category) filter.category = req.query.category;
-  if (req.query.brand) filter.brand = new RegExp(req.query.brand as string, 'i');
+  if (req.query.category) {
+    // ObjectId or slug — one shared resolver so /products and /search can
+    // never disagree on the same category value.
+    const categoryId = await resolveCategoryFilter(req.query.category);
+    if (categoryId === null) {
+      sendPaginated(res, [], 0, page, limit);
+      return;
+    }
+    if (categoryId !== undefined) filter.category = categoryId;
+  }
+  if (req.query.brand) filter.brand = new RegExp(escapeRegExp(String(req.query.brand)), 'i');
   if (req.query.featured === 'true') filter.isFeatured = true;
   if (req.query.q) {
-    const searchRegex = new RegExp(req.query.q as string, 'i');
+    const searchRegex = new RegExp(escapeRegExp(String(req.query.q)), 'i');
     filter.$or = [{ name: searchRegex }, { description: searchRegex }];
   }
   if (req.query.minPrice || req.query.maxPrice) {
@@ -63,8 +72,22 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
     filter['ratings.average'] = { $gte: parseFloat(req.query.rating as string) };
   }
 
-  // Caching featured homepage products (limit=8, featured=true)
-  const isHomepageFeatured = req.query.featured === 'true' && limit === 8;
+  // Caching featured homepage products. The shared key is only safe for the
+  // exact homepage query (featured + limit 8 + default page + no other
+  // filters): a request like ?featured=true&limit=8&category=x must never
+  // read from or overwrite the shared entry — that poisoned the homepage
+  // grid for the whole cache TTL.
+  const isHomepageFeatured =
+    req.query.featured === 'true' &&
+    limit === 8 &&
+    page === 1 &&
+    !req.query.category &&
+    !req.query.brand &&
+    !req.query.q &&
+    !req.query.minPrice &&
+    !req.query.maxPrice &&
+    !req.query.rating &&
+    !req.query.sort;
   if (isHomepageFeatured) {
     try {
       const cached = await upstashRedis.get('nexmart:products:featured');
@@ -207,10 +230,10 @@ export async function uploadProductImages(req: Request, res: Response): Promise<
 }
 
 // ── Product Reviews ───────────────────────────────────────────
-const reviewSchema = z.object({
+export const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
-  title: z.string().trim().max(100).optional(),
-  body: z.string().trim().max(2000).optional(),
+  title: z.string().trim().max(100).refine((value) => !/[<>]/.test(value), 'Reviews must be plain text').optional(),
+  body: z.string().trim().max(2000).refine((value) => !/[<>]/.test(value), 'Reviews must be plain text').optional(),
 });
 
 export async function getProductReviews(req: Request, res: Response): Promise<void> {

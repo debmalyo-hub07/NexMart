@@ -2,6 +2,11 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
+function createRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `nexmart-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export const api = axios.create({
   baseURL: API_URL,
   timeout: 8000, // 8s — fail fast; 30s was hiding real network issues
@@ -12,6 +17,7 @@ export const api = axios.create({
 // Request interceptor — attach session ID only (token is sent via HTTP-only cookie)
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    config.headers['X-Request-Id'] = createRequestId();
     if (typeof window !== 'undefined') {
       const sessionId = localStorage.getItem('nexmart_session_id');
       if (sessionId) {
@@ -54,7 +60,14 @@ api.interceptors.response.use(
 // ── Helper functions ──────────────────────────────────────────
 export function getApiError(error: unknown): string {
   if (error instanceof AxiosError) {
-    return error.response?.data?.message || error.message || 'An error occurred';
+    const payload = error.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
+    // Field errors first: the backend's envelope pairs zod fieldErrors with a
+    // generic "Validation error" message — the specific field message ("Enter
+    // a valid 10-digit mobile number") is the actionable one.
+    const firstFieldError = payload?.errors && Object.values(payload.errors).flat()[0];
+    if (firstFieldError) return firstFieldError;
+    if (payload?.message) return payload.message;
+    return error.message || 'An error occurred';
   }
   return 'An unexpected error occurred';
 }

@@ -1,10 +1,34 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
+import { Category } from '../models/Category';
 
 export function parsePagination(query: Record<string, unknown>, defaultLimit = 10) {
-  const page = Math.max(1, parseInt(String(query.page || 1)));
-  const limit = Math.min(100, Math.max(1, parseInt(String(query.limit || defaultLimit))));
+  const parsedPage = Number.parseInt(String(query.page ?? '1'), 10);
+  const parsedLimit = Number.parseInt(String(query.limit ?? defaultLimit), 10);
+  const page = Number.isFinite(parsedPage) ? Math.min(Math.max(1, parsedPage), 100_000) : 1;
+  const limit = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : Math.min(100, Math.max(1, defaultLimit));
   const skip = (page - 1) * limit;
   return { page, limit, skip };
+}
+
+/**
+ * Resolve a `?category=` filter value that may be an ObjectId or a slug.
+ * Returns undefined when no filter was supplied; null when the category does
+ * not exist (or is inactive) — the caller sends an empty page in that case.
+ * One shared resolution so /products and /search can never disagree on the
+ * same slug.
+ */
+export async function resolveCategoryFilter(value: unknown): Promise<mongoose.Types.ObjectId | string | null | undefined> {
+  if (!value) return undefined;
+  const categoryValue = String(value);
+  if (mongoose.isValidObjectId(categoryValue)) return categoryValue;
+  const category = await Category.findOne({ slug: categoryValue, isActive: true }).select('_id').lean();
+  return category ? (category._id as mongoose.Types.ObjectId) : null;
+}
+
+/** Escape user text before it is used as a regular expression. */
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function parseSortField(

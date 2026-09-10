@@ -8,8 +8,8 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Product } from '@/types';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react';
+import { Search, X, ChevronDown } from 'lucide-react';
+import { QueryError } from '@/components/common/QueryError';
 
 const SORT_OPTIONS = [
   { value: '-createdAt', label: 'Newest First' },
@@ -37,7 +37,7 @@ function SearchContent() {
     setPage(1);
   }, [searchParams]);
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['search', q, sort, page, inStock],
     queryFn: () =>
       api.get(`/search?q=${encodeURIComponent(q)}&sort=${sort}&page=${page}&limit=16${inStock ? '&inStock=true' : ''}`).then((r) => r.data),
@@ -64,21 +64,24 @@ function SearchContent() {
             <form onSubmit={handleSearch} className="flex gap-3 max-w-2xl mx-auto">
               <div className="relative flex-1">
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
+                <label htmlFor="search-page-input" className="sr-only">Search products, brands, and categories</label>
                 <input
+                  id="search-page-input"
                   value={inputVal}
                   onChange={(e) => setInputVal(e.target.value)}
                   placeholder="Search products, brands, categories…"
                   className="input pl-11 py-3.5 text-base"
-                  autoFocus
+                  autoComplete="off"
                 />
                 {inputVal && (
                   <button type="button" onClick={() => { setInputVal(''); setQ(''); }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
-                    <X size={16} />
+                    aria-label="Clear search"
+                    className="absolute right-1 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center text-white/40 hover:text-white transition-colors">
+                    <X size={16} aria-hidden />
                   </button>
                 )}
               </div>
-              <button type="submit" className="btn-primary px-6">Search</button>
+              <button type="submit" className="btn-primary min-h-12 px-6">Search</button>
             </form>
             {q && (
               <p className="text-center text-sm text-white/40 mt-4">
@@ -92,16 +95,15 @@ function SearchContent() {
           {/* Toolbar */}
           {q && (
             <div className="flex flex-wrap items-center gap-3 mb-8">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div onClick={() => { setInStock(!inStock); setPage(1); }}
-                  className={`w-9 h-5 rounded-full transition-colors relative ${inStock ? 'bg-violet-600' : 'bg-white/10'}`}>
-                  <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${inStock ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                </div>
+              <label className="flex min-h-11 items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={inStock} onChange={(event) => { setInStock(event.target.checked); setPage(1); }} className="h-5 w-5 accent-violet-500" />
                 <span className="text-sm text-white/60">In Stock Only</span>
               </label>
 
               <div className="ml-auto relative">
+                <label htmlFor="search-sort" className="sr-only">Sort search results</label>
                 <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}
+                  id="search-sort"
                   className="input text-sm py-2 pr-8 appearance-none cursor-pointer">
                   {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -120,6 +122,8 @@ function SearchContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
               {Array(8).fill(0).map((_, i) => <ProductCardSkeleton key={i} />)}
             </div>
+          ) : isError ? (
+            <QueryError label="Search" onRetry={() => void refetch()} />
           ) : products.length === 0 ? (
             <div className="text-center py-24">
               <p className="text-5xl mb-4">🔍</p>
@@ -129,10 +133,8 @@ function SearchContent() {
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
-                {products.map((p, i) => (
-                  <motion.div key={p._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.02, 0.2) }}>
-                    <ProductCard product={p} />
-                  </motion.div>
+                {products.map((p) => (
+                  <ProductCard key={p._id} product={p} />
                 ))}
               </div>
 

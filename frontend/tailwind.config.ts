@@ -43,6 +43,9 @@ module.exports = {
           border: 'rgba(255, 255, 255, 0.08)',
           borderHover: 'rgba(124, 58, 237, 0.4)',
         },
+        success: '#22D58D',
+        warning: '#F59E0B',
+        danger: '#EF4444',
       },
       fontFamily: {
         // Legacy aliases kept so existing markup keeps working — CLAUDE.md v3 §2.2 renames them over time.
@@ -53,6 +56,7 @@ module.exports = {
         mono: ['var(--font-mono)', 'monospace'],
       },
       backgroundImage: {
+        'brand-gradient': 'linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)',
         'glow-violet': 'radial-gradient(ellipse at center, rgba(124, 58, 237, 0.3) 0%, transparent 70%)',
         'glow-acid': 'radial-gradient(ellipse at center, rgba(34, 213, 141, 0.2) 0%, transparent 70%)',
         'hero-gradient': 'radial-gradient(ellipse at top, #1E0B3B 0%, #0A0A0F 60%)',
@@ -62,43 +66,12 @@ module.exports = {
         'border-gradient': 'linear-gradient(135deg, rgba(124,58,237,0.5), rgba(34,213,141,0.3))',
       },
       animation: {
-        'float': 'float 6s ease-in-out infinite',
-        'pulse-glow': 'pulseGlow 3s ease-in-out infinite',
-        'slide-up': 'slideUp 0.5s ease-out',
-        'slide-in-right': 'slideInRight 0.4s ease-out',
         'fade-in': 'fadeIn 0.3s ease-out',
-        'spin-slow': 'spin 8s linear infinite',
-        'shimmer': 'shimmer 2s linear infinite',
-        'confetti': 'confetti 0.8s ease-out forwards',
       },
       keyframes: {
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-20px)' },
-        },
-        pulseGlow: {
-          '0%, 100%': { opacity: '0.15', transform: 'scale(1)' },
-          '50%': { opacity: '0.3', transform: 'scale(1.05)' },
-        },
-        slideUp: {
-          from: { opacity: '0', transform: 'translateY(20px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
-        slideInRight: {
-          from: { opacity: '0', transform: 'translateX(20px)' },
-          to: { opacity: '1', transform: 'translateX(0)' },
-        },
         fadeIn: {
           from: { opacity: '0' },
           to: { opacity: '1' },
-        },
-        shimmer: {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(100%)' },
-        },
-        confetti: {
-          '0%': { transform: 'scale(0) rotate(0deg)', opacity: '1' },
-          '100%': { transform: 'scale(2) rotate(180deg)', opacity: '0' },
         },
       },
       backdropBlur: {
@@ -117,6 +90,13 @@ module.exports = {
         '100': '25rem',
         '112': '28rem',
         '128': '32rem',
+      },
+      minHeight: {
+        svh: '100svh',
+        dvh: '100dvh',
+      },
+      fontSize: {
+        meta: ['0.75rem', { lineHeight: '1rem' }],
       },
       borderRadius: {
         '2xl': '1rem',

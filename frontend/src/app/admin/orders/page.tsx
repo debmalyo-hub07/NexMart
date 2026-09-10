@@ -26,7 +26,7 @@ export default function AdminOrdersPage() {
   // Backend sort syntax: 'field' ascending, '-field' descending
   const sortParam = `${sort.direction === 'desc' ? '-' : ''}${sort.key}`;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'orders', page, statusFilter, sortParam],
     queryFn: () => api.get(`/admin/orders?page=${page}&limit=15&sort=${sortParam}${statusFilter ? `&status=${statusFilter}` : ''}`).then((r) => r.data),
     ...liveQueryOptions,
@@ -51,8 +51,7 @@ export default function AdminOrdersPage() {
     },
     onError: (err: unknown) => {
       setUpdatingId(null);
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Update failed';
-      showToast(msg, 'error');
+      showToast(getApiError(err), 'error');
     },
   });
 
@@ -83,11 +82,12 @@ export default function AdminOrdersPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-syne text-2xl font-bold text-white">Orders</h1>
-          <p className="text-white/50 text-sm mt-1">{data?.meta?.total || 0} total orders</p>
+          <p className="text-white/50 text-sm mt-1">{isError ? 'Order data unavailable' : `${data?.meta?.total ?? 0} total orders`}</p>
         </div>
         <div className="relative">
-          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="input text-sm py-2 pr-8 appearance-none cursor-pointer">
+           <label htmlFor="admin-order-status-filter" className="sr-only">Filter orders by status</label>
+           <select id="admin-order-status-filter" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+             className="input min-h-11 text-sm py-2 pr-8 appearance-none cursor-pointer">
             <option value="">All Statuses</option>
             {ORDER_STATUSES.map((s) => (
               <option key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</option>
@@ -101,6 +101,8 @@ export default function AdminOrdersPage() {
         columns={columns}
         data={(data?.data as Record<string, unknown>[]) || []}
         isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
         page={page}
         totalPages={data?.meta?.totalPages || 1}
         onPageChange={setPage}
@@ -172,15 +174,16 @@ export default function AdminOrdersPage() {
               onClick={toggleExpanded}
               title={isExpanded ? 'Hide details' : 'View details'}
               aria-expanded={isExpanded}
-              className="p-1.5 rounded-lg text-white/40 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/40 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
             >
-              {isExpanded ? <ChevronUp size={14} /> : <Eye size={14} />}
+              {isExpanded ? <ChevronUp size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
             </button>
             <div className="relative" key={row.orderStatus as string}>
               <select
                 defaultValue={row.orderStatus as string}
                 onChange={(e) => { setUpdatingId(row._id as string); updateStatus.mutate({ id: row._id as string, status: e.target.value }); }}
-                className="text-xs glass border border-white/10 rounded-lg px-2 py-1.5 appearance-none cursor-pointer text-white/70 hover:text-white pr-6"
+                aria-label="Update order status"
+                className="min-h-11 text-xs glass border border-white/10 rounded-lg px-2 py-1.5 appearance-none cursor-pointer text-white/70 hover:text-white pr-6"
                 disabled={updatingId === row._id}
               >
                 {ORDER_STATUSES.map((s) => (

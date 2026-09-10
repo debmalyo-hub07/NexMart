@@ -5,8 +5,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { useQuery } from '@tanstack/react-query';
 import api, { getApiError } from '@/lib/api';
 import { formatPrice, formatDate } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Package, ChevronDown, ChevronUp, Download, Loader2 } from 'lucide-react';
+import { Package, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Order } from '@/types';
@@ -16,6 +15,8 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SOCKET_EVENTS } from '@/lib/socketEvents';
 import { useUIStore } from '@/store/uiStore';
+import { Pagination } from '@/components/common/Pagination';
+import { QueryError } from '@/components/common/QueryError';
 
 export default function OrdersPage() {
   const [page, setPage] = useState(1);
@@ -24,7 +25,7 @@ export default function OrdersPage() {
   const { on } = useSocket();
   const { showToast } = useUIStore();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['orders', page],
     queryFn: () => api.get(`/orders?page=${page}&limit=10`).then((r) => r.data),
   });
@@ -64,6 +65,8 @@ export default function OrdersPage() {
             <div className="glass rounded-2xl overflow-hidden border border-white/5 divide-y divide-white/5">
               {Array(5).fill(0).map((_, i) => <OrderRowSkeleton key={i} />)}
             </div>
+          ) : isError ? (
+            <QueryError label="Your orders" onRetry={() => void refetch()} />
           ) : orders.length === 0 ? (
             <div className="text-center py-32">
               <div className="w-24 h-24 rounded-3xl glass flex items-center justify-center mx-auto mb-6">
@@ -75,18 +78,14 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {orders.map((order, i) => (
-                <motion.div key={order._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                  className="glass rounded-2xl border border-white/5 overflow-hidden">
+              {orders.map((order) => (
+                <article key={order._id} className="glass rounded-2xl border border-white/5 overflow-hidden">
                   {/* Order header */}
-                  <div role="button" tabIndex={0}
-                    onClick={() => setExpanded(expanded === order._id ? null : order._id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(expanded === order._id ? null : order._id); } }}
-                    className="w-full flex items-center gap-4 p-5 text-left hover:bg-white/[0.02] transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-violet-500/50">
-                    <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 sm:p-5">
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                       <div>
                         <p className="text-xs text-white/40 mb-1">Order ID</p>
-                        <p className="text-sm font-mono font-medium text-white">{order.orderId}</p>
+                        <p className="break-all text-sm font-mono font-medium text-white">{order.orderId}</p>
                       </div>
                       <div>
                         <p className="text-xs text-white/40 mb-1">Date</p>
@@ -100,20 +99,30 @@ export default function OrdersPage() {
                         <StatusBadge status={order.orderStatus} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={(e) => { e.stopPropagation(); handleDownloadInvoice(order._id); }}
-                        className="p-2 rounded-lg glass text-white/40 hover:text-violet-400 transition-colors" title="Download Invoice">
-                        <Download size={14} />
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/5 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setExpanded(expanded === order._id ? null : order._id)}
+                        aria-expanded={expanded === order._id}
+                        aria-controls={`order-details-${order._id}`}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-medium text-violet-300 transition-colors hover:bg-violet-500/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+                      >
+                        {expanded === order._id ? 'Hide details' : 'View details'}
+                        {expanded === order._id ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
                       </button>
-                      {expanded === order._id ? <ChevronUp size={16} className="text-white/40" /> : <ChevronDown size={16} className="text-white/40" />}
+                      <button
+                        type="button"
+                        onClick={() => void handleDownloadInvoice(order._id)}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/60 transition-colors hover:border-violet-500/40 hover:text-violet-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+                      >
+                        <Download size={16} aria-hidden /> Download invoice
+                      </button>
                     </div>
                   </div>
 
                   {/* Expanded details */}
-                  <AnimatePresence>
                     {expanded === order._id && (
-                      <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}
-                        className="overflow-hidden border-t border-white/5">
+                      <div id={`order-details-${order._id}`} className="border-t border-white/5">
                         <div className="p-5 space-y-4">
                           {/* Items */}
                           <div className="space-y-3">
@@ -153,22 +162,14 @@ export default function OrdersPage() {
                             <p>{order.shippingAddress.addressLine1}, {order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}</p>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     )}
-                  </AnimatePresence>
-                </motion.div>
+                </article>
               ))}
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex justify-center gap-2 pt-4">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)}
-                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-[color,background-color,box-shadow] ${page === p ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white'}`}>
-                      {p}
-                    </button>
-                  ))}
-                </div>
+                <div className="flex justify-center pt-4"><Pagination page={page} totalPages={totalPages} onPageChange={setPage} /></div>
               )}
             </div>
           )}

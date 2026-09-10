@@ -27,7 +27,7 @@ export default function AdminDeliveryPage() {
   const queryClient = useQueryClient();
 
   // All agents with status filter
-  const { data: agentsData, isLoading: agentsLoading } = useQuery({
+  const { data: agentsData, isLoading: agentsLoading, isError: agentsError, refetch: refetchAgents } = useQuery({
     queryKey: ['admin', 'agents', activeTab],
     queryFn: () => api.get(`/admin/agents?status=${activeTab}`).then((r) => r.data),
     ...liveQueryOptions,
@@ -37,21 +37,21 @@ export default function AdminDeliveryPage() {
   // of the active tab so the count never depends on which tab is open. Shares
   // the ['admin', 'agents', 'pending'] cache entry with the tab query above
   // when the pending tab is active (React Query dedupes identical keys).
-  const { data: pendingAgentsData } = useQuery({
+  const { data: pendingAgentsData, isError: pendingAgentsError } = useQuery({
     queryKey: ['admin', 'agents', 'pending'],
     queryFn: () => api.get('/admin/agents?status=pending').then((r) => r.data),
     ...liveQueryOptions,
   });
 
   // Confirmed orders for assignment
-  const { data: ordersData, isLoading: ordersLoading } = useQuery({
+  const { data: ordersData, isLoading: ordersLoading, isError: ordersError, refetch: refetchOrders } = useQuery({
     queryKey: ['admin', 'orders', 'pending', orderPage],
     queryFn: () => api.get(`/admin/orders?page=${orderPage}&limit=15&status=confirmed`).then((r) => r.data),
     ...liveQueryOptions,
   });
 
   // Only approved agents for assignment dropdown
-  const { data: approvedAgentsData } = useQuery({
+  const { data: approvedAgentsData, isError: approvedAgentsError } = useQuery({
     queryKey: ['admin', 'delivery-agents'],
     queryFn: () => api.get('/admin/delivery-agents').then((r) => r.data.data),
     ...liveQueryOptions,
@@ -138,7 +138,7 @@ export default function AdminDeliveryPage() {
 
   // Always the real pending count, regardless of which tab is active
   // (getAllAgents returns meta.total = countDocuments for the status filter).
-  const pendingCount = pendingAgentsData?.meta?.total || 0;
+  const pendingCount = pendingAgentsData?.meta?.total ?? 0;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -154,41 +154,44 @@ export default function AdminDeliveryPage() {
             <div className="p-2 rounded-xl bg-acid-400/10 text-acid-400"><Truck size={16} /></div>
             <p className="text-xs text-white/50">Active Agents</p>
           </div>
-          <p className="font-syne text-2xl font-bold text-acid-400">{approvedAgents.length}</p>
+          <p className="font-syne text-2xl font-bold text-acid-400">{approvedAgentsError ? '—' : approvedAgents.length}</p>
         </div>
         <div className="glass rounded-2xl p-4 border border-amber-500/10">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-2 rounded-xl bg-amber-400/10 text-amber-400"><Clock size={16} /></div>
             <p className="text-xs text-white/50">Awaiting Approval</p>
           </div>
-          <p className="font-syne text-2xl font-bold text-amber-400">{pendingCount}</p>
+          <p className="font-syne text-2xl font-bold text-amber-400">{pendingAgentsError ? '—' : pendingCount}</p>
         </div>
         <div className="glass rounded-2xl p-4 border border-white/5">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400"><UserCheck size={16} /></div>
             <p className="text-xs text-white/50">Awaiting Assignment</p>
           </div>
-          <p className="font-syne text-2xl font-bold text-violet-400">{ordersData?.meta?.total || 0}</p>
+          <p className="font-syne text-2xl font-bold text-violet-400">{ordersError ? '—' : (ordersData?.meta?.total ?? 0)}</p>
         </div>
       </div>
 
       {/* ── Agent Management ─────────────────────────────────────────── */}
       <div className="glass rounded-2xl border border-white/5 overflow-hidden">
         {/* Tab bar */}
-        <div className="flex border-b border-white/5">
+        <div className="flex border-b border-white/5" role="tablist" aria-label="Filter agents by status">
           {STATUS_TABS.map(({ label, value, icon: Icon, color }) => (
             <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === value}
               key={value}
               onClick={() => setActiveTab(value as typeof activeTab)}
               suppressHydrationWarning
               className={cn(
-                'flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-colors flex-1 justify-center',
+                'flex min-h-12 items-center gap-2 px-3 py-3.5 text-sm font-medium transition-colors flex-1 justify-center',
                 activeTab === value
                   ? `text-white border-b-2 ${color === 'amber' ? 'border-amber-400' : color === 'acid' ? 'border-acid-400' : 'border-red-400'}`
                   : 'text-white/40 hover:text-white/70 border-b-2 border-transparent',
               )}
             >
-              <Icon size={14} />
+              <Icon size={14} aria-hidden />
               {label}
             </button>
           ))}
@@ -200,6 +203,8 @@ export default function AdminDeliveryPage() {
             columns={agentColumns}
             data={(agents as Record<string, unknown>[]) || []}
             isLoading={agentsLoading}
+            isError={agentsError}
+            onRetry={() => void refetchAgents()}
             emptyMessage={`No ${activeTab} agents`}
             actions={
               activeTab === 'pending'
@@ -209,17 +214,17 @@ export default function AdminDeliveryPage() {
                       onClick={() => approveMutation.mutate(row._id as string)}
                       disabled={approveMutation.isPending}
                       suppressHydrationWarning
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-acid-400/10 text-acid-400 hover:bg-acid-400/20 border border-acid-400/20 transition-colors disabled:opacity-50"
+                      className="flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-acid-400/10 text-acid-400 hover:bg-acid-400/20 border border-acid-400/20 transition-colors disabled:opacity-50"
                     >
-                      <CheckCircle size={12} /> Approve
+                      <CheckCircle size={12} aria-hidden /> Approve
                     </button>
                     <button
                       onClick={() => rejectMutation.mutate(row._id as string)}
                       disabled={rejectMutation.isPending}
                       suppressHydrationWarning
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors disabled:opacity-50"
+                      className="flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors disabled:opacity-50"
                     >
-                      <XCircle size={12} /> Reject
+                      <XCircle size={12} aria-hidden /> Reject
                     </button>
                   </div>
                 )
@@ -228,9 +233,9 @@ export default function AdminDeliveryPage() {
                   <button
                     onClick={() => setRevokeAgentId(row._id as string)}
                     suppressHydrationWarning
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors"
+                    className="flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors"
                   >
-                    <UserX size={12} /> Revoke Role
+                    <UserX size={12} aria-hidden /> Revoke Role
                   </button>
                 )
                 : undefined
@@ -258,6 +263,8 @@ export default function AdminDeliveryPage() {
           columns={orderColumns}
           data={(ordersData?.data as Record<string, unknown>[]) || []}
           isLoading={ordersLoading}
+          isError={ordersError}
+          onRetry={() => void refetchOrders()}
           page={orderPage}
           totalPages={ordersData?.meta?.totalPages || 1}
           onPageChange={setOrderPage}
@@ -266,7 +273,8 @@ export default function AdminDeliveryPage() {
             approvedAgents.length > 0 && !(row.deliveryAgent as { name: string })?.name ? (
               <select
                 onChange={(e) => e.target.value && assignMutation.mutate({ orderId: row._id as string, agentId: e.target.value })}
-                className="text-xs glass border border-white/10 rounded-lg px-2 py-1.5 appearance-none cursor-pointer text-white/60 hover:text-white"
+                aria-label="Assign delivery agent"
+                className="min-h-11 text-xs glass border border-white/10 rounded-lg px-2 py-1.5 appearance-none cursor-pointer text-white/60 hover:text-white"
                 defaultValue=""
                 suppressHydrationWarning
               >

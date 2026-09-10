@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { Logo } from '@/components/common/Logo';
@@ -84,18 +83,10 @@ function VerifyOtpContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[10%] left-[10%] w-[600px] h-[600px] bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.12)_0%,transparent_70%)] animate-pulse-glow" />
-        <div className="absolute bottom-[10%] right-[10%] w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,rgba(217,70,239,0.07)_0%,transparent_70%)] animate-pulse-glow" style={{ animationDelay: '1.5s' }} />
-      </div>
+    <div className="min-h-[100svh] bg-space-950 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 z-0 pointer-events-none bg-hero-gradient opacity-50" aria-hidden="true" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-        className="w-full max-w-[400px] bg-[#111116]/80 backdrop-blur-xl rounded-3xl p-8 shadow-[0_0_80px_-20px_rgba(124,58,237,0.3)] border border-white/[0.05] relative z-10"
-      >
+      <div className="w-full max-w-[400px] bg-space-800/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-glow-violet border border-white/[0.08] relative z-10">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <Logo size={34} />
@@ -103,17 +94,13 @@ function VerifyOtpContent() {
         </div>
 
         {success ? (
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="text-center py-4"
-          >
+          <div className="text-center py-4">
             <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-4">
               <CheckCircle size={32} className="text-green-400" />
             </div>
             <h1 className="text-xl font-bold text-white font-outfit mb-2">Email Verified!</h1>
             <p className="text-white/50 text-sm">Redirecting you to login…</p>
-          </motion.div>
+          </div>
         ) : (
           <>
             {/* Header */}
@@ -130,13 +117,9 @@ function VerifyOtpContent() {
 
             {/* Error */}
             {error && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center"
-              >
+              <div role="alert" aria-live="polite" className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm text-center">
                 {error}
-              </motion.div>
+              </div>
             )}
 
             {/* OTP boxes */}
@@ -148,11 +131,13 @@ function VerifyOtpContent() {
                   type="text"
                   inputMode="numeric"
                   maxLength={1}
+                  aria-label={`Verification digit ${i + 1}`}
+                  autoComplete={i === 0 ? 'one-time-code' : 'off'}
                   value={digit}
                   onChange={(e) => handleChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
                   suppressHydrationWarning
-                  className="w-11 h-13 text-center text-xl font-bold text-white bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/15 transition-[border-color,box-shadow]"
+                  className="h-[52px] w-11 text-center text-xl font-bold text-white bg-black/50 border border-white/10 rounded-xl focus-visible:outline-none focus-visible:border-violet-500/60 focus-visible:ring-2 focus-visible:ring-violet-500/30 transition-[border-color,box-shadow]"
                   style={{ height: '52px' }}
                 />
               ))}
@@ -178,7 +163,7 @@ function VerifyOtpContent() {
                 onClick={handleResend}
                 disabled={resendCooldown > 0 || resending}
                 suppressHydrationWarning
-                className="text-sm text-violet-400 hover:text-violet-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex min-h-11 items-center justify-center px-3 text-sm text-violet-400 hover:text-violet-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 rounded-lg"
               >
                 {resending ? (
                   <span className="flex items-center gap-1.5 justify-center">
@@ -195,7 +180,7 @@ function VerifyOtpContent() {
             </div>
           </>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -203,7 +188,7 @@ function VerifyOtpContent() {
 export default function VerifyOtpPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+      <div className="min-h-[100svh] bg-space-950 flex items-center justify-center">
         <Loader2 size={28} className="text-violet-400 animate-spin" />
       </div>
     }>

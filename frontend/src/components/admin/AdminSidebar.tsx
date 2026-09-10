@@ -66,11 +66,13 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
           <LiveSyncBadge />
           {onClose && (
             <button
+              type="button"
+              aria-label="Close navigation"
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
               suppressHydrationWarning
             >
-              <X size={16} />
+              <X size={16} aria-hidden />
             </button>
           )}
         </div>

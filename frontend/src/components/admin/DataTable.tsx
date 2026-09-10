@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { ChevronUp, ChevronDown, ArrowUpDown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronUp, ChevronDown, ArrowUpDown, Search, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 
 export interface Column<T> {
   key: string;
@@ -29,6 +28,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   columns: Column<T>[];
   data: T[];
   isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   page?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
@@ -36,6 +37,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   onSearch?: (q: string) => void;
   actions?: (row: T, ctx: ActionContext) => React.ReactNode;
   emptyMessage?: string;
+  /** Error-branch copy — a full sentence, not derived from emptyMessage. */
+  errorMessage?: string;
   expandableRender?: (row: T) => React.ReactNode;
   rowIdKey?: string; // e.g. '_id'
   /** Current server-side sort — drives aria-sort and the active indicator */
@@ -59,7 +62,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 export function DataTable<T extends Record<string, unknown>>({
   columns, data, isLoading, page = 1, totalPages = 1,
   onPageChange, searchable, onSearch, actions, emptyMessage = 'No data found',
-  expandableRender, rowIdKey = '_id', sort, onSortChange,
+  expandableRender, rowIdKey = '_id', sort, onSortChange, isError = false, onRetry,
+  errorMessage = 'This data could not be loaded. Check your connection and try again.',
 }: DataTableProps<T>) {
   // Raw input value — controlled locally so typing stays immediate
   const [searchInput, setSearchInput] = useState('');
@@ -136,6 +140,15 @@ export function DataTable<T extends Record<string, unknown>>({
             </div>
           ))}
         </div>
+      ) : isError ? (
+        <div className="border-t border-red-400/20 bg-red-400/5 px-6 py-14 text-center" role="alert">
+          <p className="text-sm text-red-300">{errorMessage}</p>
+          {onRetry && (
+            <button type="button" onClick={onRetry} className="btn-secondary mt-4 min-h-11">
+              <RefreshCw size={15} aria-hidden /> Retry
+            </button>
+          )}
+        </div>
       ) : data.length === 0 ? (
         <p className="text-center py-16 text-white/60 text-sm">{emptyMessage}</p>
       ) : (
@@ -208,16 +221,11 @@ export function DataTable<T extends Record<string, unknown>>({
                       {isExpanded && expandableRender && (
                         <tr>
                           <td colSpan={colCount} className="p-0 border-b border-white/5 bg-black/20">
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
+                            <div className="overflow-hidden">
                               <div className="p-4 border-l-2 border-violet-500/50 ml-4 mb-4 mt-2 bg-white/[0.02] rounded-r-xl">
                                 {expandableRender(row)}
                               </div>
-                            </motion.div>
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -268,16 +276,11 @@ export function DataTable<T extends Record<string, unknown>>({
 
                   {/* Expansion */}
                   {isExpanded && expandableRender && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
+                    <div className="overflow-hidden">
                       <div className="pt-3 border-t border-white/5">
                         {expandableRender(row)}
                       </div>
-                    </motion.div>
+                    </div>
                   )}
                 </div>
               );

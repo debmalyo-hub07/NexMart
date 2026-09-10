@@ -7,11 +7,13 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 export function SmoothScrollProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger);
+    // Smooth scrolling is a desktop storefront enhancement. Avoid installing
+    // a RAF-driven scroll hijack on touch, low-power, or reduced-motion devices.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const coarsePointer = window.matchMedia('(pointer: coarse), (max-width: 767px), (update: slow)').matches;
+    if (reduceMotion || coarsePointer) return;
 
-    // Vestibular safety (WCAG 2.3.3): no scroll hijacking for users who
-    // prefer reduced motion — native scroll, no Lenis instance at all.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    gsap.registerPlugin(ScrollTrigger);
 
     const lenis = new Lenis({
       duration: 1.2,
@@ -26,15 +28,21 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
     lenis.on('scroll', ScrollTrigger.update);
 
     const updateLenis = (time: number) => {
-      lenis.raf(time * 1000);
+      if (!document.hidden) lenis.raf(time * 1000);
     };
 
     gsap.ticker.add(updateLenis);
-    
     gsap.ticker.lagSmoothing(0);
+
+    const onVisibilityChange = () => {
+      if (document.hidden) lenis.stop();
+      else lenis.start();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       gsap.ticker.remove(updateLenis);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       lenis.destroy();
     };
   }, []);

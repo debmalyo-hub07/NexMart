@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { LiveSyncBadge } from '@/components/common/LiveSyncBadge';
 import { useSocket } from '@/hooks/useSocket';
+import { useDrawerBehavior } from '@/hooks/useDrawerBehavior';
 import { SOCKET_EVENTS } from '@/lib/socketEvents';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/store/uiStore';
@@ -29,6 +30,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const openSidebar  = useCallback(() => setMobileSidebarOpen(true),  []);
   const closeSidebar = useCallback(() => setMobileSidebarOpen(false), []);
+
+  // Mobile sidebar modal behavior (scroll lock + Escape) — shared hook, same
+  // contract as the storefront mobile-nav drawer.
+  useDrawerBehavior(mobileSidebarOpen, closeSidebar);
 
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith('/admin/login') || pathname?.startsWith('/admin/register');
@@ -61,7 +66,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <AnimatePresence>
         {mobileSidebarOpen && (
           <>
-            <motion.div
+            <motion.button
+              type="button"
+              aria-label="Close admin navigation"
               variants={backdropVariants}
               initial="hidden"
               animate="visible"
@@ -75,7 +82,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               animate="visible"
               exit="hidden"
               transition={drawerTransition}
-              className="fixed left-0 top-0 h-full z-50 lg:hidden"
+              id="admin-mobile-sidebar"
+              className="fixed left-0 top-0 z-50 h-[100dvh] max-w-[88vw] overscroll-contain lg:hidden"
             >
               <AdminSidebar onClose={closeSidebar} />
             </motion.div>
@@ -86,8 +94,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Mobile topbar — sticky within the single document scroll */}
       <div className="lg:hidden flex items-center gap-3 p-4 border-b border-white/5 bg-space-900/80 backdrop-blur-sm sticky top-0 z-30">
         <button
+          type="button"
+          aria-label="Open admin navigation"
+          aria-expanded={mobileSidebarOpen}
+          aria-controls="admin-mobile-sidebar"
           onClick={openSidebar}
-          className="p-2 rounded-xl hover:bg-white/5 transition-colors text-white/60"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
           suppressHydrationWarning
         >
           <Menu size={20} />

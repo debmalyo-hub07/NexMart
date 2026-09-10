@@ -6,7 +6,6 @@ import api from '@/lib/api';
 import { RevenueChart } from '@/components/admin/RevenueChart';
 import { formatPrice } from '@/lib/utils';
 import { BarChart3, TrendingUp, ShoppingBag, Package } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { analyticsQueryOptions } from '@/lib/syncConfig';
 
@@ -119,8 +118,7 @@ export default function AdminAnalyticsPage() {
             ) : (
               <>
                 {topProducts.slice(0, 7).map((p: { name: string; totalSold: number; revenue: number }, i: number) => (
-                  <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                    className="flex items-center gap-3">
+                  <div key={i} className="flex items-center gap-3">
                     <span className="text-xs text-white/30 w-4 shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between mb-1">
@@ -128,16 +126,14 @@ export default function AdminAnalyticsPage() {
                         <p className="text-xs text-acid-400 font-medium shrink-0 ml-2">{formatPrice(p.revenue)}</p>
                       </div>
                       <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min((p.totalSold / (topProducts[0]?.totalSold || 1)) * 100, 100)}%` }}
-                          transition={{ delay: i * 0.05 + 0.3, duration: 0.8 }}
-                          className="h-full bg-violet-gradient rounded-full"
+                        <div
+                          style={{ width: `${Math.min((p.totalSold / (topProducts[0]?.totalSold || 1)) * 100, 100)}%` }}
+                          className="h-full rounded-full bg-violet-gradient"
                         />
                       </div>
                     </div>
                     <span className="text-xs text-white/50 shrink-0">{p.totalSold}</span>
-                  </motion.div>
+                  </div>
                 ))}
                 {topProducts.length === 0 && <p className="text-sm text-white/30 text-center py-8">No sales data yet</p>}
               </>

@@ -1,24 +1,27 @@
 'use client';
 
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { gsap } from 'gsap';
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
-import { GlowOrb } from '@/components/common/GlowOrb';
-import { ProductCard } from '@/components/product/ProductCard';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
-import { ProductCardSkeleton } from '@/components/common/SkeletonLoader';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowRight, PackageOpen, Search } from 'lucide-react';
 import { Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { ProductCard } from '@/components/product/ProductCard';
+import { ProductCardSkeleton } from '@/components/common/SkeletonLoader';
+import { QueryError } from '@/components/common/QueryError';
+import { SearchBar } from '@/components/navbar/SearchBar';
+import { GlowOrb } from '@/components/common/GlowOrb';
+import api from '@/lib/api';
+import { formatPrice } from '@/lib/utils';
+import { Product } from '@/types';
 
 const HeroBackground = dynamic(
   () => import('@/components/common/HeroBackground').then((mod) => mod.HeroBackground),
-  { ssr: false }
+  { ssr: false },
 );
 
 interface CategoryTile {
+  _id: string;
   name: string;
   slug: string;
   parent?: { _id: string } | string | null;
@@ -26,252 +29,214 @@ interface CategoryTile {
   displayOrder: number;
 }
 
+interface ProductResponse {
+  data?: Product[];
+  meta?: { total?: number };
+}
+
+interface CategoryResponse {
+  data?: CategoryTile[];
+}
+
+const categoryTints = [
+  'from-violet-600/20 to-space-800',
+  'from-acid-400/15 to-space-800',
+  'from-amber-400/15 to-space-800',
+  'from-blue-400/15 to-space-800',
+];
+
 export default function HomePage() {
-  const { data: featuredData, isLoading } = useQuery({
-    queryKey: ['featured-products'],
-    queryFn: () => api.get('/products?featured=true&limit=8').then((r) => r.data),
+  const featuredQuery = useQuery<ProductResponse>({
+    queryKey: ['storefront', 'featured-products'],
+    queryFn: () => api.get('/products?featured=true&limit=8').then((response) => response.data),
   });
 
-  const products = featuredData?.data || [];
-
-  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
-    queryKey: ['homepage', 'categories'],
-    queryFn: () => api.get('/categories').then((r) => r.data),
+  const categoriesQuery = useQuery<CategoryResponse>({
+    queryKey: ['storefront', 'categories'],
+    queryFn: () => api.get('/categories').then((response) => response.data),
     staleTime: 5 * 60 * 1000,
   });
 
-  const categories = ((categoriesData?.data || []) as CategoryTile[])
-    .filter((c) => !c.parent)
+  const products = featuredQuery.data?.data ?? [];
+  const categories = (categoriesQuery.data?.data ?? [])
+    .filter((category) => !category.parent)
     .sort((a, b) => a.displayOrder - b.displayOrder)
-    .slice(0, 8)
-    .map((c) => ({
-      name: c.name,
-      slug: c.slug,
-      emoji: c.icon || '🛍️',
-      color: 'from-violet-600/20 to-violet-900/20',
-    }));
-
-  useEffect(() => {
-    let ctx: gsap.Context;
-
-    import('gsap/ScrollTrigger').then(({ ScrollTrigger }) => {
-      gsap.registerPlugin(ScrollTrigger);
-
-      ctx = gsap.context(() => {
-        const sections = document.querySelectorAll('.gsap-section');
-        sections.forEach((section) => {
-          gsap.fromTo(section,
-            { opacity: 0, y: 40 },
-            {
-              opacity: 1,
-              y: 0,
-              duration: 0.4,
-              ease: 'power3.out',
-              scrollTrigger: {
-                trigger: section,
-                start: 'top 85%',
-              },
-            }
-          );
-        });
-
-        // Trigger ScrollTrigger refresh
-        ScrollTrigger.refresh();
-      });
-    });
-
-    return () => {
-      if (ctx) ctx.revert();
-    };
-  }, []);
+    .slice(0, 8);
+  const leadProduct = products[0];
+  const leadVariant = leadProduct?.variants?.[0];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
-      {/* Hero */}
-      <section className="relative min-h-screen flex items-center pt-[72px] overflow-hidden">
-        <Suspense fallback={<div className="absolute inset-0 bg-[#0a0a0f]" />}>
+    <main className="min-h-[100svh] overflow-x-clip bg-space-950">
+      {/* No overflow-hidden here: it would clip the hero SearchBar's results
+          dropdown (the input sits near the section's bottom edge). The glow
+          orbs that overflow horizontally are clipped by main's overflow-x-clip. */}
+      <section className="relative isolate border-b border-white/10">
+        <Suspense fallback={<div className="absolute inset-0 bg-hero-gradient" aria-hidden />}>
           <HeroBackground />
         </Suspense>
-        <GlowOrb color="violet" size="xl" className="-top-32 -left-32 opacity-30" />
-        <GlowOrb color="acid" size="lg" className="top-1/2 -right-48 opacity-20" />
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-          backgroundSize: '60px 60px',
-        }} />
-        <div className="page-container relative z-10 py-12 flex flex-col justify-center items-center min-h-[calc(100vh-72px)]">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center max-w-4xl mx-auto mt-4">
-            <h1 className="font-syne text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-white mb-6 leading-[1.1]">
-              Shop Smarter, <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">Live</span>
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">Better</span>
-            </h1>
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-              className="text-base md:text-lg text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
-              Discover a world of premium products curated for the modern lifestyle. From cutting-edge electronics to timeless fashion — experience shopping reimagined.
-            </motion.p>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-6">
-              <Link href="/products" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white font-semibold text-base px-8 py-4 rounded-full flex items-center gap-2 transition-shadow hover:shadow-[0_0_20px_rgba(167,139,250,0.4)] group">
-                Explore Products <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <Link href="/#categories" className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-base px-8 py-4 rounded-full transition-colors hover:border-white/20">
-                View Categories
-              </Link>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+        <div className="hero-grid absolute inset-0 -z-0 opacity-40" aria-hidden />
+        <GlowOrb color="violet" size="lg" className="hero-glow -left-72 -top-64 opacity-25" />
+        <GlowOrb color="acid" size="md" className="hero-glow -right-56 bottom-0 opacity-15" />
 
+        <div className="page-container relative z-10 flex min-h-[clamp(34rem,calc(100dvh-var(--navbar-height)-2rem),48rem)] items-center py-10 sm:py-14 lg:py-20">
+          <div className="grid w-full items-center gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)] lg:gap-16">
+            <div className="max-w-3xl">
+              <p className="mb-5 text-meta font-semibold uppercase tracking-[0.22em] text-acid-400">
+                NexMart / everyday commerce, considered
+              </p>
+              <h1 className="max-w-3xl font-outfit text-[clamp(2.75rem,8vw,6.75rem)] font-bold leading-[0.98] text-white">
+                Find what fits
+                <span className="block bg-brand-gradient bg-clip-text text-transparent">your next move.</span>
+              </h1>
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">
+                A focused catalog of useful products, clear prices, and delivery you can track from cart to door.
+              </p>
 
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Link href="/products" className="btn-primary min-h-11 px-5 sm:px-6">
+                  Browse products <ArrowRight size={17} aria-hidden />
+                </Link>
+                <Link href="#categories" className="btn-secondary min-h-11 px-5 sm:px-6">
+                  Explore categories
+                </Link>
+              </div>
 
-      {/* Categories */}
-      <section id="categories" className="section gsap-section">
-        <div className="page-container">
-          <div className="text-center mb-12">
-            <h2 className="font-syne text-3xl md:text-4xl font-bold text-white mb-4">Shop by Category</h2>
-            <p className="text-white/50">Explore our wide range of product categories</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categoriesLoading || categories.length === 0
-              ? Array(6).fill(0).map((_, i) => (
-                  <div key={i} className="glass rounded-2xl p-5 text-center bg-gradient-to-b from-violet-600/20 to-violet-900/20 border border-white/5">
-                    <span className="block mb-3 mx-auto h-12 w-12 rounded-full bg-white/10 animate-pulse" />
-                    <p className="font-syne font-semibold text-white text-sm">
-                      <span className="block h-4 w-20 mx-auto rounded bg-white/10 animate-pulse" />
-                    </p>
-                  </div>
-                ))
-              : categories.map(({ name, slug, emoji, color }, i) => (
-                  <motion.div key={slug} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
-                    <Link href={`/categories/${slug}`} className={`block glass rounded-2xl p-5 text-center hover:scale-105 transition-[transform,border-color] duration-300 bg-gradient-to-b ${color} border border-white/5 hover:border-white/15 group`}>
-                      <span className="text-5xl block mb-3 group-hover:scale-110 transition-transform duration-300">{emoji}</span>
-                      <p className="font-syne font-semibold text-white text-sm">{name}</p>
-                    </Link>
-                  </motion.div>
-                ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Products */}
-      <section className="section bg-space-800/30 gsap-section">
-        <div className="page-container">
-          <div className="flex items-end justify-between mb-10">
-            <div>
-              <h2 className="font-syne text-3xl md:text-4xl font-bold text-white mb-2">Trending Now</h2>
-              <p className="text-white/50">The most popular products this week</p>
+              <div className="mt-8 max-w-xl">
+                <label htmlFor="home-search" className="mb-2 flex items-center gap-2 text-sm font-medium text-white/70">
+                  <Search size={15} className="text-violet-400" aria-hidden /> Search the catalog
+                </label>
+                <SearchBar id="home-search" />
+              </div>
             </div>
-            <Link href="/products?featured=true" className="btn-secondary text-sm hidden md:flex items-center gap-2">
-              View All <ArrowRight size={14} />
+
+            <div className="hidden lg:block">
+              <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-space-800/70 p-5 backdrop-blur-md">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <p className="text-meta font-semibold uppercase tracking-[0.18em] text-white/60">A considered start</p>
+                  <span className="h-2 w-2 rounded-full bg-acid-400" aria-label="Catalog available" />
+                </div>
+                {leadProduct?.images?.[0] ? (
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-space-700">
+                    <Image
+                      src={leadProduct.images[0]}
+                      alt={leadProduct.name}
+                      fill
+                      priority
+                      sizes="(min-width: 1024px) 35vw, 0px"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex aspect-[4/3] items-center justify-center rounded-xl bg-space-700 text-white/30">
+                    <PackageOpen size={42} aria-hidden />
+                  </div>
+                )}
+                <div className="mt-5 flex items-end justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-meta uppercase tracking-wider text-violet-300">Featured in the catalog</p>
+                    <p className="mt-1 truncate font-outfit text-xl font-semibold text-white">{leadProduct?.name ?? 'Products worth comparing'}</p>
+                  </div>
+                  {leadVariant && <p className="shrink-0 font-mono text-sm text-acid-400">{formatPrice(leadVariant.price)}</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="categories" className="section scroll-mt-[var(--navbar-height)]">
+        <div className="page-container">
+          <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-meta font-semibold uppercase tracking-[0.18em] text-violet-400">Start with a direction</p>
+              <h2 className="mt-2 font-outfit text-3xl font-bold text-white sm:text-4xl">Shop by category</h2>
+            </div>
+            <Link href="/categories" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-white/70 transition-colors hover:text-white">
+              View all <ArrowRight size={15} aria-hidden />
             </Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {isLoading
-              ? Array(8).fill(0).map((_, i) => <ProductCardSkeleton key={i} />)
-              : products.map((p: Parameters<typeof ProductCard>[0]['product']) => <ProductCard key={p._id} product={p} />)
-            }
-          </div>
+
+          {categoriesQuery.isError ? (
+            <QueryError label="Categories" onRetry={() => void categoriesQuery.refetch()} />
+          ) : categoriesQuery.isLoading ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6" aria-label="Loading categories">
+              {Array.from({ length: 6 }, (_, index) => <div key={index} className="h-32 rounded-xl border border-white/10 bg-white/[0.04] skeleton" />)}
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-white/60">Categories will appear here soon.</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+              {categories.map((category, index) => (
+                <Link
+                  key={category._id || category.slug}
+                  href={`/categories/${category.slug}`}
+                  className={`group flex min-h-32 flex-col justify-between rounded-xl border border-white/10 bg-gradient-to-b ${categoryTints[index % categoryTints.length]} p-4 transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-violet-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400`}
+                >
+                  <span className="text-3xl" aria-hidden>{category.icon || '•'}</span>
+                  <span className="font-outfit text-sm font-semibold text-white">{category.name}</span>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Brand Story — Animated Timeline */}
-      <section className="section gsap-section overflow-hidden">
+      <section className="section border-y border-white/10 bg-space-900/70">
         <div className="page-container">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
-            {/* Left — Story copy */}
-            <motion.div
-              initial={{ opacity: 0, x: -40 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="lg:sticky lg:top-28"
-            >
-              <span className="inline-block text-[10px] font-semibold tracking-[0.2em] uppercase px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 mb-6">
-                Our Story
-              </span>
-              <h2 className="font-syne text-4xl md:text-5xl font-bold text-white leading-[1.1] mb-6">
-                Crafting the future{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">
-                  of online shopping
-                </span>
-              </h2>
-              <p className="text-white/55 text-base leading-relaxed mb-8 max-w-md">
-                What started as a small team of three passionate individuals in a garage has grown into one of India's most trusted e-commerce platforms. We believe shopping should be delightful, not stressful. Every pixel, every interaction, every delivery — crafted with care.
-              </p>
-              <Link
-                href="/about"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/30 px-6 py-3 rounded-full transition-colors group"
-              >
-                Read Full Story
-                <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </motion.div>
+          <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-meta font-semibold uppercase tracking-[0.18em] text-acid-400">Worth a closer look</p>
+              <h2 className="mt-2 font-outfit text-3xl font-bold text-white sm:text-4xl">Featured products</h2>
+              <p className="mt-2 text-sm text-white/60">Real inventory, transparent pricing, and no mystery claims.</p>
+            </div>
+            <Link href="/products?featured=true" className="hidden min-h-11 items-center gap-2 text-sm font-semibold text-white/70 transition-colors hover:text-white sm:inline-flex">
+              View all products <ArrowRight size={15} aria-hidden />
+            </Link>
+          </div>
 
-            {/* Right — Vertical timeline */}
-            <div className="relative pl-8">
-              {/* Vertical line */}
-              <motion.div
-                initial={{ scaleY: 0 }}
-                whileInView={{ scaleY: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 1.2, ease: 'easeOut', delay: 0.2 }}
-                className="absolute left-[15px] top-4 bottom-4 w-px bg-gradient-to-b from-violet-500/60 via-fuchsia-500/40 to-transparent origin-top"
-              />
+          {featuredQuery.isError ? (
+            <QueryError label="Featured products" onRetry={() => void featuredQuery.refetch()} />
+          ) : featuredQuery.isLoading ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
+              {Array.from({ length: 8 }, (_, index) => <ProductCardSkeleton key={index} />)}
+            </div>
+          ) : products.length === 0 ? (
+            <div className="border border-white/10 bg-white/[0.03] p-10 text-center">
+              <PackageOpen size={30} className="mx-auto mb-3 text-white/30" aria-hidden />
+              <p className="font-outfit text-lg font-semibold text-white">No featured products yet</p>
+              <p className="mt-1 text-sm text-white/60">Browse the full catalog to find your next favorite.</p>
+              <Link href="/products" className="btn-primary mt-5 min-h-11">Browse catalog</Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
+              {products.map((product) => <ProductCard key={product._id} product={product} />)}
+            </div>
+          )}
+        </div>
+      </section>
 
+      <section className="section">
+        <div className="page-container">
+          <div className="grid gap-8 border-t border-white/10 pt-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+            <div>
+              <p className="text-meta font-semibold uppercase tracking-[0.18em] text-violet-400">Why NexMart</p>
+              <h2 className="mt-3 max-w-md font-outfit text-3xl font-bold leading-tight text-white sm:text-4xl">A calmer way to choose what comes next.</h2>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-3">
               {[
-                {
-                  year: '2019',
-                  icon: '🚀',
-                  title: 'Founded',
-                  desc: 'NexMart was born from a simple idea — make quality shopping accessible to everyone, everywhere.',
-                  delay: 0.1,
-                },
-                {
-                  year: '2020',
-                  icon: '📦',
-                  title: '10K+ Products',
-                  desc: 'Expanded our catalog to over 10,000 products across 20+ categories, partnering with trusted brands worldwide.',
-                  delay: 0.25,
-                },
-                {
-                  year: '2022',
-                  icon: '🛡️',
-                  title: '50K+ Customers',
-                  desc: 'Crossed 50,000 happy customers with a 4.8★ satisfaction rating and 98% on-time delivery rate.',
-                  delay: 0.4,
-                },
-                {
-                  year: '2024',
-                  icon: '🚚',
-                  title: 'Pan-India Delivery',
-                  desc: 'Now delivering to every pin code in India with same-day delivery in 12 major cities.',
-                  delay: 0.55,
-                },
-              ].map(({ year, icon, title, desc, delay }) => (
-                <motion.div
-                  key={year}
-                  initial={{ opacity: 0, x: 30 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true, margin: '-60px' }}
-                  transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94], delay }}
-                  className="relative mb-10 last:mb-0"
-                >
-                  {/* Timeline dot */}
-                  <div className="absolute -left-8 top-0 w-[30px] h-[30px] rounded-full bg-violet-600/20 border border-violet-500/40 flex items-center justify-center text-sm shadow-[0_0_12px_rgba(139,92,246,0.3)]">
-                    <span className="text-[13px]">{icon}</span>
-                  </div>
-
-                  <div className="glass rounded-2xl p-5 border border-white/5 hover:border-violet-500/20 transition-colors ml-2">
-                    <span className="text-[11px] font-bold tracking-widest text-violet-400/70 mb-1 block">{year}</span>
-                    <h3 className="font-syne font-bold text-white text-lg mb-2">{title}</h3>
-                    <p className="text-white/50 text-sm leading-relaxed">{desc}</p>
-                  </div>
-                </motion.div>
+                ['Compare clearly', 'Useful product details and prices stay in view while you browse.'],
+                ['Buy with confidence', 'Your cart, checkout, and payment state are designed to recover gracefully.'],
+                ['Track the handoff', 'Order status remains visible from confirmation through delivery.'],
+              ].map(([title, copy]) => (
+                <div key={title} className="border-l border-violet-500/40 pl-4">
+                  <h3 className="font-outfit text-lg font-semibold text-white">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/60">{copy}</p>
+                </div>
               ))}
             </div>
           </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

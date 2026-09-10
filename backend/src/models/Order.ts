@@ -68,6 +68,7 @@ const OrderSchema = new Schema<IOrder>(
 
 OrderSchema.index({ customer: 1, createdAt: -1 });
 OrderSchema.index({ orderStatus: 1, createdAt: -1 });
+OrderSchema.index({ paymentStatus: 1, createdAt: -1 });
 OrderSchema.index({ razorpayOrderId: 1 }, { unique: true, sparse: true });
 
 export const Order = mongoose.model<IOrder>('Order', OrderSchema);

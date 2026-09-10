@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { protectCustomer } from '../middleware/auth';
 import { checkIP } from '../middleware/ipWhitelist';
-import { authLimit, otpLimit } from '../middleware/rateLimiter';
+import { authLimit, otpLimit, registerLimit } from '../middleware/rateLimiter';
 import { Customer } from '../models/Customer';
 import { imageUpload } from '../middleware/upload';
 import { uploadImageBuffer } from '../services/cloudinary.service';
@@ -18,7 +18,9 @@ import { passwordChangeSchema } from '../utils/validation';
 const router = Router();
 
 // --- Auth Routes (Unprotected but rate-limited) ---
-router.post('/auth/register', authLimit, registerCustomer);
+// Register sits behind the same 3/hour registerLimit as the /auth/customer
+// alias and agent signup (B9 alignment) — authLimit (10/min) was 200× weaker.
+router.post('/auth/register', registerLimit, registerCustomer);
 router.post('/auth/login', authLimit, loginCustomer);
 
 // OTP verification routes (rate-limited with otpLimit — stricter)

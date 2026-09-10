@@ -2,7 +2,6 @@ import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import hpp from 'hpp';
 import mongoSanitize from 'mongo-sanitize';
 
@@ -10,6 +9,10 @@ import { env } from './config/env';
 import { logger } from './utils/logger';
 import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 import { generalLimit } from './middleware/rateLimiter';
+import { sendError } from './utils/response';
+import { requestContext } from './middleware/requestContext';
+import { isDatabaseReady } from './config/database';
+import { isTrustedRequestOrigin } from './utils/origin';
 
 import { razorpayWebhook } from './controllers/webhook.controller';
 import productRoutes from './routes/product.routes';
@@ -26,6 +29,10 @@ import authRoutes from './routes/auth.routes';
 export function createApp(): express.Application {
   const app = express();
 
+  // Correlate every response and completion log, including failures handled by
+  // the global error middleware.
+  app.use(requestContext);
+
   // ── Security Middleware ──────────────────────────────────────
   app.use(helmet({
     crossOriginEmbedderPolicy: false,
@@ -36,7 +43,8 @@ export function createApp(): express.Application {
     origin: env.CORS_ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'X-Request-Id'],
+    exposedHeaders: ['X-Request-Id'],
   }));
 
   // ── Razorpay Webhook (raw body — must run BEFORE json/CSRF/rate-limit) ──
@@ -47,6 +55,13 @@ export function createApp(): express.Application {
     razorpayWebhook
   );
 
+  // Global sliding-window rate limit on all API traffic. Mounted BEFORE the
+  // CSRF gate so mismatched-origin POSTs are throttled too — otherwise an
+  // attacker could flood 403s (one warn log each) without ever hitting a
+  // limiter. Health endpoints are GET-only and cheap; limiting them too is
+  // harmless and keeps a single ordering.
+  app.use('/api/v1', generalLimit);
+
   // CSRF Protection Middleware
   app.use((req, res, next) => {
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
@@ -54,22 +69,17 @@ export function createApp(): express.Application {
       const referer = req.headers.referer;
       const allowedOrigin = env.CORS_ORIGIN;
 
-      let isValid = false;
-      if (origin && origin === allowedOrigin) {
-        isValid = true;
-      } else if (referer && referer.startsWith(allowedOrigin)) {
-        isValid = true;
-      }
+      const isValid = isTrustedRequestOrigin(origin, referer, allowedOrigin);
 
       // Note: requests with NEITHER Origin NOR Referer are now REJECTED. Legitimate
       // server-to-server callers (e.g. Razorpay) use dedicated signed endpoints mounted
       // above this middleware, so they never reach here.
       if (!isValid) {
-        logger.warn(`CSRF Blocked: Method: ${req.method}, Origin: ${origin}, Referer: ${referer}, Expected: ${allowedOrigin}`);
-        return res.status(403).json({
-          success: false,
-          message: 'CSRF protection triggered. Request origin/referer mismatch.',
-        });
+        // debug, not warn: blocked CSRF probes are routine noise (scanners
+        // hit every deploy), and a warn-per-request was a log-flood vector.
+        logger.debug(`CSRF Blocked: Method: ${req.method}, Origin: ${origin}, Referer: ${referer}, Expected: ${allowedOrigin}`);
+        sendError(res, 'CSRF protection triggered. Request origin/referer mismatch.', 403, 'CSRF_REJECTED');
+        return;
       }
     }
     next();
@@ -88,20 +98,30 @@ export function createApp(): express.Application {
   app.use(hpp());
 
   // ── Logging ───────────────────────────────────────────────────
-  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
-    stream: { write: (msg) => logger.info(msg.trim()) },
-  }));
 
   // ── Health Check ──────────────────────────────────────────────
+  app.get('/health/live', (_req, res) => {
+    res.status(200).json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.get('/health/ready', (_req, res) => {
+    const ready = isDatabaseReady();
+    res.status(ready ? 200 : 503).json({
+      success: ready,
+      status: ready ? 'ready' : 'not_ready',
+      dependencies: { database: ready ? 'ready' : 'unavailable' },
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // Compatibility endpoint used by existing Render keep-alive jobs. It is a
+  // liveness probe; deployment readiness should use /health/ready instead.
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), env: env.NODE_ENV });
+    res.status(200).json({ success: true, status: 'ok', timestamp: new Date().toISOString(), env: env.NODE_ENV });
   });
 
   // ── Role-Based API Routes ──────────────────────────────────────
   const apiPrefix = '/api/v1';
-
-  // Global sliding-window rate limit on all API traffic (health check is exempt).
-  app.use(apiPrefix, generalLimit);
 
   // Shared auth routes (Google OAuth callback, etc.)
   app.use(`${apiPrefix}/auth`, authRoutes);

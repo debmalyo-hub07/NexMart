@@ -11,7 +11,6 @@ import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { signIn } from 'next-auth/react';
 
 interface Field {
@@ -35,6 +34,14 @@ interface AuthFormProps {
 }
 
 type AuthFormData = Record<string, string>;
+
+function autocompleteForField(field: Field, formType: AuthFormProps['type']): string | undefined {
+  if (field.name === 'email') return 'email';
+  if (field.name === 'password') return formType === 'register' ? 'new-password' : 'current-password';
+  if (field.name === 'confirmPassword') return 'new-password';
+  if (field.name === 'phone') return 'tel';
+  return undefined;
+}
 
 // Validation rules per field, derived from the fields prop
 const fieldSchema = (field: Field): z.ZodString => {
@@ -143,19 +150,10 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Dynamic Background */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[10%] left-[10%] w-[600px] h-[600px] bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] animate-pulse-glow" />
-        <div className="absolute bottom-[10%] right-[10%] w-[600px] h-[600px] bg-[radial-gradient(circle_at_center,rgba(217,70,239,0.1)_0%,transparent_70%)] animate-pulse-glow" style={{ animationDelay: '1.5s' }} />
-      </div>
+    <div className="min-h-[100svh] bg-space-950 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 z-0 pointer-events-none bg-hero-gradient opacity-50" aria-hidden="true" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-full max-w-[440px] bg-[#111116]/80 backdrop-blur-xl rounded-3xl p-8 shadow-[0_0_80px_-20px_rgba(124,58,237,0.3)] border border-white/[0.05] relative z-10"
-      >
+      <div className="w-full max-w-[440px] bg-space-800/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-glow-violet border border-white/[0.08] relative z-10">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3 mb-8 group">
             <Logo size={38} className="transition-transform group-hover:scale-105" />
@@ -166,40 +164,41 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
         </div>
 
         {error && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center font-inter"
-          >
+          <div role="alert" aria-live="polite" className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm text-center font-inter">
             {error}
-          </motion.div>
+          </div>
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" suppressHydrationWarning>
           {fields.map((field) => (
             <div key={field.name} className="space-y-1.5">
-              <label className="block text-xs font-medium text-white/50 ml-1 uppercase tracking-wider font-inter">{field.label}</label>
+              <label htmlFor={`auth-${field.name}`} className="block text-xs font-medium text-white/60 ml-1 uppercase tracking-wider font-inter">{field.label}</label>
               <div className="relative">
                 <input
+                  id={`auth-${field.name}`}
                   suppressHydrationWarning
                   type={field.type === 'password' && showPassword ? 'text' : field.type}
                   {...register(field.name)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] focus:ring-4 focus:ring-violet-500/10 transition-[background-color,border-color,box-shadow] font-inter pr-10"
-                  placeholder={`Enter your ${field.label.toLowerCase()}`}
+                  autoComplete={autocompleteForField(field, type)}
+                  aria-invalid={errors[field.name] ? 'true' : 'false'}
+                  aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined}
+                  className="w-full min-h-12 bg-black/40 border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus-visible:outline-none focus-visible:border-violet-500/70 focus-visible:bg-space-900 focus-visible:ring-2 focus-visible:ring-violet-500/30 transition-[background-color,border-color,box-shadow] font-inter pr-10"
+                  placeholder={`Enter your ${field.label.toLowerCase()}…`}
                 />
                 {field.type === 'password' && (
                   <button
                     type="button"
-                    tabIndex={-1}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                    className="absolute right-2 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-white/50 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
                   </button>
                 )}
               </div>
               {errors[field.name] && (
-                <p className="text-xs text-red-400 mt-1">{errors[field.name]?.message}</p>
+                <p id={`auth-${field.name}-error`} role="alert" className="text-xs text-red-300 mt-1">{errors[field.name]?.message}</p>
               )}
             </div>
           ))}
@@ -253,7 +252,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
             </Link>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

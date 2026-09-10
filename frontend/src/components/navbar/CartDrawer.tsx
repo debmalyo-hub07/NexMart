@@ -7,6 +7,7 @@ import { useCartStore } from '@/store/cartStore';
 import { formatPrice } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { useDrawerBehavior } from '@/hooks/useDrawerBehavior';
 import { CartItem } from '@/types';
 
 // Stable animation variants — no recreation per render
@@ -97,6 +98,10 @@ export const CartDrawer = memo(function CartDrawer() {
   const goToCheckout = useCallback(() => { setOpen(false); router.push('/checkout'); }, [setOpen, router]);
   const goToCart = useCallback(() => { setOpen(false); router.push('/cart'); }, [setOpen, router]);
   const goToProducts = useCallback(() => { setOpen(false); router.push('/products'); }, [setOpen, router]);
+
+  // Same modal contract as the mobile nav and admin sidebar drawers: no
+  // document scroll behind the drawer, Escape closes.
+  useDrawerBehavior(isOpen, closeDrawer);
 
   return (
     <AnimatePresence>

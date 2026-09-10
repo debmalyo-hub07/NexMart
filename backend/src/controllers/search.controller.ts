@@ -3,7 +3,7 @@ import { FilterQuery } from 'mongoose';
 import { Product } from '../models/Product';
 import { IProduct } from '../types';
 import { sendPaginated } from '../utils/response';
-import { parsePagination, parseSortField } from '../utils/helpers';
+import { parsePagination, parseSortField, escapeRegExp, resolveCategoryFilter } from '../utils/helpers';
 
 const ALLOWED_SORT = ['createdAt', 'ratings.average', 'name', 'variants.0.price'];
 
@@ -21,8 +21,17 @@ export async function searchProducts(req: Request, res: Response): Promise<void>
     filter.$text = { $search: q };
   }
 
-  if (category) filter.category = category;
-  if (brand) filter.brand = new RegExp(brand, 'i');
+  if (category) {
+    // ObjectId or slug — one shared resolver so /search and /products can
+    // never disagree on the same category value.
+    const categoryId = await resolveCategoryFilter(category);
+    if (categoryId === null) {
+      sendPaginated(res, [], 0, page, limit);
+      return;
+    }
+    if (categoryId !== undefined) filter.category = categoryId;
+  }
+  if (brand) filter.brand = new RegExp(escapeRegExp(brand), 'i');
 
   if (minPrice || maxPrice) {
     filter['variants.0.price'] = {};

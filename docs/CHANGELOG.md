@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-11 — stabilization review of the responsive/motion/reliability wave
+
+A quality review of the uncommitted responsive-motion-reliability working set (37 files + 8 new) found defects the wave's own verification gates missed; all fixed and live-verified. Plan: `docs/superpowers/plans/2026-09-10-responsive-motion-stabilization.md`.
+
+**Security (verified live):**
+
+- **Registration/OTP enumeration oracles closed.** The wave's 202-masking left live oracles: `verify-otp` returned 400 for a wrong code on an existing account but 202 for an unknown email (existence proof); `resend-otp` returned 200 "code sent" for existing unverified accounts but 202 otherwise (direct existence check + email-bomb trigger); `register` ran field validation *after* the existence checks (invalid phone + 400 ⇒ email free, 202 ⇒ exists) and paid bcrypt cost (~200 ms) only on the new-account path (timing side channel). Now: every branch of each handler answers identically (unified 400 for verify misses, opaque 202 everywhere else), validation runs before existence checks, the hash is unconditional for timing parity, and the resend rate limit is consumed before the lookup so even a 429 leaks nothing. A returning user with an expired code who re-registers now genuinely receives a new OTP (same opaque 202 response).
+- **Plaintext OTP persistence fixed.** "Clear OTP" used `$set` with `undefined` values — a mongoose no-op, so the raw OTP and expiry stayed on the customer document for its lifetime, and `GET /admin/customers` (which only excluded `password`) returned every customer's OTP to the admin UI. Now `$unset`, and the admin listing excludes `otp`/`otpExpiry`.
+- **Featured-products cache poisoning closed.** The shared `nexmart:products:featured` cache keyed on `featured=true&limit=8` regardless of other filters — any filtered request (`&category=x`, `&brand=y`) silently overwrote the homepage grid for the whole 5-min TTL. The key now applies only to the exact homepage query shape (no other filters, default page).
+- **CSRF gate no longer unthrottled.** It ran before every rate limiter, so mismatched-origin POSTs got unlimited 403s plus a warn log each (log-flood / disk-exhaustion vector). `generalLimit` now mounts ahead of the CSRF gate (after the HMAC-authenticated webhook route), and blocked probes log at debug, not warn.
+
+**Production-critical:**
+
+- **Server-side auth fetches could 403 after deploy.** The wave's Origin header was derived from `NEXTAUTH_URL`/`APP_URL`/`NEXT_PUBLIC_APP_URL` — none of which the documented Cloudflare Pages env table sets — falling back to `http://localhost:3000` against `CORS_ORIGIN=https://nexmart.pages.dev`. Every credentials login and Google sign-in would have failed CSRF in production. New `lib/serverApi.ts` (`serverApiFetch`) derives the Origin from the live request host first (NextAuth's `authorize` now receives it), falls back to `headers()` then env; `docs/DEPLOYMENT.md` now lists `NEXTAUTH_URL`. Live-verified: NextAuth login reaches the backend (401 on bad credentials, not 403).
+- **Aborted requests left no trace.** The new request-completion log subscribed only to `finish`, so mobile-network dropped connections (the exact failures the correlation log exists for) were never logged. Now `close` with an `aborted` flag. Dev logging also no longer drops the metadata object (winston's dev printf now appends it as JSON).
+
+**Correctness & UX:**
+
+- Delivery status-update errors now surface the server message (the shared transition guard's "cannot move from delivered → picked" explanation) instead of a hardcoded "Update failed"; admin orders uses `getApiError` for the same. `getApiError` itself now prefers the specific zod field message over the generic "Validation error" envelope message.
+- The hero SearchBar's results dropdown was clipped by the hero section's `overflow-hidden` (input sits near the section's bottom edge) — section-level clip removed (main still clips horizontally).
+- `--navbar-height` 64px mobile override vs the hardcoded 72px navbar clipped 8px of content under the bar on mobile — the navbar now consumes the variable.
+- Wishlist hearts: saved state is again visible at a glance (hover-reveal applies only to the unsaved state); touch devices unaffected.
+- WebGL hero low-power gate relaxed from ≤4 cores (excluded common quad-core laptops, beyond the documented mobile+reduced-motion policy) to ≤2 cores / ≤2 GB.
+- Tab buttons got proper `role="tab"`/`role="tablist"` (aria-selected on a plain button is invalid ARIA).
+- Suspend-customer ConfirmDialog gained modal semantics (Escape, scroll-lock, `role="dialog"`) and a viewport-safe width.
+- `/?category=slug` and `/search?category=slug` resolve through one shared `resolveCategoryFilter` (were duplicated 12-line blocks that could diverge); verified live: slug and ObjectId return identical totals.
+- Rate-limiter 429s now carry `code: 'RATE_LIMITED'` (was the default `INTERNAL_ERROR`).
+
+**Shared components / dead code:**
+
+- New `QueryError` component (the CLAUDE.md §5.2 error branch) replaces six hand-rolled per-page copies; `useDrawerBehavior` (scroll-lock + Escape) replaces three copy-pasted/duplicated drawer effects and now also covers the CartDrawer, which had neither. One error envelope: `sendError` gained an optional `errors` param and is now the single builder (errorHandler's private `sendFailure` and app.ts's hand-rolled CSRF body removed). `escapeRegExp` deduplicated out of the Cloudinary parser.
+- Removed: dead `deliveryAgent` Order index (no query filters Order by that field — pure write overhead), unused `pulse-glow`/`float`/`shimmer`/`confetti`/`slide-*`/`spin-slow` animation config, orphaned `.card-glow-*` CSS, the `useScrollDirection` hook (last consumer was removed in this wave), and the `morgan`/`@types/morgan` dependencies.
+
+**Verification:** backend `tsc` + 59 vitest tests + 0 lint errors; frontend production build + 5 vitest tests + 0 lint errors (one pre-existing hooks warning in admin/categories remains); live smoke: health/ready, CSRF reject with unified envelope, both enumeration probes identical, cache-poison probe leaves the homepage list intact, slug↔ObjectId parity, NextAuth server-side login round-trip.
+
+---
+
 ## 2026-09-07 (evening) — second full-platform audit + 7 fixes (C1–C7)
 
 A second live audit (102-check regression harness + socket/webhook/reaper/security probes) found 7 new issues; all fixed the same evening via TDD (56 backend tests, 6 new test files), live re-verified, test data deleted, DB restored to baseline. Full report: `docs/AUDIT-REPORT-2026-09-07-evening.md`. Reusable harnesses: `backend/audit-*.js`.

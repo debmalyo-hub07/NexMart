@@ -6,11 +6,11 @@ import { ProductCardSkeleton } from '@/components/common/SkeletonLoader';
 import { Pagination } from '@/components/common/Pagination';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { SlidersHorizontal, Search, X, ChevronDown } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Product } from '@/types';
+import { QueryError } from '@/components/common/QueryError';
 import { cn } from '@/lib/utils';
 
 const SORT_OPTIONS = [
@@ -28,14 +28,8 @@ const PRICE_RANGES = [
   { label: 'Above ₹20,000', min: 20000, max: undefined },
 ];
 
-const filterVariants = {
-  hidden: { height: 0, opacity: 0 },
-  visible: { height: 'auto', opacity: 1 },
-};
-
 function ProductsContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const [search, setSearch] = useState(searchParams.get('q') || '');
   const [sort, setSort] = useState('-createdAt');
@@ -46,7 +40,7 @@ function ProductsContent() {
   const [minRating, setMinRating] = useState<number | undefined>();
   const debouncedSearch = useDebounce(search, 250); // 250ms — snappy feel
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['products', debouncedSearch, sort, page, minPrice, maxPrice, minRating],
     queryFn: () => {
       const params = new URLSearchParams({
@@ -80,7 +74,7 @@ function ProductsContent() {
         <div className="border-b border-white/5 bg-space-800/50">
           <div className="page-container py-8">
             <h1 className="font-syne text-3xl font-bold text-white mb-1">All Products</h1>
-            <p className="text-white/50 text-sm">{data?.meta?.total ?? '...'} products found</p>
+            <p className="text-white/50 text-sm">{isLoading ? 'Loading products…' : isError ? 'Products are unavailable' : `${data?.meta?.total ?? 0} products found`}</p>
           </div>
         </div>
 
@@ -90,9 +84,10 @@ function ProductsContent() {
             {/* Search */}
             <div className="relative flex-1 min-w-[200px] max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-              <input value={search} onChange={handleSearchChange}
-                placeholder="Search products..." className="input pl-9 py-2 text-sm" suppressHydrationWarning />
-              {search && <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70" suppressHydrationWarning><X size={13} /></button>}
+              <label htmlFor="products-search" className="sr-only">Search products</label>
+              <input id="products-search" value={search} onChange={handleSearchChange}
+                placeholder="Search products…" className="input pl-9 py-2 text-sm" suppressHydrationWarning />
+              {search && <button type="button" onClick={clearSearch} aria-label="Clear product search" className="flex min-h-11 min-w-11 items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80" suppressHydrationWarning><X size={13} aria-hidden /></button>}
             </div>
 
             {/* Sort */}
@@ -105,27 +100,25 @@ function ProductsContent() {
             </div>
 
             {/* Filter toggle */}
-            <button onClick={toggleFilter}
+            <button type="button" onClick={toggleFilter} aria-expanded={filterOpen}
               className={cn('flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border',
                 filterOpen ? 'border-violet-500 bg-violet-500/10 text-violet-300' : 'glass text-white/60 hover:text-white border-white/10')}
               suppressHydrationWarning>
-              <SlidersHorizontal size={14} />
+              <SlidersHorizontal size={14} aria-hidden />
               Filters
               {hasFilters && <span className="w-2 h-2 rounded-full bg-acid-400" />}
             </button>
 
             {hasFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300" suppressHydrationWarning>
-                <X size={12} /> Clear all
+              <button type="button" onClick={clearFilters} className="flex min-h-11 items-center gap-1 text-xs text-red-400 hover:text-red-300" suppressHydrationWarning>
+                <X size={12} aria-hidden /> Clear all
               </button>
             )}
           </div>
 
           {/* Filter Panel */}
-          <AnimatePresence>
-            {filterOpen && (
-              <motion.div variants={filterVariants} initial="hidden" animate="visible" exit="hidden"
-                className="glass rounded-2xl p-5 border border-white/5 mb-6 overflow-hidden">
+          {filterOpen && (
+              <div className="glass rounded-2xl p-5 border border-white/5 mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Price Range */}
                   <div>
@@ -160,19 +153,22 @@ function ProductsContent() {
                     </div>
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+          )}
 
           {/* Products Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 mb-8">
+          {isError ? (
+            <QueryError label="Products" onRetry={() => void refetch()} />
+          ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-5 mb-8">
             {isLoading
               ? Array(12).fill(0).map((_, i) => <ProductCardSkeleton key={i} />)
               : products.map((p) => <ProductCard key={p._id} product={p} />)
             }
           </div>
+          )}
 
-          {products.length === 0 && !isLoading && (
+          {products.length === 0 && !isLoading && !isError && (
             <div className="text-center py-24">
               <p className="text-4xl mb-4">🔍</p>
               <p className="font-syne text-xl font-bold text-white mb-2">No products found</p>

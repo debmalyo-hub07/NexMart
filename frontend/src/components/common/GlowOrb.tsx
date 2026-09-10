@@ -28,12 +28,13 @@ export function GlowOrb({ color = 'violet', size = 'md', className, intensity = 
 
   return (
     <div
-      className={cn('absolute rounded-full pointer-events-none animate-pulse-glow', className)}
+      className={cn('hero-glow absolute rounded-full pointer-events-none', className)}
       style={{
         width: px,
         height: px,
         background: `radial-gradient(ellipse at center, ${rgb}, ${intensity}) 0%, transparent 70%)`,
-        filter: `blur(${px / 3}px)`,
+        filter: `blur(${Math.min(px / 3, 160)}px)`,
+        contain: 'strict',
       }}
     />
   );

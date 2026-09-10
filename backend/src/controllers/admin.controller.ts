@@ -118,7 +118,10 @@ export async function getAllUsers(req: Request, res: Response): Promise<void> {
   }
 
   const [users, total] = await Promise.all([
-    Customer.find(filter).select('-password').sort(sort).skip(skip).limit(limit),
+    // otp/otpExpiry are sensitive: the plaintext OTP must never reach any
+    // API response (a leaked admin session must not become an account
+    // takeover of every pending-verification customer).
+    Customer.find(filter).select('-password -otp -otpExpiry').sort(sort).skip(skip).limit(limit),
     Customer.countDocuments(filter),
   ]);
   sendPaginated(res, users, total, page, limit);

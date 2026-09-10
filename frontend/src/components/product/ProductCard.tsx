@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect, memo } from 'react';
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { memo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ShoppingCart, Heart, Star, Eye } from 'lucide-react';
+import { Heart, ShoppingCart, Star } from 'lucide-react';
 import { Product } from '@/types';
 import { formatPrice, cn } from '@/lib/utils';
 import { useCartStore } from '@/store/cartStore';
@@ -21,205 +20,109 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
   const { addItem } = useCartStore();
   const { showToast } = useUIStore();
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const cardRef = useRef<HTMLDivElement>(null);
 
-  // Tilt + glow run only where they're wanted and cheap: fine pointers (mouse/
-  // trackpad) with motion allowed. Touch devices never fire useful mousemove
-  // and reduced-motion users opt out (vestibular safety).
-  const interactiveTilt = useRef(false);
-  useEffect(() => {
-    interactiveTilt.current =
-      window.matchMedia('(pointer: fine)').matches &&
-      !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }, []);
-
-  // 3D Tilt Effect
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-
-  const mouseXSpring = useSpring(x, { stiffness: 300, damping: 30 });
-  const mouseYSpring = useSpring(y, { stiffness: 300, damping: 30 });
-
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["10deg", "-10deg"]);
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-10deg", "10deg"]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!interactiveTilt.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    x.set(mouseX / width - 0.5);
-    y.set(mouseY / height - 0.5);
-    // Direct DOM write — NO React state. The old setCoords() re-rendered the
-    // whole card on every pointer event (60+/sec); the glow only needs the
-    // CSS variables, so we set them on the node and skip the render entirely.
-    cardRef.current?.style.setProperty('--mouse-x', `${mouseX}px`);
-    cardRef.current?.style.setProperty('--mouse-y', `${mouseY}px`);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  const mainVariant = product.variants[0];
+  const mainVariant = product.variants?.[0];
   const discount = mainVariant?.comparePrice
     ? Math.round((1 - mainVariant.price / mainVariant.comparePrice) * 100)
     : 0;
 
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!mainVariant) return;
+  const handleAddToCart = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (!mainVariant || mainVariant.stock === 0 || isAdding) return;
     setIsAdding(true);
     try {
       await addItem(product._id, mainVariant.sku);
-      showToast(`${product.name} added to cart!`);
-
-      // Confetti burst effect
-      const el = (e.target as HTMLElement).closest('button');
-      if (el) {
-        el.classList.add('animate-confetti');
-        setTimeout(() => el.classList.remove('animate-confetti'), 800);
-      }
+      showToast(`${product.name} added to cart`);
     } catch {
-      showToast('Failed to add to cart', 'error');
+      showToast('Could not add this product to your cart. Try again.', 'error');
     } finally {
       setIsAdding(false);
     }
   };
 
   return (
-    <motion.div
-      ref={cardRef}
-      className={cn('group relative glass rounded-2xl overflow-hidden glass-hover cursor-pointer transition-colors duration-300 card-glow-wrapper', className)}
-      style={{
-        rotateX,
-        rotateY,
-        transformPerspective: 1000,
-        transformStyle: 'preserve-3d',
-      }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="card-glow-overlay" />
-      <div style={{ transform: 'translateZ(30px)' }}>
-      <Link href={`/products/${product.slug}`}>
-        {/* Image */}
-        <div className="relative h-52 bg-white/[0.03] overflow-hidden">
-          {product.images[0] ? (
+    <article className={cn('group relative overflow-hidden rounded-xl border border-white/10 bg-space-800/70 transition-[border-color,transform,background-color] duration-200 hover:-translate-y-0.5 hover:border-violet-500/45 hover:bg-space-700/70', className)}>
+      <Link href={`/products/${product.slug}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400">
+        <div className="relative aspect-[4/3] overflow-hidden bg-white/[0.03]">
+          {product.images?.[0] ? (
             <Image
               src={product.images[0]}
               alt={product.name}
               fill
-              className="object-cover transition-transform duration-700 group-hover:scale-110"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover transition-transform duration-300 ease-out [@media(hover:hover)]:group-hover:scale-[1.04]"
+              sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, 25vw"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-white/10">
-              <ShoppingCart size={40} />
+            <div className="flex h-full items-center justify-center text-white/20">
+              <ShoppingCart size={36} aria-hidden />
             </div>
           )}
 
-          {/* Badges */}
-          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-            {discount > 0 && (
-              <span className="badge-acid text-xs">{discount}% OFF</span>
-            )}
-            {product.isFeatured && (
-              <span className="badge-violet text-xs">Featured</span>
-            )}
-            {mainVariant?.stock === 0 && (
-              <span className="badge-red text-xs">Out of Stock</span>
-            )}
+          <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+            {discount > 0 && <span className="badge-acid text-xs">{discount}% OFF</span>}
+            {product.isFeatured && <span className="badge-violet text-xs">Featured</span>}
+            {mainVariant?.stock === 0 && <span className="badge-red text-xs">Out of stock</span>}
           </div>
 
-          {/* Wishlist */}
           <button
-            onClick={(e) => { e.preventDefault(); toggleWishlist(product._id); }}
-            className={`absolute top-3 right-3 p-2 rounded-xl glass transition-opacity duration-200 ${isWishlisted(product._id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-            suppressHydrationWarning
+            type="button"
+            aria-label={isWishlisted(product._id) ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
+            onClick={(event) => {
+              event.preventDefault();
+              void toggleWishlist(product._id);
+            }}
+            // Saved state stays visible at a glance on every device; only the
+            // "add" affordance waits for hover on hover-capable pointers.
+            className={cn(
+              'absolute right-3 top-3 flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/15 bg-space-900/75 text-white/70 backdrop-blur-sm transition-[color,background-color,border-color,opacity] hover:border-red-400/40 hover:bg-red-400/10 hover:text-red-300',
+              isWishlisted(product._id) ? '' : 'hover-reveal',
+            )}
           >
-            <Heart
-              size={16}
-              className={isWishlisted(product._id) ? 'fill-red-400 text-red-400' : 'text-white/60'}
-            />
+            <Heart size={17} className={isWishlisted(product._id) ? 'fill-red-400 text-red-400' : ''} aria-hidden />
           </button>
-
-          {/* Quick view overlay */}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-            <span className="flex items-center gap-2 text-white text-sm font-medium glass px-4 py-2 rounded-xl">
-              <Eye size={14} /> Quick View
-            </span>
-          </div>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
-          <p className="text-xs text-white/40 mb-1">{product.brand || product.category?.name}</p>
-          <h3 className="font-medium text-white text-sm leading-tight line-clamp-2 mb-2 group-hover:text-violet-300 transition-colors">
+        <div className="p-3.5 sm:p-4">
+          <p className="mb-1 truncate text-meta text-white/55">{product.brand || product.category?.name || 'NexMart catalog'}</p>
+          <h3 className="line-clamp-2 min-h-[2.5rem] font-outfit text-sm font-semibold leading-tight text-white transition-colors group-hover:text-violet-300">
             {product.name}
           </h3>
 
-          {/* Rating */}
-          {product.ratings.count > 0 && (
-            <div className="flex items-center gap-1.5 mb-3">
-              <div className="flex">
+          {product.ratings?.count > 0 && (
+            <div className="mt-2.5 flex items-center gap-1.5" aria-label={`${product.ratings.average.toFixed(1)} out of 5 stars`}>
+              <span className="flex" aria-hidden>
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    size={11}
-                    className={star <= Math.round(product.ratings.average) ? 'fill-amber-400 text-amber-400' : 'text-white/20'}
-                  />
+                  <Star key={star} size={11} className={star <= Math.round(product.ratings.average) ? 'fill-amber-400 text-amber-400' : 'text-white/20'} />
                 ))}
-              </div>
-              <span className="text-xs text-white/40">({product.ratings.count})</span>
+              </span>
+              <span className="text-meta text-white/55">({product.ratings.count})</span>
             </div>
           )}
 
-          {/* Price row */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="font-syne font-bold text-acid-400 text-lg">
-                {formatPrice(mainVariant?.price || 0)}
-              </span>
-              {mainVariant?.comparePrice && (
-                <span className="text-xs text-white/30 line-through ml-2">
-                  {formatPrice(mainVariant.comparePrice)}
-                </span>
-              )}
-            </div>
+          <div className="mt-3 flex min-h-7 items-baseline gap-2">
+            <span className="font-mono text-base font-semibold tabular-nums text-acid-400 sm:text-lg">{formatPrice(mainVariant?.price || 0)}</span>
+            {mainVariant?.comparePrice && <span className="text-meta text-white/40 line-through">{formatPrice(mainVariant.comparePrice)}</span>}
           </div>
         </div>
       </Link>
 
-      {/* Add to cart button */}
-      <div className="px-4 pb-4">
+      <div className="px-3.5 pb-3.5 sm:px-4 sm:pb-4">
         <button
+          type="button"
           onClick={handleAddToCart}
           disabled={isAdding || mainVariant?.stock === 0}
           className={cn(
-            'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-[color,transform,box-shadow] duration-200',
-            mainVariant?.stock === 0
-              ? 'bg-white/5 text-white/20 cursor-not-allowed'
-              : 'btn-primary'
+            'min-h-11 w-full touch-manipulation rounded-xl px-3 text-sm font-semibold transition-[color,transform,box-shadow,background-color] duration-200',
+            mainVariant?.stock === 0 ? 'cursor-not-allowed bg-white/5 text-white/30' : 'btn-primary',
           )}
-          suppressHydrationWarning
         >
           {isAdding ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="inline-flex items-center justify-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Adding</span>
           ) : (
-            <>
-              <ShoppingCart size={14} />
-              {mainVariant?.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-            </>
+            <span className="inline-flex items-center justify-center gap-2"><ShoppingCart size={15} aria-hidden />{mainVariant?.stock === 0 ? 'Out of stock' : 'Add to cart'}</span>
           )}
         </button>
       </div>
-      </div>
-    </motion.div>
+    </article>
   );
 });
