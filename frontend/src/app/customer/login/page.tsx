@@ -6,7 +6,7 @@ export default function CustomerLogin() {
   return (
     <AuthForm
       type="login"
-      role="customer"
+      portal="customer"
       title="Sign In"
       submitText="Customer Login"
       linkText="New here? Register"

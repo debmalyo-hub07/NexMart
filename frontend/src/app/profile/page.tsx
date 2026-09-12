@@ -1,333 +1,92 @@
-'use client';
+﻿'use client';
 
-import { useState, useCallback } from 'react';
-import { useAuthStore } from '@/store/authStore';
-import { useUIStore } from '@/store/uiStore';
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import * as Tabs from '@radix-ui/react-tabs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { motion } from 'framer-motion';
-import { User, Mail, MapPin, Plus, Trash2, Edit2, Loader2, Camera, ChevronDown } from 'lucide-react';
-import Image from 'next/image';
+import { Edit2, Loader2, Plus, Trash2 } from 'lucide-react';
+import api, { getApiError } from '@/lib/api';
+import { indianPhone } from '@/lib/address';
+import type { Address, ApiResponse, User } from '@/types';
+import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
 import { getInitials } from '@/lib/utils';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { PageHeader } from '@/components/common/PageHeader';
+import { EmptyState } from '@/components/common/EmptyState';
+import { QueryError } from '@/components/common/QueryError';
 import { ProfileSkeleton } from '@/components/common/SkeletonLoader';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { Overlay } from '@/components/common/Overlay';
 import { AddressForm, type AddressFormData } from '@/components/profile/AddressForm';
 import { PasswordModal } from '@/components/profile/PasswordModal';
-import { Address } from '@/types';
 
-const profileSchema = z.object({
-  name: z.string().min(2),
-  gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional().or(z.literal('')),
-  phone: z.string().regex(/^\+[1-9]\d{1,14}$/, 'Must be in E.164 format').optional().or(z.literal('')),
-});
-
-type ProfileTabs = 'profile' | 'addresses' | 'security';
+const schema = z.object({ name: z.string().trim().min(2, 'Enter your name').max(100), phone: z.string().regex(/^[6-9]\d{9}$/, 'Enter a 10-digit Indian mobile number').or(z.literal('')), gender: z.enum(['', 'male', 'female', 'other', 'prefer_not_to_say']) });
+type Values = z.infer<typeof schema>;
+const profileValues = (user: User): Values => ({ name: user.name, phone: indianPhone(user.phone), gender: (user.gender as Values['gender']) || '' });
 
 export default function ProfilePage() {
-  const { user, refreshUser } = useAuthStore();
-  const { showToast } = useUIStore();
-  const queryClient = useQueryClient();
-  const [tab, setTab] = useState<ProfileTabs>('profile');
-  const [avatarLoading, setAvatarLoading] = useState(false);
-  const [deleteAddr, setDeleteAddr] = useState<string | null>(null);
-  const [showAddressForm, setShowAddressForm] = useState(false);
-  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
-  const [addressLoading, setAddressLoading] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-
-  const { data: userData, isLoading } = useQuery({
-    queryKey: ['customer-profile'],
-    queryFn: () => api.get('/customer/profile').then((r) => r.data.data),
-    staleTime: 0,
-  });
-
-  const profile = userData || user;
-
-  const { register, handleSubmit, reset, formState: { isSubmitting, errors } } = useForm<z.infer<typeof profileSchema>>({
-    resolver: zodResolver(profileSchema),
-    values: {
-      name: profile?.name || '',
-      gender: (profile?.gender as 'male' | 'female' | 'other' | 'prefer_not_to_say') || undefined,
-      phone: profile?.phone || '',
-    },
-  });
-
-  const handleTabChange = useCallback((key: ProfileTabs) => setTab(key), []);
-
-  const onSave = async (data: z.infer<typeof profileSchema>) => {
+  const client = useQueryClient();
+  const toast = useUIStore(s => s.showToast);
+  const query = useQuery({ queryKey: ['customer', 'profile'], queryFn: ({ signal }) => api.get<ApiResponse<User>>('/customer/profile', { signal }).then(r => r.data.data) });
+  const profile = query.data;
+  const [error, setError] = useState('');
+  const [addressError, setAddressError] = useState('');
+  const [address, setAddress] = useState<Address | 'new' | null>(null);
+  const [deleteAddress, setDeleteAddress] = useState<Address | null>(null);
+  const [addressBusy, setAddressBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const pendingAddress = useRef(false);
+  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { name: '', phone: '', gender: '' }, mode: 'onTouched' });
+  const { reset, formState: { isDirty, isSubmitting, errors } } = form;
+  useEffect(() => { if (profile && !isDirty) reset(profileValues(profile)); }, [profile, isDirty, reset]);
+  function accept(user: User) { client.setQueryData(['customer', 'profile'], user); useAuthStore.setState(state => ({ user: { ...state.user, ...user } })); }
+  async function save(values: Values) {
+    setError('');
+    try { const response = await api.put<ApiResponse<User>>('/customer/profile', values); if (response.data.data) { accept(response.data.data); reset(profileValues(response.data.data)); } toast('Profile saved'); }
+    catch (error) { setError(getApiError(error)); }
+  }
+  async function saveAddress(values: AddressFormData) {
+    if (pendingAddress.current) return;
+    pendingAddress.current = true; setAddressBusy(true); setAddressError('');
     try {
-      const payload: Record<string, string> = { name: data.name };
-      if (data.gender) payload.gender = data.gender;
-      if (data.phone) payload.phone = data.phone;
-      const res = await api.put('/customer/profile', payload);
-      const updated = res.data.data;
-      reset({
-        name: updated?.name || data.name,
-        gender: (updated?.gender as 'male' | 'female' | 'other' | 'prefer_not_to_say') || undefined,
-        phone: updated?.phone || data.phone || '',
-      });
-      await refreshUser();
-      queryClient.invalidateQueries({ queryKey: ['customer-profile'] });
-      showToast('Profile updated successfully!');
-    } catch {
-      showToast('Failed to update profile', 'error');
-    }
-  };
-
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAvatarLoading(true);
-    const form = new FormData();
-    form.append('avatar', file);
-    try {
-      await api.put('/customer/avatar', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      await refreshUser();
-      showToast('Avatar updated');
-    } catch {
-      showToast('Failed to upload image', 'error');
-    } finally {
-      setAvatarLoading(false);
-    }
-  };
-
-  const handleDeleteAddress = async (id: string) => {
-    try {
-      await api.delete(`/customer/address/${id}`);
-      queryClient.invalidateQueries({ queryKey: ['customer-profile'] });
-      showToast('Address deleted');
-    } catch {
-      showToast('Failed to delete address', 'error');
-    } finally {
-      setDeleteAddr(null);
-    }
-  };
-
-  const handleAddressSubmit = async (data: AddressFormData) => {
-    setAddressLoading(true);
-    try {
-      if (editingAddress) {
-        await api.put(`/customer/address/${editingAddress._id}`, data);
-        showToast('Address updated');
-      } else {
-        await api.post('/customer/address', data);
-        showToast('Address added');
-      }
-      queryClient.invalidateQueries({ queryKey: ['customer-profile'] });
-      setShowAddressForm(false);
-      setEditingAddress(null);
-    } catch {
-      showToast('Failed to save address', 'error');
-    } finally {
-      setAddressLoading(false);
-    }
-  };
-
-  const tabs: { key: ProfileTabs; label: string; icon: any }[] = [
-    { key: 'profile', label: 'Profile', icon: User },
-    { key: 'addresses', label: 'Addresses', icon: MapPin },
-    { key: 'security', label: 'Security', icon: Mail },
-  ];
-
-  return (
-    <div className="min-h-screen bg-space-900">      <div className="pt-[72px]">
-        <div className="page-container py-12">
-          <h1 className="font-syne text-3xl font-bold text-white mb-8">My Profile</h1>
-
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Sidebar */}
-            <div className="lg:col-span-1">
-              <div className="glass rounded-2xl p-6 border border-white/5 text-center mb-4">
-                <div className="relative inline-block mb-4">
-                  {profile?.profilePicture ? (
-                    <Image src={profile.profilePicture} alt={profile.name} width={80} height={80} className="rounded-full object-cover" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-2xl font-bold text-violet-300 mx-auto">
-                      {getInitials(profile?.name || 'U')}
-                    </div>
-                  )}
-                  <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center cursor-pointer hover:bg-violet-500 transition-colors">
-                    {avatarLoading ? <Loader2 size={12} className="animate-spin text-white" /> : <Camera size={12} className="text-white" />}
-                    <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
-                  </label>
-                </div>
-                <p className="font-syne font-semibold text-white">{profile?.name}</p>
-                <p className="text-xs text-white/40 mt-1">{profile?.email}</p>
-                <div className="flex flex-wrap justify-center gap-1.5 mt-3">
-                  {profile?.authProviders?.map((p: string) => (
-                    <span key={p} className="badge-violet text-[10px]">{p}</span>
-                  ))}
-                </div>
-              </div>
-
-              <nav className="glass rounded-2xl p-2 border border-white/5 space-y-1">
-                {tabs.map(({ key, label, icon: Icon }) => (
-                  <button key={key} onClick={() => handleTabChange(key)}
-                    className={`nav-item w-full ${tab === key ? 'active' : ''}`}
-                    suppressHydrationWarning
-                  >
-                    <Icon size={15} />{label}
-                  </button>
-                ))}
-              </nav>
-            </div>
-
-            {/* Content */}
-            <div className="lg:col-span-3">
-              {isLoading ? <ProfileSkeleton /> : (
-                <motion.div key={tab} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}>
-                  {tab === 'profile' && (
-                    <div className="glass rounded-2xl p-8 border border-white/5">
-                      <h2 className="font-syne font-semibold text-xl text-white mb-6">Personal Information</h2>
-                      <form onSubmit={handleSubmit(onSave)} className="space-y-5">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                          <div>
-                            <label className="text-xs text-white/60 mb-1.5 block">Full Name</label>
-                            <input {...register('name')} className="input" suppressHydrationWarning />
-                            {errors.name?.message && <p className="text-xs text-red-400 mt-1">{errors.name.message as string}</p>}
-                          </div>
-                          <div>
-                            <label className="text-xs text-white/60 mb-1.5 block">Gender</label>
-                            <div className="relative">
-                              <select {...register('gender')} className="input appearance-none pr-10 bg-space-900" suppressHydrationWarning>
-                                <option value="" disabled className="bg-space-900 text-white/40">Select gender</option>
-                                <option value="male" className="bg-space-900">Male</option>
-                                <option value="female" className="bg-space-900">Female</option>
-                                <option value="other" className="bg-space-900">Other</option>
-                                <option value="prefer_not_to_say" className="bg-space-900">Prefer not to say</option>
-                              </select>
-                              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-xs text-white/60 mb-1.5 block">Email</label>
-                            <input value={profile?.email || ''} disabled className="input opacity-50 cursor-not-allowed" suppressHydrationWarning />
-                          </div>
-                          <div>
-                            <label className="text-xs text-white/60 mb-1.5 block">Phone</label>
-                            <input {...register('phone')} placeholder="+91 9876543210" className="input" suppressHydrationWarning />
-                            {errors.phone?.message && <p className="text-xs text-red-400 mt-1">{errors.phone.message as string}</p>}
-                          </div>
-                        </div>
-                        <button type="submit" disabled={isSubmitting} className="btn-primary" suppressHydrationWarning>
-                          {isSubmitting ? <Loader2 size={15} className="animate-spin" /> : 'Save Changes'}
-                        </button>
-                      </form>
-                    </div>
-                  )}
-
-                  {tab === 'addresses' && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-syne font-semibold text-xl text-white">Saved Addresses</h2>
-                        {!showAddressForm && (
-                          <button onClick={() => { setEditingAddress(null); setShowAddressForm(true); }} className="btn-primary py-2 px-4 text-xs">
-                            <Plus size={14} /> Add Address
-                          </button>
-                        )}
-                      </div>
-
-                      {showAddressForm ? (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                          <AddressForm
-                            initialData={editingAddress || undefined}
-                            onSubmit={handleAddressSubmit}
-                            onCancel={() => { setShowAddressForm(false); setEditingAddress(null); }}
-                            isLoading={addressLoading}
-                          />
-                        </motion.div>
-                      ) : (
-                        <>
-                          {(profile?.addresses || []).map((addr: Address) => (
-                            <div key={addr._id} className="glass rounded-2xl p-5 border border-white/5 flex gap-4">
-                              <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400 h-fit">
-                                <MapPin size={18} />
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className="font-medium text-white text-sm">{addr.fullName}</p>
-                                  <span className="badge-violet text-[10px]">{addr.label}</span>
-                                  {addr.isDefault && <span className="badge-acid text-[10px]">Default</span>}
-                                </div>
-                                <p className="text-xs text-white/60">{addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ''}</p>
-                                <p className="text-xs text-white/60">{addr.city}, {addr.state} - {addr.pincode}</p>
-                                <p className="text-xs text-white/50 mt-1">{addr.phone}</p>
-                              </div>
-                              <div className="flex flex-col gap-2">
-                                <button onClick={() => { setEditingAddress(addr); setShowAddressForm(true); }} className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
-                                  <Edit2 size={14} />
-                                </button>
-                                <button onClick={() => setDeleteAddr(addr._id!)} className="p-2 rounded-lg text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-
-                          {(profile?.addresses || []).length === 0 && (
-                            <div className="text-center py-12 text-white/40 glass rounded-2xl border border-white/5">
-                              <MapPin size={32} className="mx-auto mb-3 opacity-30" />
-                              <p className="mb-4">No saved addresses</p>
-                              <button onClick={() => { setEditingAddress(null); setShowAddressForm(true); }} className="btn-secondary py-2 px-4 text-xs mx-auto">
-                                <Plus size={14} /> Add Your First Address
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {tab === 'security' && (
-                    <div className="glass rounded-2xl p-8 border border-white/5">
-                      <h2 className="font-syne font-semibold text-white mb-6">Security Settings</h2>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 glass rounded-xl border border-white/5">
-                          <div>
-                            <p className="text-sm font-medium text-white">Email Verification</p>
-                            <p className="text-xs text-white/40">{profile?.email}</p>
-                          </div>
-                          <span className={profile?.emailVerified ? 'badge-acid' : 'badge-amber'}>
-                            {profile?.emailVerified ? 'Verified' : 'Unverified'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-4 glass rounded-xl border border-white/5">
-                          <div>
-                            <p className="text-sm font-medium text-white">Password</p>
-                            <p className="text-xs text-white/40">Update your account password</p>
-                          </div>
-                          <button onClick={() => setShowPasswordModal(true)} className="btn-secondary text-xs px-3 py-1.5">Change</button>
-                        </div>
-                        <div className="flex items-center justify-between p-4 glass rounded-xl border border-white/5">
-                          <div>
-                            <p className="text-sm font-medium text-white">Connected Accounts</p>
-                            <p className="text-xs text-white/40">{profile?.authProviders?.join(', ')}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={!!deleteAddr}
-        title="Delete Address"
-        description="Are you sure you want to delete this address? This cannot be undone."
-        onConfirm={() => deleteAddr && handleDeleteAddress(deleteAddr)}
-        onCancel={() => setDeleteAddr(null)}
-      />
-
-      <PasswordModal 
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-      />    </div>
-  );
+      if (address && address !== 'new') await api.put(`/customer/address/${address._id}`, values);
+      else await api.post('/customer/address', values);
+      await query.refetch(); setAddress(null); toast('Address saved');
+    } catch (error) { setAddressError(getApiError(error) + ' Check your saved addresses before retrying.'); }
+    finally { pendingAddress.current = false; setAddressBusy(false); }
+  }
+  async function removeAddress() {
+    if (!deleteAddress || pendingAddress.current) return;
+    pendingAddress.current = true; setAddressBusy(true);
+    try { await api.delete(`/customer/address/${deleteAddress._id}`); await query.refetch(); toast('Address removed'); }
+    catch (error) { setError(getApiError(error)); void query.refetch(); }
+    finally { pendingAddress.current = false; setAddressBusy(false); setDeleteAddress(null); }
+  }
+  async function upload(file?: File) {
+    if (!file || avatarBusy) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) { setError('Choose a JPEG, PNG or WebP image up to 5 MB.'); return; }
+    setAvatarBusy(true); setError('');
+    try { const data = new FormData(); data.append('avatar', file); const response = await api.put<ApiResponse<User>>('/customer/avatar', data, { headers: { 'Content-Type': 'multipart/form-data' } }); if (response.data.data) accept(response.data.data); toast('Profile photo updated'); }
+    catch (error) { setError(getApiError(error)); }
+    finally { setAvatarBusy(false); }
+  }
+  return <main id="main-content" className="store-page"><div className="page-container"><PageHeader title="Your account" description="Manage your profile, delivery addresses, and sign-in details." actions={<><Link href="/orders" className="btn-secondary">Your orders</Link><Link href="/wishlist" className="btn-secondary">Saved products</Link></>} />
+    {error && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 p-4 text-sm text-red-300">{error}</p>}
+    {query.isError ? <QueryError label="Your profile" onRetry={() => void query.refetch()} /> : query.isPending ? <ProfileSkeleton /> : profile && <Tabs.Root defaultValue="profile">
+      <Tabs.List aria-label="Account sections" className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-white/15 p-1">{['profile', 'addresses', 'security'].map(tab => <Tabs.Trigger key={tab} value={tab} className="min-h-11 flex-1 rounded-lg px-4 text-sm capitalize text-secondary data-[state=active]:bg-violet-500/15 data-[state=active]:text-white">{tab}</Tabs.Trigger>)}</Tabs.List>
+      <Tabs.Content value="profile" className="grid gap-6 md:grid-cols-[240px_minmax(0,1fr)]"><section className="card h-fit"><div className="mb-4 flex items-center gap-3">{profile.profilePicture ? <Image src={profile.profilePicture} alt="" width={56} height={56} className="rounded-full object-cover" /> : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-violet-500/15 font-semibold text-violet-200">{getInitials(profile.name)}</span>}<p className="min-w-0 break-words font-medium">{profile.name}</p></div><label htmlFor="profile-photo" className="field-label">Profile photo</label><input id="profile-photo" type="file" accept="image/jpeg,image/png,image/webp" className="block w-full min-w-0 text-sm text-secondary file:mr-2 file:min-h-11 file:rounded-lg file:border-0 file:bg-space-700 file:px-3 file:text-white" disabled={avatarBusy} onChange={event => { void upload(event.target.files?.[0]); event.currentTarget.value = ''; }} /><p className="field-hint">JPEG, PNG or WebP. Up to 5 MB.</p>{avatarBusy && <p role="status" className="text-sm text-secondary">Uploading photo…</p>}</section>
+        <section className="card"><h2 className="mb-5 text-xl">Personal details</h2><form onSubmit={form.handleSubmit(save)} noValidate><fieldset disabled={isSubmitting} className="space-y-5"><div><label htmlFor="profile-name" className="field-label">Full name</label><input id="profile-name" {...form.register('name')} autoComplete="name" className="input" aria-invalid={!!errors.name} aria-describedby={errors.name ? 'profile-name-error' : undefined} />{errors.name && <p id="profile-name-error" className="field-error" role="alert">{errors.name.message}</p>}</div><div><label htmlFor="profile-email" className="field-label">Email address</label><input id="profile-email" readOnly value={profile.email || ''} className="input" autoComplete="email" /></div><div><label htmlFor="profile-phone" className="field-label">Mobile number (optional)</label><input id="profile-phone" {...form.register('phone')} type="tel" inputMode="numeric" maxLength={10} autoComplete="tel-national" className="input" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'profile-phone-error' : undefined} />{errors.phone && <p id="profile-phone-error" className="field-error" role="alert">{errors.phone.message}</p>}</div><div><label htmlFor="profile-gender" className="field-label">Gender (optional)</label><select id="profile-gender" {...form.register('gender')} className="input"><option value="">Not specified</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option><option value="prefer_not_to_say">Prefer not to say</option></select></div><button type="submit" className="btn-primary" disabled={!isDirty}>{isSubmitting && <Loader2 className="animate-spin" size={17} aria-hidden />}{isSubmitting ? 'Saving…' : 'Save changes'}</button></fieldset></form></section>
+      </Tabs.Content>
+      <Tabs.Content value="addresses"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl">Saved addresses</h2><button type="button" className="btn-primary" onClick={() => { setAddressError(''); setAddress('new'); }}><Plus size={17} aria-hidden />Add address</button></div>{!profile.addresses?.length ? <EmptyState title="No saved addresses" description="Save a delivery address to make checkout quicker." /> : <ul className="grid gap-4 md:grid-cols-2">{profile.addresses.map(item => <li key={item._id} className="card"><div className="mb-3 flex flex-wrap items-center gap-2"><h3 className="text-lg">{item.label}</h3>{item.isDefault && <span className="badge-acid">Default address</span>}</div><address className="break-words text-sm not-italic text-secondary"><p className="font-medium text-white">{item.fullName}</p><p>{item.addressLine1}</p><p>{item.addressLine2}</p><p>{item.city}, {item.state} {item.pincode}</p><p className="mt-2">{item.phone}</p></address><div className="mt-4 flex flex-wrap gap-3"><button type="button" className="btn-secondary" onClick={() => { setAddressError(''); setAddress(item); }}><Edit2 size={16} aria-hidden />Edit<span className="sr-only"> {item.label} address</span></button><button type="button" className="btn-secondary text-red-300" onClick={() => setDeleteAddress(item)}><Trash2 size={16} aria-hidden />Remove<span className="sr-only"> {item.label} address</span></button></div></li>)}</ul>}</Tabs.Content>
+      <Tabs.Content value="security" className="card max-w-2xl"><h2 className="mb-5 text-xl">Sign-in and security</h2><p className="break-words text-sm text-secondary">Email: {profile.email}</p><p className="mt-2 text-sm text-secondary">{profile.emailVerified ? 'Your email is verified.' : 'Your email is not verified.'}</p>{profile.authProviders?.includes('email') ? <button type="button" className="btn-secondary mt-5" onClick={() => setPasswordOpen(true)}>Change password</button> : <p className="mt-5 text-sm text-muted">Manage sign-in security through your linked provider.</p>}</Tabs.Content>
+    </Tabs.Root>}
+    <Overlay open={!!address} onClose={() => setAddress(null)} title={address === 'new' ? 'Add address' : 'Edit address'} busy={addressBusy}>{addressError && <p role="alert" className="field-error mb-4">{addressError}</p>}{address && <AddressForm key={address === 'new' ? 'new' : address._id} initialData={address === 'new' ? undefined : address} onSubmit={saveAddress} onCancel={() => setAddress(null)} isLoading={addressBusy} />}</Overlay>
+    <ConfirmDialog open={!!deleteAddress} title="Remove this address?" description="This removes the saved address from your account. Existing orders keep their delivery address." confirmLabel="Remove address" onConfirm={() => void removeAddress()} onCancel={() => setDeleteAddress(null)} isLoading={addressBusy} />
+    <PasswordModal isOpen={passwordOpen} onClose={() => setPasswordOpen(false)} />
+  </div></main>;
 }

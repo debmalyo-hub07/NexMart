@@ -35,14 +35,22 @@ const STATUS_ICONS: Record<string, LucideIcon> = {
   assigned: UserCheck,
   picked: Package,
   attempted: AlertTriangle,
+  pending: ClipboardList,
+  paid: CheckCircle,
+  failed: XCircle,
+  refunded: RotateCcw,
+  active: UserCheck,
+  suspended: XCircle,
+  published: CheckCircle,
+  draft: ClipboardList,
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   const Icon = STATUS_ICONS[status] || Activity;
 
   return (
-    <span className={cn(getStatusColor(status), 'inline-flex items-center gap-1', className)}>
-      <Icon size={12} aria-hidden />
+    <span className={cn(getStatusColor(status), 'inline-flex max-w-full items-center gap-1.5', className)}>
+      <Icon size={13} className="shrink-0" aria-hidden />
       {capitalizeStatus(status)}
     </span>
   );

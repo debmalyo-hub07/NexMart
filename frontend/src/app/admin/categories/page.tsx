@@ -11,6 +11,7 @@ import api from '@/lib/api';
 import { useUIStore } from '@/store/uiStore';
 import { liveQueryOptions } from '@/lib/syncConfig';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { QueryError } from '@/components/common/QueryError';
 
 type Category = {
   _id: string;
@@ -54,7 +55,7 @@ export default function CategoriesPage() {
   const formName = watch('name') || '';
   const formIcon = watch('icon') || '';
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'categories-manager'],
     queryFn: () => api.get('/categories?includeInactive=true').then(r => {
       const res = r.data;
@@ -64,7 +65,9 @@ export default function CategoriesPage() {
     ...liveQueryOptions,
   });
 
-  const categories: Category[] = Array.isArray(data) ? data : [];
+  // Memoized so the derived lists below keep a stable dependency: a bare
+  // ternary produces a new array identity on every render.
+  const categories: Category[] = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const parents = useMemo(() => categories.filter(c => !c.parent), [categories]);
   const filteredParents = useMemo(() =>
     parents.filter(p => p.name.toLowerCase().includes(search.toLowerCase())),
@@ -136,11 +139,11 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-syne font-bold text-2xl text-white flex items-center gap-3">
+          <h1 className="font-outfit font-bold text-2xl text-white flex items-center gap-3">
             <FolderTree size={24} className="text-violet-400" />
             Category Manager
           </h1>
-          <p className="text-sm text-white/40 mt-1">{categories.length} categories across the store</p>
+          <p className="text-sm text-muted mt-1">{categories.length} categories across the store</p>
         </div>
         <button onClick={() => openCreate()} className="btn-primary" suppressHydrationWarning>
           <Plus size={16} /> Add Category
@@ -149,7 +152,7 @@ export default function CategoriesPage() {
 
       {/* Search */}
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -169,21 +172,21 @@ export default function CategoriesPage() {
             className="glass rounded-2xl p-6 border border-violet-500/20 space-y-4"
           >
             <div className="flex justify-between items-center">
-              <h2 className="font-syne font-semibold text-white">{editId ? 'Edit Category' : 'New Category'}</h2>
-              <button onClick={() => { setShowForm(false); setEditId(null); reset(defaultValues); }} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5" suppressHydrationWarning>
+              <h2 className="font-outfit font-semibold text-white">{editId ? 'Edit Category' : 'New Category'}</h2>
+              <button onClick={() => { setShowForm(false); setEditId(null); reset(defaultValues); }} className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/5" suppressHydrationWarning>
                 <X size={16} />
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-white/60 mb-1.5 block">Category Name *</label>
-                <input {...register('name')} className="input" placeholder="e.g. Electronics" suppressHydrationWarning />
+                <label htmlFor="category-name" className="text-xs text-secondary mb-1.5 block">Category Name *</label>
+                <input id="category-name" {...register('name')} className="input" placeholder="e.g. Electronics" suppressHydrationWarning />
                 {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name.message}</p>}
               </div>
               <div>
-                <label className="text-xs text-white/60 mb-1.5 block">Parent Category</label>
-                <select {...register('parent')} className="input bg-space-900 appearance-none" suppressHydrationWarning>
+                <label htmlFor="category-parent" className="text-xs text-secondary mb-1.5 block">Parent Category</label>
+                <select id="category-parent" {...register('parent')} className="input bg-space-900 appearance-none" suppressHydrationWarning>
                   <option value="">None (Top Level)</option>
                   {parents.map(p => (
                     <option key={p._id} value={p._id}>{p.icon} {p.name}</option>
@@ -191,9 +194,9 @@ export default function CategoriesPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-white/60 mb-1.5 block">Icon Emoji</label>
+                <label htmlFor="category-icon" className="text-xs text-secondary mb-1.5 block">Icon Emoji</label>
                 <div className="space-y-2">
-                  <input {...register('icon')} className="input" placeholder="e.g. 📱" suppressHydrationWarning />
+                  <input id="category-icon" {...register('icon')} className="input" placeholder="e.g. 📱" suppressHydrationWarning />
                   <div className="flex flex-wrap gap-2">
                     {EMOJI_PRESETS.map(emoji => (
                       <button
@@ -210,13 +213,13 @@ export default function CategoriesPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-white/60 mb-1.5 block">Display Order</label>
-                <input type="number" {...register('displayOrder')} className="input" placeholder="0" suppressHydrationWarning />
+                <label htmlFor="category-display-order" className="text-xs text-secondary mb-1.5 block">Display Order</label>
+                <input type="number" id="category-display-order" {...register('displayOrder')} className="input" placeholder="0" suppressHydrationWarning />
                 {errors.displayOrder && <p className="text-xs text-red-400 mt-1">{errors.displayOrder.message}</p>}
               </div>
               <div>
-                <label className="text-xs text-white/60 mb-1.5 block">Description</label>
-                <textarea {...register('description')} className="input py-2" rows={3} placeholder="Optional category description" suppressHydrationWarning />
+                <label htmlFor="category-description" className="text-xs text-secondary mb-1.5 block">Description</label>
+                <textarea id="category-description" {...register('description')} className="input py-2" rows={3} placeholder="Optional category description" suppressHydrationWarning />
                 {errors.description && <p className="text-xs text-red-400 mt-1">{errors.description.message}</p>}
               </div>
             </div>
@@ -234,6 +237,8 @@ export default function CategoriesPage() {
       {/* Category Tree */}
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-violet-400" /></div>
+      ) : isError ? (
+        <QueryError label="Categories" onRetry={() => void refetch()} />
       ) : (
         <div className="space-y-3">
           {filteredParents.map(parent => {
@@ -249,22 +254,22 @@ export default function CategoriesPage() {
                     suppressHydrationWarning
                   >
                     <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.15 }}>
-                      <ChevronRight size={16} className="text-white/40" />
+                      <ChevronRight size={16} className="text-muted" />
                     </motion.div>
                   </button>
                   <span className="text-2xl">{parent.icon || '📦'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-white">{parent.name}</p>
-                    <p className="text-xs text-white/40">{children.length} subcategories · /{parent.slug}</p>
+                    <p className="text-xs text-muted">{children.length} subcategories · /{parent.slug}</p>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openCreate(parent._id)} className="p-2 rounded-lg text-white/40 hover:text-violet-400 hover:bg-violet-400/10 transition-colors text-xs flex items-center gap-1.5" suppressHydrationWarning>
+                    <button onClick={() => openCreate(parent._id)} className="p-2 rounded-lg text-muted hover:text-violet-400 hover:bg-violet-400/10 transition-colors text-xs flex items-center gap-1.5" suppressHydrationWarning>
                       <Plus size={13} /> Sub
                     </button>
-                    <button onClick={() => openEdit(parent)} className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors" suppressHydrationWarning>
+                    <button onClick={() => openEdit(parent)} className="p-2 rounded-lg text-muted hover:text-white hover:bg-white/10 transition-colors" suppressHydrationWarning>
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => setPendingDeleteId(parent._id)} className="p-2 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
+                    <button onClick={() => setPendingDeleteId(parent._id)} className="p-2 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -286,13 +291,13 @@ export default function CategoriesPage() {
                           <div className="w-2 h-2 rounded-full bg-violet-500/50 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-white/80">{child.name}</p>
-                            <p className="text-xs text-white/30">/{child.slug}</p>
+                            <p className="text-xs text-muted">/{child.slug}</p>
                           </div>
                           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openEdit(child)} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors" suppressHydrationWarning>
+                            <button onClick={() => openEdit(child)} className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/10 transition-colors" suppressHydrationWarning>
                               <Pencil size={13} />
                             </button>
-                            <button onClick={() => setPendingDeleteId(child._id)} className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
+                            <button onClick={() => setPendingDeleteId(child._id)} className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors" suppressHydrationWarning>
                               <Trash2 size={13} />
                             </button>
                           </div>
@@ -306,7 +311,7 @@ export default function CategoriesPage() {
           })}
 
           {filteredParents.length === 0 && (
-            <div className="text-center py-20 text-white/30">
+            <div className="text-center py-20 text-muted">
               <FolderTree size={48} className="mx-auto mb-4 opacity-20" />
               <p className="text-lg">No categories found</p>
               <button onClick={() => openCreate()} className="btn-primary mt-4" suppressHydrationWarning>

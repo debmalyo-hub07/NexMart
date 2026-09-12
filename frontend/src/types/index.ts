@@ -84,7 +84,7 @@ export interface Product {
 // ── Cart types ────────────────────────────────────────────────
 export interface CartItem {
   _id: string;
-  product: Product;
+  product: Product | null;
   variant: string;
   quantity: number;
   price: number;
@@ -103,7 +103,9 @@ export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded';
 export type PaymentMethod = 'online' | 'cod';
 
 export interface OrderItem {
-  product: Product;
+  name?: string;
+  image?: string;
+  product: Product | null;
   variant: string;
   quantity: number;
   unitPrice: number;
@@ -133,8 +135,21 @@ export interface Order {
   total: number;
   invoiceUrl?: string;
   deliveryId?: string;
+  deliveryAgent?: { _id: string; name: string; phone?: string } | null;
   notes?: string;
   createdAt: string;
+}
+
+export interface CheckoutReceipt {
+  orderId: string;
+  humanOrderId: string;
+  razorpayOrderId?: string;
+  keyId?: string;
+  currency: string;
+  total: number;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus;
+  processing?: boolean;
 }
 
 // ── API Response types ────────────────────────────────────────
@@ -152,6 +167,17 @@ export interface ApiResponse<T> {
 }
 
 // ── Dashboard types ───────────────────────────────────────────
+/**
+ * `GET /admin/analytics?days=N`. Note the differing scopes, which the UI must
+ * state: `dailyRevenue` counts only orders whose payment is `paid`, while
+ * `topProducts` counts item value across every order in the window.
+ */
+export interface AnalyticsSummary {
+  dailyRevenue: { _id: string; revenue: number; orders: number }[];
+  topProducts: { name: string; slug?: string; totalSold: number; revenue: number }[];
+  ordersByStatus: { _id: string; count: number }[];
+}
+
 export interface DashboardStats {
   totalOrders: number;
   totalRevenue: number;
@@ -168,9 +194,20 @@ export interface Category {
   _id: string;
   name: string;
   slug: string;
-  parent?: Category;
+  parent?: Category | string | null;
   image?: string;
   description?: string;
   displayOrder: number;
   isActive: boolean;
+}
+
+export type DeliveryStatus = 'assigned' | 'picked' | 'out_for_delivery' | 'delivered' | 'attempted' | 'returned';
+export interface DeliveryAssignment {
+  _id: string;
+  order: Order | null;
+  status: DeliveryStatus;
+  assignedAt: string;
+  pickedAt?: string;
+  attemptedAt?: string;
+  deliveredAt?: string;
 }

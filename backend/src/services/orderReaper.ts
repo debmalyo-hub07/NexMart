@@ -2,8 +2,9 @@ import { Order } from '../models/Order';
 import { fetchOrderPayments } from './razorpay.service';
 import { sendOrderStatusEmail } from './email.service';
 import { emitOrderStatusUpdate } from '../config/socket';
-import { queueInvoiceGeneration } from '../queues/invoiceQueue';
-import { generateDeliveryId } from '../utils/helpers';
+import { recordCapturedPayment } from './orderPayment.service';
+import { Customer } from '../models/Customer';
+import type { IOrder } from '../types';
 import { restockOrderItems } from '../utils/orderRestock';
 import { logger } from '../utils/logger';
 
@@ -31,7 +32,7 @@ const STALE_AFTER_MS = 30 * 60 * 1000; // pending older than 30 minutes
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
-async function reconcileOrCancel(order: any): Promise<'confirmed' | 'cancelled' | 'skipped'> {
+async function reconcileOrCancel(order: IOrder): Promise<'confirmed' | 'cancelled' | 'skipped'> {
   // Re-check under the reaper's own read — another request may have confirmed
   // it between the query and now. 'failed' orders are still cancellable
   // (their payment is known-dead; the Razorpay check below only matters for
@@ -40,11 +41,7 @@ async function reconcileOrCancel(order: any): Promise<'confirmed' | 'cancelled' 
   if (!fresh || !['pending', 'failed'].includes(fresh.paymentStatus) || fresh.orderStatus !== 'placed') {
     return 'skipped';
   }
-  if (fresh.paymentStatus === 'failed') {
-    // Payment definitively failed (webhook or bad-signature verify path).
-    // A second capture on the same Razorpay order is not a thing — cancel now.
-    return cancelAndRestock(fresh, 'Auto-cancelled: payment failed');
-  }
+  if (fresh.paymentAttemptedAt && fresh.paymentAttemptedAt.getTime() > Date.now() - STALE_AFTER_MS) return 'skipped';
 
   // 1. Reconciliation: was it actually paid?
   let payments: Array<{ id: string; status: string }>;
@@ -58,35 +55,20 @@ async function reconcileOrCancel(order: any): Promise<'confirmed' | 'cancelled' 
 
   const captured = payments.find((p) => p.status === 'captured');
   if (captured) {
-    fresh.paymentStatus = 'paid';
-    fresh.orderStatus = 'confirmed';
-    fresh.razorpayPaymentId = fresh.razorpayPaymentId || captured.id;
-    if (!fresh.deliveryId) fresh.deliveryId = generateDeliveryId();
-    fresh.statusHistory.push({
-      status: 'confirmed',
-      timestamp: new Date(),
-      updatedBy: fresh.customer,
-      note: 'Reconciled by reaper: payment captured at Razorpay',
-    } as any);
-    await fresh.save();
-
-    emitOrderStatusUpdate(fresh.customer.toString(), fresh.orderId, 'confirmed');
-    await queueInvoiceGeneration(fresh._id.toString());
-    const customer = await Order.findById(fresh._id).populate('customer', 'name email') as any;
-    const c = customer?.customer as { name?: string; email?: string } | undefined;
-    if (c?.email) {
-      void sendOrderStatusEmail(c.email, c.name || 'Customer', fresh.orderId, 'confirmed')
-        .catch((err) => console.error('Reaper confirmation email failed:', err));
-    }
+    await recordCapturedPayment(String(fresh._id), fresh.razorpayOrderId!, captured.id);
     logger.info(`Reaper: RECONCILED ${fresh.orderId} — payment was captured, order confirmed.`);
     return 'confirmed';
   }
+
+  // Authorization may still become a capture. A failed attempt can also be
+  // followed by success on the same Razorpay order; both must be checked.
+  if (payments.some(payment => payment.status === 'authorized')) return 'skipped';
 
   // 2. Cancel + restock (shared path for abandoned and failed orders)
   return cancelAndRestock(fresh, 'Auto-cancelled: payment not completed within 30 minutes');
 }
 
-async function cancelAndRestock(fresh: any, note: string): Promise<'cancelled'> {
+async function cancelAndRestock(fresh: IOrder, note: string): Promise<'cancelled'> {
   fresh.orderStatus = 'cancelled';
   fresh.statusHistory.push({
     status: 'cancelled',
@@ -100,8 +82,7 @@ async function cancelAndRestock(fresh: any, note: string): Promise<'cancelled'> 
   await restockOrderItems(fresh);
 
   emitOrderStatusUpdate(fresh.customer.toString(), fresh.orderId, 'cancelled');
-  const populated = await Order.findById(fresh._id).populate('customer', 'name email') as any;
-  const pc = populated?.customer as { name?: string; email?: string } | undefined;
+  const pc = await Customer.findById(fresh.customer).select('name email');
   if (pc?.email) {
     void sendOrderStatusEmail(pc.email, pc.name || 'Customer', fresh.orderId, 'cancelled')
       .catch((err) => console.error('Reaper cancellation email failed:', err));
@@ -123,6 +104,7 @@ async function sweep(): Promise<void> {
       orderStatus: 'placed',
       razorpayOrderId: { $exists: true, $ne: null },
       createdAt: { $lt: staleBefore },
+      $or: [{ paymentAttemptedAt: { $exists: false } }, { paymentAttemptedAt: { $lt: staleBefore } }],
     }).limit(50); // bounded per cycle
 
     if (staleOrders.length === 0) return;

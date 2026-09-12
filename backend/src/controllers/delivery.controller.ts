@@ -78,9 +78,12 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
     return;
   }
 
-  // Update assignment
-  if (status === 'picked') assignment.pickedAt = new Date();
-  if (status === 'delivered') assignment.deliveredAt = new Date();
+  // Update assignment. Milestones are recorded once: a double tap, or a retry
+  // after a lost response, must not move the time the parcel was actually
+  // picked up or handed over. A failed attempt is different — each attempt is
+  // its own event, so that timestamp tracks the most recent one.
+  if (status === 'picked' && !assignment.pickedAt) assignment.pickedAt = new Date();
+  if (status === 'delivered' && !assignment.deliveredAt) assignment.deliveredAt = new Date();
   if (status === 'attempted') assignment.attemptedAt = new Date();
   assignment.status = status as typeof assignment.status;
   await assignment.save();

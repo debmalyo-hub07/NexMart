@@ -6,7 +6,7 @@ export default function CustomerRegister() {
   return (
     <AuthForm
       type="register"
-      role="customer"
+      portal="customer"
       title="Create Account"
       submitText="Create Customer Account"
       linkText="Already a customer? Login here"

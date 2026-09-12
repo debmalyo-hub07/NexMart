@@ -62,7 +62,7 @@ export const MegaMenu = memo(function MegaMenu({
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-left transition-[color,background-color,border-color,box-shadow] duration-200 group ${
                     isActive
                       ? 'bg-gradient-to-r from-violet-600/20 to-fuchsia-600/10 text-white border border-violet-500/40 shadow-[0_0_15px_rgba(124,58,237,0.2)]'
-                      : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
+                      : 'text-secondary hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
                   }`}
                   suppressHydrationWarning
                 >
@@ -76,7 +76,7 @@ export const MegaMenu = memo(function MegaMenu({
 
           {/* Sub-categories panel */}
           <div className="w-[60%] p-6 bg-space-800/80">
-            <h3 className="text-xs font-bold text-white/50 tracking-widest uppercase mb-4 pb-2 border-b border-white/[0.08] flex items-center gap-2">
+            <h3 className="text-xs font-bold text-muted tracking-widest uppercase mb-4 pb-2 border-b border-white/[0.08] flex items-center gap-2">
               <span className="text-lg">{activeCategory.icon}</span>
               {activeCategory.name}
             </h3>
@@ -86,7 +86,7 @@ export const MegaMenu = memo(function MegaMenu({
                   key={sub}
                   href={`/categories/${activeCategory.slug}?sub=${sub.toLowerCase().replace(/\s+/g, '-')}`}
                   onClick={onClose}
-                  className="group flex items-center px-2 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                  className="group flex items-center px-2 py-2 rounded-lg text-sm text-secondary hover:text-white hover:bg-white/5 transition-colors"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-500/0 group-hover:bg-violet-500 mr-2.5 transition-colors shrink-0" />
                   {sub}

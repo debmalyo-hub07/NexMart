@@ -1,233 +1,272 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api, { getApiError } from '@/lib/api';
-import { DataTable, Column } from '@/components/admin/DataTable';
-import { StatusBadge } from '@/components/common/StatusBadge';
+import api, { getApiError, isUncertainError } from '@/lib/api';
+import { QueryError } from '@/components/common/QueryError';
+import { EmptyState } from '@/components/common/EmptyState';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { AssignmentCard } from '@/components/delivery/AssignmentCard';
 import { useUIStore } from '@/store/uiStore';
-import { formatDate, formatPrice } from '@/lib/utils';
-import { Truck, MapPin, Package, ChevronDown, Loader2, RefreshCw } from 'lucide-react';
-import { ClockCalendar } from '@/components/common/ClockCalendar';
-import { liveQueryOptions } from '@/lib/syncConfig';
+import { useOnline } from '@/hooks/useOnline';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/socketEvents';
+import { liveQueryOptions } from '@/lib/syncConfig';
+import { deliveryActionsFor, type StatusAction } from '@/lib/orderStatus';
+import type { DeliveryAssignment } from '@/types';
+import { ChevronLeft, ChevronRight, PackageCheck, RefreshCw, Truck } from 'lucide-react';
 
-// 'assigned' is the model default (display-only — the backend won't accept it as an update target)
-const DELIVERY_STATUSES = ['assigned', 'picked', 'out_for_delivery', 'delivered', 'attempted', 'returned'];
+interface AssignmentsResponse {
+  data: DeliveryAssignment[];
+  meta?: { total?: number; totalPages?: number };
+}
+
+/** A confirmed action still waiting on the agent's yes. */
+interface PendingAction {
+  assignment: DeliveryAssignment;
+  action: StatusAction;
+}
+
+const isToday = (value?: string) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+};
 
 export default function DeliveryDashboardPage() {
   const [page, setPage] = useState(1);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  /** Set when a write's response was lost — the agent must not be told it failed. */
+  const [uncertain, setUncertain] = useState<string | null>(null);
   const { showToast } = useUIStore();
   const queryClient = useQueryClient();
+  const online = useOnline();
   const { on } = useSocket();
 
-  // Real-time assignment notification: the backend emits 'delivery:assigned'
-  // to the agent's room the moment an admin assigns an order — toast +
-  // instant refresh instead of waiting for the polling backstop.
+  // The backend emits 'delivery:assigned' to the agent's room the moment an
+  // admin assigns an order — toast plus refresh, instead of waiting out the
+  // polling backstop.
   useEffect(() => {
-    const unsubscribe = on<{ orderId: string; customerName?: string }>(SOCKET_EVENTS.deliveryAssigned, (payload) => {
+    const unsubscribe = on<{ orderId: string }>(SOCKET_EVENTS.deliveryAssigned, (payload) => {
       queryClient.invalidateQueries({ queryKey: ['delivery', 'my-deliveries'] });
-      showToast(`New order assigned${payload?.orderId ? ` (${payload.orderId})` : ''}`, 'success');
+      showToast(`New delivery assigned${payload?.orderId ? ` — ${payload.orderId}` : ''}`, 'success');
     });
     return unsubscribe;
   }, [on, queryClient, showToast]);
 
-  // Phase 8 — Auto-sync every 20 seconds (lightweight polling, no UI freeze)
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['delivery', 'my-deliveries', page],
-    queryFn: () => api.get(`/delivery/my-orders?page=${page}&limit=10`).then((r) => r.data),
+    queryFn: () => api.get(`/delivery/my-orders?page=${page}&limit=10`).then((r) => r.data as AssignmentsResponse),
     ...liveQueryOptions,
   });
 
-  // Stats fetch — one large page (the backend caps limit at 100) so the stat
-  // cards count across all of the agent's recent assignments instead of just
-  // the 10 rows on the currently visible table page. Keyed under
-  // ['delivery', 'my-deliveries'] so status updates invalidate it too.
+  // Today's counts come from one wide fetch (the backend caps limit at 100) so
+  // they do not change as the agent pages through the list.
   const { data: statsData, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['delivery', 'my-deliveries', 'stats'],
-    queryFn: () => api.get('/delivery/my-orders?page=1&limit=100').then((r) => r.data),
+    queryFn: () => api.get('/delivery/my-orders?page=1&limit=100').then((r) => r.data as AssignmentsResponse),
     ...liveQueryOptions,
   });
 
   const updateStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/delivery/orders/${id}/status`, { status }),
-    onSuccess: () => {
+    mutationFn: ({ orderId, status }: { orderId: string; status: string; label: string; humanId: string }) =>
+      api.patch(`/delivery/orders/${orderId}/status`, { status }),
+    onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['delivery', 'my-deliveries'] });
-      showToast('Status updated');
-      setUpdatingId(null);
+      showToast(`${variables.humanId} — ${variables.label.toLowerCase()}`, 'success');
+      setBusyId(null);
+      setPending(null);
+      setUncertain(null);
     },
-    onError: (err: unknown) => { showToast(getApiError(err), 'error'); setUpdatingId(null); },
+    onError: (error: unknown, variables) => {
+      setBusyId(null);
+      setPending(null);
+      if (isUncertainError(error)) {
+        // The request may well have succeeded. Never claim the status is
+        // unchanged — refetch and let the list show what the server holds.
+        setUncertain(variables.humanId);
+        void refetch();
+      } else {
+        showToast(getApiError(error), 'error');
+      }
+    },
   });
 
-  const assignments = data?.data || [];
-  const totalPages = data?.meta?.totalPages || 1;
-
-  // Stat cards count over the full recent assignment list (stats fetch above),
-  // not the current table page — so the numbers no longer change when the
-  // agent paginates the table.
-  const statsAssignments: Record<string, unknown>[] = statsData?.data || [];
-
-  const isToday = (value: unknown): boolean => {
-    if (!value) return false;
-    const date = new Date(value as string);
-    const now = new Date();
-    return (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
-    );
+  const runAction = (assignment: DeliveryAssignment, action: StatusAction) => {
+    const orderId = assignment.order?._id;
+    if (!orderId) return;
+    setBusyId(assignment._id);
+    updateStatus.mutate({ orderId, status: action.status, label: action.label, humanId: assignment.order?.orderId ?? 'This delivery' });
   };
 
-  const outForDeliveryCount = statsAssignments.filter((a: Record<string, unknown>) => {
-    const order = a.order as { orderStatus: string } | null;
-    return order?.orderStatus === 'out_for_delivery';
-  }).length;
+  const handleAction = (assignment: DeliveryAssignment, action: StatusAction) => {
+    if (action.confirm) setPending({ assignment, action });
+    else runAction(assignment, action);
+  };
 
-  const deliveredTodayCount = statsAssignments.filter((a: Record<string, unknown>) => {
-    return a.status === 'delivered' && isToday(a.deliveredAt);
-  }).length;
+  const assignments = data?.data ?? [];
+  const totalPages = data?.meta?.totalPages ?? 1;
+  const statsAssignments = statsData?.data ?? [];
 
-  const columns: Column<Record<string, unknown>>[] = [
-    {
-      key: 'orderId', header: 'Order',
-      render: (r) => {
-        const order = r.order as { orderId: string; total: number };
-        return (
-          <div>
-            <p className="font-mono text-xs text-violet-400">{order?.orderId}</p>
-            <p className="text-xs text-acid-400">{formatPrice(order?.total || 0)}</p>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'customer', header: 'Customer',
-      render: (r) => {
-        const order = r.order as { customer: { name: string }; shippingAddress: { phone?: string } };
-        return (
-          <div>
-            <p className="text-sm text-white">{order?.customer?.name}</p>
-            <a
-              href={`tel:${order?.shippingAddress?.phone || ''}`}
-              className="text-xs text-white/40"
-            >
-              {order?.shippingAddress?.phone || 'No phone on file'}
-            </a>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'address', header: 'Deliver To',
-      render: (r) => {
-        const order = r.order as { shippingAddress: { addressLine1: string; city: string; pincode: string } };
-        return (
-          <div className="flex items-start gap-1.5">
-            <MapPin size={12} className="text-violet-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-xs text-white/70 line-clamp-1">{order?.shippingAddress?.addressLine1}</p>
-              <p className="text-xs text-white/40">{order?.shippingAddress?.city} - {order?.shippingAddress?.pincode}</p>
-            </div>
-          </div>
-        );
-      },
-    },
-    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status as string} /> },
-    { key: 'assignedAt', header: 'Assigned', render: (r) => <span className="text-white/50 text-xs">{formatDate(r.assignedAt as string)}</span> },
-  ];
+  // Work first: anything the agent can still act on, then the closed ones.
+  const active = assignments.filter((item) => deliveryActionsFor(item.status, item.order?.orderStatus ?? '').length > 0);
+  const closed = assignments.filter((item) => !active.includes(item));
+
+  const outForDelivery = statsAssignments.filter((item) => item.status === 'out_for_delivery').length;
+  const deliveredToday = statsAssignments.filter((item) => item.status === 'delivered' && isToday(item.deliveredAt)).length;
 
   return (
-    <div className="page-container py-8 space-y-6">
-        {/* Clock/Calendar Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="flex flex-col justify-center">
-            <p className="text-white/50 text-base leading-relaxed">
-              Manage your assigned shipments and track your delivery performance for today.
-            </p>
-          </div>
-          <div className="flex lg:justify-end">
-            <div className="w-full max-w-[650px]">
-              <ClockCalendar />
+    <div className="page-container space-y-6 py-6">
+      {/* Today, in three numbers — reference, not the main event. */}
+      <section aria-labelledby="delivery-today">
+        <h2 id="delivery-today" className="sr-only">Today’s totals</h2>
+        <dl className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Out for delivery', value: outForDelivery, tone: 'text-violet-300' },
+            { label: 'Delivered today', value: deliveredToday, tone: 'text-acid-400' },
+            { label: 'Assigned in total', value: statsError ? undefined : data?.meta?.total, tone: 'text-white' },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-xl border border-white/15 bg-space-800 p-3 sm:p-4">
+              <dt className="text-xs leading-snug text-secondary">{stat.label}</dt>
+              <dd className={`font-outfit mt-1 text-2xl font-bold tabular-nums ${stat.tone}`}>
+                {statsError || stat.value === undefined ? '—' : stat.value}
+              </dd>
             </div>
-          </div>
-        </div>
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <div className="glass rounded-2xl border border-violet-500/20 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400"><Truck size={18} /></div>
-              <p className="text-sm text-white/60">Out for Delivery</p>
-            </div>
-            <p className="font-syne text-3xl font-bold text-violet-400">{statsError ? '—' : outForDeliveryCount}</p>
-          </div>
-          <div className="glass rounded-2xl border border-acid-400/20 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 rounded-xl bg-acid-400/10 text-acid-400"><Package size={18} /></div>
-              <p className="text-sm text-white/60">Delivered Today</p>
-            </div>
-            <p className="font-syne text-3xl font-bold text-acid-400">{statsError ? '—' : deliveredTodayCount}</p>
-          </div>
-          <div className="glass col-span-2 rounded-2xl border border-white/5 p-5 sm:col-span-1">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 rounded-xl bg-white/5"><Package size={18} className="text-white/40" /></div>
-              <p className="text-sm text-white/60">Total Assigned</p>
-            </div>
-            <p className="font-syne text-3xl font-bold text-white">{isError ? '—' : (data?.meta?.total ?? 0)}</p>
-          </div>
-        </div>
-        {statsError && !isError && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border border-amber-400/25 bg-amber-400/5 px-4 py-3 text-sm text-amber-200" role="status">
-            <span>Performance totals are temporarily unavailable. Your delivery list is still current.</span>
-            <button type="button" onClick={() => void refetchStats()} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-300/30 px-3 text-amber-100 transition-colors hover:bg-amber-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
+          ))}
+        </dl>
+        {statsError && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-3 text-sm text-amber-200" role="status">
+            <span>Today’s totals are unavailable. Your delivery list below is still current.</span>
+            <button type="button" onClick={() => void refetchStats()} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-amber-300/30 px-3 text-amber-100 transition-colors hover:bg-amber-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
               <RefreshCw size={14} aria-hidden /> Retry totals
             </button>
           </div>
         )}
+      </section>
 
-        {/* My Deliveries Table */}
-        <div>
-          <h2 className="font-syne font-semibold text-white mb-4">My Assigned Orders</h2>
-          <DataTable
-            columns={columns}
-            data={(assignments as Record<string, unknown>[]) || []}
-            isLoading={isLoading}
-            isError={isError}
-            onRetry={() => void refetch()}
-            page={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            emptyMessage="No deliveries assigned yet"
-            actions={(row) => (
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <select
-                    value={row.status as string}
-                    onChange={(e) => {
-                      const orderId = (row.order as { _id: string })?._id;
-                      if (!orderId || !e.target.value) return;
-                      setUpdatingId(orderId);
-                      updateStatus.mutate({ id: orderId, status: e.target.value });
-                    }}
-                    disabled={updatingId === (row.order as { _id: string })?._id}
-                    className="min-h-12 rounded-lg border border-white/10 bg-space-800 px-2 py-1.5 pr-6 text-xs text-white/80"
-                  >
-                    {DELIVERY_STATUSES.map((s) => (
-                      <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                    ))}
-                  </select>
-                  {updatingId === (row.order as { _id: string })?._id ? (
-                    <Loader2 size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-violet-400 animate-spin" />
-                  ) : (
-                    <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-                  )}
-                </div>
-              </div>
-            )}
-          />
+      {/* A lost response is not a failure. Say what is actually known. */}
+      {uncertain && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm text-amber-100" role="status">
+          <p className="font-medium">We couldn’t confirm your update to {uncertain}.</p>
+          <p className="mt-1 text-amber-200/90">
+            It may have gone through. The list below has been refreshed — check the status before trying again.
+          </p>
+          <button type="button" onClick={() => setUncertain(null)} className="mt-3 inline-flex min-h-12 items-center rounded-lg border border-amber-300/30 px-3 text-amber-100 transition-colors hover:bg-amber-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
+            Dismiss
+          </button>
         </div>
-      </div>
-    );
-  }
+      )}
+
+      <section aria-labelledby="delivery-active" className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="delivery-active" className="font-outfit text-xl font-semibold text-white">Your deliveries</h2>
+          <button
+            type="button"
+            onClick={() => { void refetch(); void refetchStats(); }}
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/15 px-4 text-sm text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+          >
+            <RefreshCw size={15} className={isFetching ? 'animate-spin' : undefined} aria-hidden />
+            Refresh
+          </button>
+        </div>
+
+        {isLoading ? (
+          <ul className="space-y-4">
+            {[0, 1].map((i) => (
+              <li key={i} className="space-y-4 rounded-2xl border border-white/10 bg-space-800 p-5">
+                <div className="skeleton h-4 w-32 rounded" />
+                <div className="skeleton h-16 w-full rounded-xl" />
+                <div className="skeleton h-12 w-full rounded-xl" />
+              </li>
+            ))}
+          </ul>
+        ) : isError ? (
+          <QueryError label="Your deliveries" onRetry={() => void refetch()} />
+        ) : assignments.length === 0 ? (
+          <EmptyState
+            icon={Truck}
+            title="No deliveries assigned yet"
+            description="When the store assigns you an order it appears here straight away, and this list also refreshes on its own about once a minute."
+          />
+        ) : (
+          <>
+            {active.length > 0 && (
+              <ul className="space-y-4">
+                {active.map((assignment) => (
+                  <AssignmentCard
+                    key={assignment._id}
+                    assignment={assignment}
+                    busy={busyId === assignment._id}
+                    disabled={!online}
+                    onAction={handleAction}
+                  />
+                ))}
+              </ul>
+            )}
+
+            {closed.length > 0 && (
+              <details className="rounded-2xl border border-white/10 bg-space-800/60">
+                <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-4 text-sm text-secondary">
+                  <PackageCheck size={16} aria-hidden />
+                  {closed.length} finished {closed.length === 1 ? 'delivery' : 'deliveries'} on this page
+                </summary>
+                <ul className="space-y-4 p-4 pt-0">
+                  {closed.map((assignment) => (
+                    <AssignmentCard
+                      key={assignment._id}
+                      assignment={assignment}
+                      busy={busyId === assignment._id}
+                      disabled={!online}
+                      onAction={handleAction}
+                    />
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            {active.length === 0 && closed.length > 0 && (
+              <p className="text-sm text-secondary">Everything assigned to you on this page is finished.</p>
+            )}
+          </>
+        )}
+
+        {totalPages > 1 && (
+          <nav className="flex items-center justify-between gap-3" aria-label="Delivery pages">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page <= 1}
+              className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border border-white/15 px-4 text-sm text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 disabled:opacity-40"
+            >
+              <ChevronLeft size={16} aria-hidden /> Previous
+            </button>
+            <p className="text-xs text-muted">Page {page} of {totalPages}</p>
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              disabled={page >= totalPages}
+              className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border border-white/15 px-4 text-sm text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 disabled:opacity-40"
+            >
+              Next <ChevronRight size={16} aria-hidden />
+            </button>
+          </nav>
+        )}
+      </section>
+
+      <ConfirmDialog
+        open={!!pending}
+        title={pending ? `${pending.action.label} — ${pending.assignment.order?.orderId ?? 'this delivery'}` : ''}
+        description={pending?.action.confirm ?? ''}
+        confirmLabel={pending?.action.label ?? 'Confirm'}
+        isLoading={!!busyId}
+        onConfirm={() => pending && runAction(pending.assignment, pending.action)}
+        onCancel={() => setPending(null)}
+      />
+    </div>
+  );
+}

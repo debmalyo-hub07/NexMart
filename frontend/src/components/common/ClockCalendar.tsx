@@ -54,7 +54,7 @@ export function ClockCalendar() {
           <h2 className="font-inter tabular-nums text-3xl md:text-4xl xl:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-400 tracking-tight mb-2 whitespace-nowrap">
             {timeString}
           </h2>
-          <p className="text-white/60 font-inter text-sm md:text-base font-medium tracking-wide">
+          <p className="text-secondary font-inter text-sm md:text-base font-medium tracking-wide">
             {dateString}
           </p>
         </div>
@@ -63,7 +63,7 @@ export function ClockCalendar() {
         <div className="w-full sm:w-[220px] shrink-0">
           <div className="grid grid-cols-7 gap-1 text-center mb-2">
             {weekDays.map(d => (
-              <div key={d} className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+              <div key={d} className="text-[10px] font-bold text-muted uppercase tracking-wider">
                 {d}
               </div>
             ))}

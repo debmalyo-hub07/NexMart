@@ -108,7 +108,7 @@ export default function AdminDeliveryPage() {
       render: (r) => (
         <div>
           <p className="text-sm text-white">{r.name as string}</p>
-          <p className="text-xs text-white/40">{r.email as string}</p>
+          <p className="text-xs text-muted">{r.email as string}</p>
         </div>
       ),
     },
@@ -116,24 +116,24 @@ export default function AdminDeliveryPage() {
       key: 'vehicleType', header: 'Vehicle Info',
       render: (r) => (
         <div>
-          <p className="text-white/80 text-sm capitalize">{(r.vehicleType as string) || '—'} <span className="text-white/40">({(r.vehicleModel as string) || '—'})</span></p>
+          <p className="text-white/80 text-sm capitalize">{(r.vehicleType as string) || '—'} <span className="text-muted">({(r.vehicleModel as string) || '—'})</span></p>
           <p className="font-mono text-xs text-acid-400 mt-0.5">{(r.licensePlate as string) || '—'}</p>
         </div>
       )
     },
-    { key: 'city', header: 'City', render: (r) => <span className="text-white/60 text-sm">{(r.city as string) || '—'}</span> },
+    { key: 'city', header: 'City', render: (r) => <span className="text-secondary text-sm">{(r.city as string) || '—'}</span> },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status as string} /> },
-    { key: 'createdAt', header: 'Applied', render: (r) => <span className="text-white/50 text-xs">{formatDate(r.createdAt as string)}</span> },
+    { key: 'createdAt', header: 'Applied', render: (r) => <span className="text-muted text-xs">{formatDate(r.createdAt as string)}</span> },
   ];
 
   // Orders table columns
   const orderColumns: Column<Record<string, unknown>>[] = [
     { key: 'orderId', header: 'Order ID', render: (r) => <span className="font-mono text-xs text-violet-400">{r.orderId as string}</span> },
     { key: 'customer', header: 'Customer', render: (r) => <span>{(r.customer as { name: string })?.name}</span> },
-    { key: 'shippingAddress', header: 'Delivery City', render: (r) => <span className="text-white/60">{(r.shippingAddress as { city: string })?.city}</span> },
+    { key: 'shippingAddress', header: 'Delivery City', render: (r) => <span className="text-secondary">{(r.shippingAddress as { city: string })?.city}</span> },
     { key: 'orderStatus', header: 'Status', render: (r) => <StatusBadge status={r.orderStatus as string} /> },
-    { key: 'deliveryAgent', header: 'Assigned Agent', render: (r) => <span className="text-white/60">{(r.deliveryAgent as { name: string })?.name || '—'}</span> },
-    { key: 'createdAt', header: 'Date', render: (r) => <span className="text-white/50 text-xs">{formatDate(r.createdAt as string)}</span> },
+    { key: 'deliveryAgent', header: 'Assigned Agent', render: (r) => <span className="text-secondary">{(r.deliveryAgent as { name: string })?.name || '—'}</span> },
+    { key: 'createdAt', header: 'Date', render: (r) => <span className="text-muted text-xs">{formatDate(r.createdAt as string)}</span> },
   ];
 
   // Always the real pending count, regardless of which tab is active
@@ -143,8 +143,8 @@ export default function AdminDeliveryPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="font-syne text-2xl font-bold text-white">Delivery Management</h1>
-        <p className="text-white/50 text-sm mt-1">Manage agents and assign deliveries</p>
+        <h1 className="font-outfit text-2xl font-bold text-white">Delivery Management</h1>
+        <p className="text-muted text-sm mt-1">Manage agents and assign deliveries</p>
       </div>
 
       {/* Stats row */}
@@ -152,23 +152,23 @@ export default function AdminDeliveryPage() {
         <div className="glass rounded-2xl p-4 border border-white/5">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-2 rounded-xl bg-acid-400/10 text-acid-400"><Truck size={16} /></div>
-            <p className="text-xs text-white/50">Active Agents</p>
+            <p className="text-xs text-muted">Active Agents</p>
           </div>
-          <p className="font-syne text-2xl font-bold text-acid-400">{approvedAgentsError ? '—' : approvedAgents.length}</p>
+          <p className="font-outfit text-2xl font-bold text-acid-400">{approvedAgentsError ? '—' : approvedAgents.length}</p>
         </div>
         <div className="glass rounded-2xl p-4 border border-amber-500/10">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-2 rounded-xl bg-amber-400/10 text-amber-400"><Clock size={16} /></div>
-            <p className="text-xs text-white/50">Awaiting Approval</p>
+            <p className="text-xs text-muted">Awaiting Approval</p>
           </div>
-          <p className="font-syne text-2xl font-bold text-amber-400">{pendingAgentsError ? '—' : pendingCount}</p>
+          <p className="font-outfit text-2xl font-bold text-amber-400">{pendingAgentsError ? '—' : pendingCount}</p>
         </div>
         <div className="glass rounded-2xl p-4 border border-white/5">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400"><UserCheck size={16} /></div>
-            <p className="text-xs text-white/50">Awaiting Assignment</p>
+            <p className="text-xs text-muted">Awaiting Assignment</p>
           </div>
-          <p className="font-syne text-2xl font-bold text-violet-400">{ordersError ? '—' : (ordersData?.meta?.total ?? 0)}</p>
+          <p className="font-outfit text-2xl font-bold text-violet-400">{ordersError ? '—' : (ordersData?.meta?.total ?? 0)}</p>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export default function AdminDeliveryPage() {
                 'flex min-h-12 items-center gap-2 px-3 py-3.5 text-sm font-medium transition-colors flex-1 justify-center',
                 activeTab === value
                   ? `text-white border-b-2 ${color === 'amber' ? 'border-amber-400' : color === 'acid' ? 'border-acid-400' : 'border-red-400'}`
-                  : 'text-white/40 hover:text-white/70 border-b-2 border-transparent',
+                  : 'text-muted hover:text-white/70 border-b-2 border-transparent',
               )}
             >
               <Icon size={14} aria-hidden />
@@ -206,6 +206,8 @@ export default function AdminDeliveryPage() {
             isError={agentsError}
             onRetry={() => void refetchAgents()}
             emptyMessage={`No ${activeTab} agents`}
+            expandLabel="agent details"
+            rowLabelKey="name"
             actions={
               activeTab === 'pending'
                 ? (row) => (
@@ -243,11 +245,11 @@ export default function AdminDeliveryPage() {
             expandableRender={(row) => (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-white/40 uppercase text-xs tracking-wider mb-1">Full Address</p>
+                  <p className="text-muted uppercase text-xs tracking-wider mb-1">Full Address</p>
                   <p className="text-white/80">{(row.address as string) || 'Not provided'}</p>
                 </div>
                 <div>
-                  <p className="text-white/40 uppercase text-xs tracking-wider mb-1">Aadhar Number (Verified)</p>
+                  <p className="text-muted uppercase text-xs tracking-wider mb-1">Aadhar Number (Verified)</p>
                   <p className="text-white/80 font-mono tracking-widest">{(row.aadharNumber as string) || 'Not provided'}</p>
                 </div>
               </div>
@@ -258,7 +260,7 @@ export default function AdminDeliveryPage() {
 
       {/* ── Order Assignment ─────────────────────────────────────────── */}
       <div>
-        <h2 className="font-syne font-semibold text-white mb-4">Assign Deliveries</h2>
+        <h2 className="font-outfit font-semibold text-white mb-4">Assign Deliveries</h2>
         <DataTable
           columns={orderColumns}
           data={(ordersData?.data as Record<string, unknown>[]) || []}
@@ -274,7 +276,7 @@ export default function AdminDeliveryPage() {
               <select
                 onChange={(e) => e.target.value && assignMutation.mutate({ orderId: row._id as string, agentId: e.target.value })}
                 aria-label="Assign delivery agent"
-                className="min-h-11 text-xs glass border border-white/10 rounded-lg px-2 py-1.5 appearance-none cursor-pointer text-white/60 hover:text-white"
+                className="min-h-11 text-xs glass border border-white/10 rounded-lg px-2 py-1.5 appearance-none cursor-pointer text-secondary hover:text-white"
                 defaultValue=""
                 suppressHydrationWarning
               >
@@ -283,7 +285,7 @@ export default function AdminDeliveryPage() {
                   <option key={a._id} value={a._id}>{a.name}</option>
                 ))}
               </select>
-            ) : <span className="text-xs text-white/30">{approvedAgents.length === 0 ? 'No agents' : 'Assigned'}</span>
+            ) : <span className="text-xs text-muted">{approvedAgents.length === 0 ? 'No agents' : 'Assigned'}</span>
           }
         />
       </div>
@@ -297,8 +299,8 @@ export default function AdminDeliveryPage() {
             className="glass rounded-3xl p-8 max-w-md w-full border border-red-500/20 shadow-[0_0_80px_-20px_rgba(239,68,68,0.3)] relative overflow-hidden"
           >
             <div className="absolute inset-0 bg-red-500/5 pointer-events-none" />
-            <h3 className="font-syne text-xl font-bold text-white mb-2 relative z-10">Revoke Agent Role</h3>
-            <p className="text-sm text-white/60 mb-6 relative z-10">
+            <h3 className="font-outfit text-xl font-bold text-white mb-2 relative z-10">Revoke Agent Role</h3>
+            <p className="text-sm text-secondary mb-6 relative z-10">
               This action is destructive and will completely remove this delivery agent from the panel.
               To confirm, type <strong className="text-red-400">REVOKE</strong> below.
             </p>
@@ -308,12 +310,13 @@ export default function AdminDeliveryPage() {
               onChange={(e) => setRevokeWord(e.target.value)}
               placeholder="Type REVOKE to confirm"
               className="w-full bg-black/40 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-red-500/50 mb-6 relative z-10"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- focus must enter the confirmation dialog the operator just opened
               autoFocus
             />
             <div className="flex gap-3 relative z-10">
               <button
                 onClick={() => { setRevokeAgentId(null); setRevokeWord(''); }}
-                className="flex-1 py-3 px-4 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors border border-transparent"
+                className="flex-1 py-3 px-4 rounded-xl text-sm font-medium text-secondary hover:text-white hover:bg-white/5 transition-colors border border-transparent"
               >
                 Cancel
               </button>

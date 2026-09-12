@@ -1,193 +1,54 @@
-'use client';
+﻿'use client';
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { BadgeCheck, Loader2, Star } from 'lucide-react';
+import api, { getApiError } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
-import { formatDate, getInitials } from '@/lib/utils';
-import { Star, ThumbsUp, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
+import { formatDate } from '@/lib/utils';
+import { QueryError } from '@/components/common/QueryError';
+import type { ApiResponse, ProductReview } from '@/types';
 
-interface Review {
-  _id: string;
-  user: { name: string; profilePicture?: string };
-  rating: number;
-  title?: string;
-  body?: string;
-  isVerifiedPurchase: boolean;
-  helpful?: number;
-  createdAt: string;
+const schema = z.object({ rating: z.coerce.number().int().min(1).max(5), title: z.string().max(100, 'Use at most 100 characters'), body: z.string().max(2000, 'Use at most 2,000 characters') });
+function Stars({ value }: { value: number }) {
+  return <span className="inline-flex gap-1" role="img" aria-label={`${value} out of 5 stars`}>{[1, 2, 3, 4, 5].map(star => <Star key={star} size={15} aria-hidden className={star <= Math.round(value) ? 'fill-amber-400 text-amber-400' : 'text-muted'} />)}</span>;
 }
-
-interface ReviewSectionProps {
-  productId: string;
-  ratings: { average: number; count: number };
-}
-
-function StarRating({ value, onChange, size = 20 }: { value: number; onChange?: (v: number) => void; size?: number }) {
-  const [hover, setHover] = useState(0);
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <button key={s} type="button"
-          onMouseEnter={() => onChange && setHover(s)}
-          onMouseLeave={() => onChange && setHover(0)}
-          onClick={() => onChange?.(s)}
-          className={`transition-colors ${onChange ? 'cursor-pointer' : 'cursor-default'}`}>
-          <Star size={size}
-            className={(hover || value) >= s ? 'fill-amber-400 text-amber-400' : 'text-white/20'} />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export function ReviewSection({ productId, ratings }: ReviewSectionProps) {
-  const { user } = useAuthStore();
-  const { showToast } = useUIStore();
-  const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['reviews', productId],
-    queryFn: () => api.get(`/products/${productId}/reviews`).then((r) => r.data.data),
+export function ReviewSection({ productId, ratings }: { productId: string; ratings: { average: number; count: number } }) {
+  const id = useId();
+  const path = usePathname();
+  const user = useAuthStore(s => s.user);
+  const toast = useUIStore(s => s.showToast);
+  const client = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [limit, setLimit] = useState(6);
+  const pending = useRef(false);
+  const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { rating: 5, title: '', body: '' }, mode: 'onTouched' });
+  const query = useQuery({ queryKey: ['storefront', 'reviews', productId], queryFn: ({ signal }) => api.get<ApiResponse<ProductReview[]>>(`/products/${productId}/reviews`, { signal }).then(r => r.data.data ?? []) });
+  const submit = useMutation({
+    mutationFn: (values: z.infer<typeof schema>) => api.post(`/products/${productId}/reviews`, values),
+    onSuccess: () => { form.reset(); setOpen(false); toast('Review submitted'); },
+    onSettled: () => { pending.current = false; void client.invalidateQueries({ queryKey: ['storefront'] }); },
   });
-
-  const submitMutation = useMutation({
-    mutationFn: () => api.post(`/products/${productId}/reviews`, { rating, title, body }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reviews', productId] });
-      showToast('Review submitted! Thank you.');
-      setShowForm(false);
-      setTitle('');
-      setBody('');
-      setRating(5);
-    },
-    onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to submit review';
-      showToast(msg, 'error');
-    },
-  });
-
-  const reviews: Review[] = data || [];
-  const ratingBreakdown = [5, 4, 3, 2, 1].map((star) => ({
-    star,
-    count: reviews.filter((r) => Math.round(r.rating) === star).length,
-    pct: ratings.count > 0 ? (reviews.filter((r) => Math.round(r.rating) === star).length / ratings.count) * 100 : 0,
-  }));
-
-  return (
-    <section className="border-t border-white/5 pt-12 mt-12">
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-        <h2 className="font-syne text-2xl font-bold text-white">Customer Reviews</h2>
-        {user && !showForm && (
-          <button onClick={() => setShowForm(true)} className="btn-primary text-sm">Write a Review</button>
-        )}
-      </div>
-
-      {/* Rating overview */}
-      {ratings.count > 0 && (
-        <div className="glass rounded-2xl p-6 border border-white/5 mb-8 flex flex-col sm:flex-row gap-8 items-center sm:items-start">
-          <div className="text-center shrink-0">
-            <p className="font-syne text-6xl font-black text-acid-400">{ratings.average.toFixed(1)}</p>
-            <StarRating value={Math.round(ratings.average)} size={16} />
-            <p className="text-xs text-white/40 mt-1">{ratings.count} reviews</p>
-          </div>
-          <div className="flex-1 w-full space-y-2">
-            {ratingBreakdown.map(({ star, count, pct }) => (
-              <div key={star} className="flex items-center gap-3">
-                <span className="text-xs text-white/40 w-4 shrink-0">{star}</span>
-                <Star size={12} className="fill-amber-400 text-amber-400 shrink-0" />
-                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ delay: 0.2, duration: 0.8 }}
-                    className="h-full bg-amber-400/70 rounded-full" />
-                </div>
-                <span className="text-xs text-white/30 w-6 shrink-0">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Write review form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="glass rounded-2xl p-6 border border-violet-500/20 mb-8">
-            <h3 className="font-syne font-semibold text-white mb-5">Your Review</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-white/60 mb-2 block">Rating</label>
-                <StarRating value={rating} onChange={setRating} size={24} />
-              </div>
-              <div>
-                <label className="text-xs text-white/60 mb-1.5 block">Title (optional)</label>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Summarize your experience" className="input" />
-              </div>
-              <div>
-                <label className="text-xs text-white/60 mb-1.5 block">Review</label>
-                <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4}
-                  placeholder="What did you like or dislike? How was the quality?" className="input resize-none" />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending} className="btn-primary">
-                  {submitMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : 'Submit Review'}
-                </button>
-                <button onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Reviews list */}
-      {isLoading ? (
-        <div className="space-y-4">
-          {Array(3).fill(0).map((_, i) => (
-            <div key={i} className="glass rounded-2xl p-5 border border-white/5 animate-pulse space-y-3">
-              <div className="flex gap-3"><div className="w-10 h-10 rounded-full bg-white/5" /><div className="space-y-1.5 flex-1"><div className="h-3 bg-white/5 rounded w-32" /><div className="h-2 bg-white/5 rounded w-24" /></div></div>
-              <div className="h-3 bg-white/5 rounded w-full" /><div className="h-3 bg-white/5 rounded w-3/4" />
-            </div>
-          ))}
-        </div>
-      ) : reviews.length === 0 ? (
-        <div className="text-center py-16 text-white/30">
-          <Star size={32} className="mx-auto mb-3 opacity-30" />
-          <p>No reviews yet. Be the first to review!</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {reviews.map((review, i) => (
-            <motion.div key={review._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="glass rounded-2xl p-5 border border-white/5">
-              <div className="flex items-start gap-3 mb-3">
-                {review.user.profilePicture ? (
-                  <Image src={review.user.profilePicture} alt="" width={36} height={36} className="rounded-full object-cover" />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-violet-500/20 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
-                    {getInitials(review.user.name)}
-                  </div>
-                )}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium text-white">{review.user.name}</p>
-                    {review.isVerifiedPurchase && <span className="badge-acid text-[10px]">Verified Purchase</span>}
-                    <span className="text-xs text-white/30 ml-auto">{formatDate(review.createdAt)}</span>
-                  </div>
-                  <StarRating value={review.rating} size={13} />
-                </div>
-              </div>
-              {review.title && <p className="font-medium text-white text-sm mb-1">{review.title}</p>}
-              {review.body && <p className="text-sm text-white/60 leading-relaxed">{review.body}</p>}
-            </motion.div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
+  const reviews = query.data ?? [];
+  const count = query.data ? reviews.length : ratings?.count ?? 0;
+  const average = query.data ? reviews.reduce((sum, review) => sum + review.rating, 0) / (count || 1) : ratings?.average ?? 0;
+  return <section className="border-t border-white/15 pt-8">
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-4"><h2 className="section-heading">Customer reviews</h2>{user?.role === 'customer' && !open && <button type="button" className="btn-secondary" onClick={() => { submit.reset(); setOpen(true); }}>Write a review</button>}{!user && <Link className="inline-flex min-h-11 items-center text-sm text-violet-200 underline" href={`/customer/login?redirect=${encodeURIComponent(path)}`}>Sign in to write a review</Link>}</div>
+    {count > 0 && <p className="mb-5 flex flex-wrap items-center gap-3 text-sm text-secondary"><Stars value={average} /><span>{average.toFixed(1)} out of 5 · {count} reviews</span></p>}
+    {open && <form onSubmit={form.handleSubmit(values => { if (pending.current) return; pending.current = true; submit.mutate(values); })} className="card mb-6 space-y-4" noValidate><fieldset disabled={submit.isPending} className="space-y-4"><legend className="mb-4 text-lg font-semibold">Your review</legend>
+      <fieldset><legend className="field-label">Rating</legend><div className="flex flex-wrap gap-2">{[1, 2, 3, 4, 5].map(value => <label key={value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-white/30 px-3 text-sm"><input type="radio" value={value} {...form.register('rating')} className="h-4 w-4 accent-violet-500" />{value}<Star size={14} aria-hidden /><span className="sr-only">{value === 1 ? 'star' : 'stars'}</span></label>)}</div></fieldset>
+      <div><label htmlFor={`${id}-title`} className="field-label">Title (optional)</label><input id={`${id}-title`} {...form.register('title')} className="input" maxLength={100} aria-invalid={!!form.formState.errors.title} /></div>
+      <div><label htmlFor={`${id}-body`} className="field-label">Your experience (optional)</label><textarea id={`${id}-body`} {...form.register('body')} className="input" rows={4} maxLength={2000} aria-invalid={!!form.formState.errors.body} /></div>
+      {submit.isError && <p role="alert" className="field-error">{getApiError(submit.error)}</p>}
+      <div className="flex flex-wrap gap-3"><button type="submit" className="btn-primary">{submit.isPending && <Loader2 size={17} className="animate-spin" aria-hidden />}{submit.isPending ? 'Submitting…' : 'Submit review'}</button><button type="button" className="btn-secondary" onClick={() => setOpen(false)}>Cancel</button></div>
+    </fieldset></form>}
+    {query.isError ? <QueryError label="Customer reviews" onRetry={() => void query.refetch()} /> : query.isPending ? <p role="status" className="py-6 text-sm text-secondary">Loading reviews…</p> : !reviews.length ? <p className="py-6 text-sm text-muted">No reviews have been submitted for this product.</p> : <ul className="divide-y divide-white/10">{reviews.slice(0, limit).map(review => <li key={review._id} className="py-5"><div className="mb-2 flex flex-wrap items-center gap-3"><p className="break-words text-sm font-semibold">{review.user?.name || 'Customer'}</p>{review.isVerifiedPurchase && <span className="badge-acid"><BadgeCheck size={14} aria-hidden />Verified purchase</span>}<time dateTime={review.createdAt} className="text-xs text-muted">{formatDate(review.createdAt)}</time></div><Stars value={review.rating} />{review.title && <h3 className="mt-3 break-words text-base">{review.title}</h3>}{review.body && <p className="mt-2 whitespace-pre-line break-words text-sm text-secondary">{review.body}</p>}</li>)}</ul>}
+    {reviews.length > limit && <button type="button" className="btn-secondary mt-4" onClick={() => setLimit(limit + 6)}>Show more reviews</button>}
+  </section>;
 }

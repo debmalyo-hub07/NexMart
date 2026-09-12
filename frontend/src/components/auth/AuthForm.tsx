@@ -22,7 +22,8 @@ interface Field {
 
 interface AuthFormProps {
   type: 'login' | 'register';
-  role: 'admin' | 'customer' | 'agent';
+  /** Which portal this form signs into. Not an ARIA role. */
+  portal: 'admin' | 'customer' | 'agent';
   title: string;
   fields: Field[];
   submitText: string;
@@ -55,7 +56,7 @@ const fieldSchema = (field: Field): z.ZodString => {
   return z.string().min(1, `${field.label} is required`);
 };
 
-export function AuthForm({ type, role, title, fields, submitText, linkText, linkHref, redirectUrl, note, showGoogle }: AuthFormProps) {
+export function AuthForm({ type, portal, title, fields, submitText, linkText, linkHref, redirectUrl, note, showGoogle }: AuthFormProps) {
   const router = useRouter();
   const { showToast } = useUIStore();
   const [loading, setLoading] = useState(false);
@@ -81,9 +82,9 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
 
   useEffect(() => {
     if (type === 'login') {
-      const key = role === 'admin'
+      const key = portal === 'admin'
         ? 'nexmart_last_admin_email'
-        : role === 'agent'
+        : portal === 'agent'
           ? 'nexmart_last_delivery_email'
           : null;
       if (key) {
@@ -93,7 +94,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
         }
       }
     }
-  }, [type, role, setValue]);
+  }, [type, portal, setValue]);
 
   const onSubmit = async (values: AuthFormData) => {
     setLoading(true);
@@ -101,12 +102,12 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
 
     try {
       if (type === 'register') {
-        const res = await api.post(`/${role}/auth/register`, values);
+        const res = await api.post(`/${portal}/auth/register`, values);
         if (res.data.success) {
           showToast(res.data.message);
 
           // Customer registration requires OTP verification before login
-          if (role === 'customer' && res.data.data?.requiresOtp) {
+          if (portal === 'customer' && res.data.data?.requiresOtp) {
             const email = encodeURIComponent(res.data.data.email || values.email);
             router.push(`/customer/verify-otp?email=${email}`);
           } else {
@@ -115,12 +116,12 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
         }
       } else {
         // LOGIN flow
-        await useAuthStore.getState().login(values.email, values.password, role);
+        await useAuthStore.getState().login(values.email, values.password, portal);
 
         // Save email on successful login
-        const key = role === 'admin'
+        const key = portal === 'admin'
           ? 'nexmart_last_admin_email'
-          : role === 'agent'
+          : portal === 'agent'
             ? 'nexmart_last_delivery_email'
             : null;
         if (key && values.email) {
@@ -160,7 +161,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
             <span className="font-outfit font-bold text-2xl text-white tracking-tight">NexMart</span>
           </Link>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-2 font-outfit">{title}</h1>
-          <p className="text-sm text-white/40 font-inter">{type === 'login' ? 'Welcome back to your workspace' : 'Join the next-gen platform'}</p>
+          <p className="text-sm text-muted font-inter">{type === 'login' ? 'Welcome back to your workspace' : 'Join the next-gen platform'}</p>
         </div>
 
         {error && (
@@ -172,7 +173,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" suppressHydrationWarning>
           {fields.map((field) => (
             <div key={field.name} className="space-y-1.5">
-              <label htmlFor={`auth-${field.name}`} className="block text-xs font-medium text-white/60 ml-1 uppercase tracking-wider font-inter">{field.label}</label>
+              <label htmlFor={`auth-${field.name}`} className="block text-xs font-medium text-secondary ml-1 uppercase tracking-wider font-inter">{field.label}</label>
               <div className="relative">
                 <input
                   id={`auth-${field.name}`}
@@ -191,7 +192,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     aria-pressed={showPassword}
-                    className="absolute right-2 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-white/50 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
+                    className="absolute right-2 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-muted transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
                   >
                     {showPassword ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
                   </button>
@@ -220,7 +221,7 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
           <>
             <div className="flex items-center gap-3 mt-5">
               <div className="flex-1 h-px bg-white/[0.08]" />
-              <span className="text-xs text-white/40 font-inter">or</span>
+              <span className="text-xs text-muted font-inter">or</span>
               <div className="flex-1 h-px bg-white/[0.08]" />
             </div>
             <button
@@ -247,7 +248,9 @@ export function AuthForm({ type, role, title, fields, submitText, linkText, link
 
         {linkText && (
           <div className="mt-8 text-center pt-6 border-t border-white/[0.05]">
-            <Link href={linkHref} className="text-sm text-white/40 hover:text-white transition-colors font-inter">
+            {/* Switching between sign in and register is a primary action on
+                these pages, so it gets a real 44px target, not a 17px line. */}
+            <Link href={linkHref} className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 font-inter text-sm text-secondary transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60">
               {linkText}
             </Link>
           </div>

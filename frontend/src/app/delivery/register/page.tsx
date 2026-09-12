@@ -6,7 +6,7 @@ export default function AgentRegister() {
   return (
     <AuthForm
       type="register"
-      role="agent"
+      portal="agent"
       title="Agent Application"
       submitText="Apply as Delivery Agent"
       linkText="Already registered? Login"

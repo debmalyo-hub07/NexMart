@@ -1,236 +1,80 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { ShoppingCart, Heart, Share2, Star, Shield, Truck, RefreshCw, Package, Loader2, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { Heart, Loader2, Minus, Plus, Share2, ShoppingCart, Star } from 'lucide-react';
+import api, { getApiError } from '@/lib/api';
+import { formatPrice } from '@/lib/utils';
+import { selectVariant } from '@/lib/commerce';
+import type { ApiResponse, Product } from '@/types';
+import { useCartStore } from '@/store/cartStore';
+import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
+import { useWishlist } from '@/hooks/useWishlist';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { VariantSelector } from '@/components/product/VariantSelector';
 import { ProductCard } from '@/components/product/ProductCard';
-import { ProductCardSkeleton, Skeleton } from '@/components/common/SkeletonLoader';
-import api from '@/lib/api';
-import { useCartStore } from '@/store/cartStore';
-import { useUIStore } from '@/store/uiStore';
-import { formatPrice } from '@/lib/utils';
-import { Product } from '@/types';
 import { ReviewSection } from '@/components/product/ReviewSection';
-import { useWishlist } from '@/hooks/useWishlist';
+import { QueryError } from '@/components/common/QueryError';
+import { EmptyState } from '@/components/common/EmptyState';
+import { Skeleton } from '@/components/common/SkeletonLoader';
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [selectedSku, setSelectedSku] = useState('');
-  const [qty, setQty] = useState(1);
-  const [isAdding, setIsAdding] = useState(false);
-  const { addItem } = useCartStore();
-  const { showToast } = useUIStore();
-  const { isWishlisted, toggleWishlist } = useWishlist();
-
-  const { data, isLoading } = useQuery<{ data: Product }>({
-    queryKey: ['product', slug],
-    queryFn: () => api.get(`/products/${slug}`).then((r) => r.data),
-  });
-
-  // Set default SKU when product loads
-  useEffect(() => {
-    if (data?.data?.variants?.[0]?.sku) {
-      setSelectedSku(data.data.variants[0].sku);
-    }
-  }, [data]);
-
-  const product: Product | undefined = data?.data;
-  const variant = product?.variants.find((v) => v.sku === selectedSku);
-  const discount = variant?.comparePrice ? Math.round((1 - variant.price / variant.comparePrice) * 100) : 0;
-
-  const { data: relatedData } = useQuery({
-    queryKey: ['related', product?.category?._id],
-    queryFn: () => api.get(`/products?category=${product?.category?._id}&limit=4`).then((r) => r.data),
-    enabled: !!product?.category?._id,
-  });
-
-  const handleShare = async () => {
-    const url = window.location.href;
-    const shareData = { title: product!.name, text: `Check out ${product!.name} on NexMart`, url };
+  const [quantity, setQuantity] = useState(1);
+  const pending = useRef(false);
+  const [adding, setAdding] = useState(false);
+  const addItem = useCartStore(s => s.addItem);
+  const cartBusy = useCartStore(s => s.isLoading);
+  const admin = useAuthStore(s => s.user?.role === 'admin');
+  const toast = useUIStore(s => s.showToast);
+  const wishlist = useWishlist();
+  const query = useQuery({ queryKey: ['storefront', 'product', slug], queryFn: ({ signal }) => api.get<ApiResponse<Product>>(`/products/${encodeURIComponent(slug)}`, { signal }).then(r => r.data.data) });
+  const product = query.data;
+  const variant = selectVariant(product?.variants, selectedSku);
+  const qty = Math.min(quantity, Math.max(1, Math.min(10, variant?.stock ?? 0)));
+  const discount = variant?.comparePrice && variant.comparePrice > variant.price ? Math.round((1 - variant.price / variant.comparePrice) * 100) : 0;
+  const related = useQuery({ queryKey: ['storefront', 'related', product?.category?._id], queryFn: ({ signal }) => api.get<ApiResponse<Product[]>>('/products', { params: { category: product?.category?._id, limit: 5 }, signal }).then(r => r.data.data ?? []), enabled: !!product?.category?._id });
+  async function add() {
+    if (!product || !variant || pending.current || variant.stock < qty) return;
+    pending.current = true; setAdding(true);
+    try { await addItem(product._id, variant.sku, qty); toast('Added to your cart'); }
+    catch (error) { toast(getApiError(error), 'error'); }
+    finally { pending.current = false; setAdding(false); }
+  }
+  async function share() {
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(url);
-        showToast('Link copied to clipboard', 'success');
-      }
-    } catch {
-      // user dismissed the share sheet — not an error
-    }
-  };
-
-  const handleAddToCart = async () => {
-    if (!variant) return;
-    setIsAdding(true);
-    try {
-      await addItem(product!._id, selectedSku, qty);
-      showToast(`${product!.name} added to cart!`);
-    } catch {
-      showToast('Failed to add to cart', 'error');
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
-  if (isLoading) return (
-    <div className="min-h-screen bg-space-900">      <div className="pt-[72px] page-container py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          <Skeleton className="aspect-square rounded-3xl" />
-          <div className="space-y-4">
-            <Skeleton className="h-6 w-1/3" /><Skeleton className="h-10 w-full" />
-            <Skeleton className="h-6 w-1/4" /><Skeleton className="h-12 w-1/2" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (!product) return (
-    <div className="min-h-screen bg-space-900 flex items-center justify-center">      <div className="text-center">
-        <p className="text-5xl mb-4">😕</p>
-        <h2 className="font-syne text-2xl font-bold text-white mb-2">Product not found</h2>
-        <Link href="/products" className="btn-primary mt-4 inline-flex">Browse Products</Link>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-space-900">      <div className="pt-[72px]">
-        {/* Breadcrumb */}
-        <div className="border-b border-white/5 bg-space-800/30">
-          <div className="page-container py-3 flex items-center gap-2 text-xs text-white/40">
-            <Link href="/" className="hover:text-white transition-colors">Home</Link>
-            <ChevronRight size={12} />
-            <Link href="/products" className="hover:text-white transition-colors">Products</Link>
-            {product.category && <>
-              <ChevronRight size={12} />
-              <Link href={`/categories/${product.category.slug}`} className="hover:text-white transition-colors">{product.category.name}</Link>
+      if (navigator.share) await navigator.share({ title: product?.name, url: window.location.href });
+      else { await navigator.clipboard.writeText(window.location.href); toast('Product link copied'); }
+    } catch (error) { if (!(error instanceof Error && error.name === 'AbortError')) toast('The link could not be copied. You can copy the address from your browser.', 'info'); }
+  }
+  return <main id="main-content" className="store-page"><div className="page-container">
+    <nav aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-x-3 text-sm text-secondary"><Link href="/products" className="inline-flex min-h-11 items-center underline">Products</Link>{product?.category && <><span aria-hidden>/</span><Link className="inline-flex min-h-11 items-center underline" href={`/categories/${product.category.slug}`}>{product.category.name}</Link></>}</nav>
+    {query.isPending ? <div className="grid gap-7 lg:grid-cols-2"><Skeleton className="aspect-square rounded-2xl" /><Skeleton className="h-80 rounded-2xl" /></div>
+      : query.isError ? <QueryError label="Product details" onRetry={() => void query.refetch()} />
+      : !product ? <EmptyState title="Product unavailable" description="This product is no longer in the catalog." action={<Link href="/products" className="btn-primary">Browse products</Link>} />
+      : <>
+        <div className="grid gap-7 lg:grid-cols-2 lg:gap-12">
+          <div className="min-w-0 lg:sticky lg:top-24 lg:self-start"><ProductGallery images={variant?.images?.length ? variant.images : product.images ?? []} name={product.name} /></div>
+          <div className="min-w-0 space-y-6">
+            <div>{product.brand && <p className="eyebrow mb-2 text-violet-200">{product.brand}</p>}<h1 className="text-2xl leading-tight sm:text-3xl">{product.name}</h1><a href="#product-reviews" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm text-secondary"><Star size={17} className="text-amber-400" aria-hidden />{product.ratings?.count ? `${product.ratings.average.toFixed(1)} out of 5 · ${product.ratings.count} reviews` : 'No reviews yet'}</a></div>
+            <div className="border-y border-white/10 py-5"><div className="flex flex-wrap items-baseline gap-3">{variant ? <p className="break-words font-mono text-3xl font-semibold">{formatPrice(variant.price)}</p> : <p className="text-secondary">Currently unavailable</p>}{discount > 0 && <><del className="text-sm text-muted"><span className="sr-only">MRP </span>{formatPrice(variant!.comparePrice!)}</del><span className="badge-acid">{discount}% off</span></>}</div><p className="mt-2 text-sm text-secondary">GST and shipping are shown in your cart before you order.</p></div>
+            <VariantSelector variants={product.variants ?? []} selectedSku={variant?.sku ?? ''} onSelect={sku => { setSelectedSku(sku); setQuantity(1); }} />
+            <p className="text-sm text-secondary" role="status">{variant && variant.stock > 0 ? `${variant.stock < 5 ? `${variant.stock} available` : 'In stock'} for the selected option.` : 'This option is currently out of stock.'}</p>
+            {admin ? <Link className="btn-secondary" href={`/admin/products/${product._id}/edit`}>Edit this product</Link> : <>
+              <div className="flex flex-wrap items-center gap-3"><span className="text-sm text-secondary" id="product-quantity">Quantity</span>{variant && variant?.stock > 0 && <div className="flex items-center rounded-xl border border-white/30" role="group" aria-labelledby="product-quantity"><button type="button" className="icon-button" aria-label="Decrease quantity" disabled={qty <= 1 || adding} onClick={() => setQuantity(qty - 1)}><Minus size={17} aria-hidden /></button><span className="min-w-8 text-center font-mono" aria-live="polite">{qty}</span><button type="button" className="icon-button" aria-label="Increase quantity" disabled={qty >= Math.min(10, variant?.stock ?? 0) || adding} onClick={() => setQuantity(qty + 1)}><Plus size={17} aria-hidden /></button></div>}</div>
+              <div className="flex flex-wrap gap-3"><button type="button" onClick={() => void add()} disabled={adding || cartBusy || !variant?.stock} className="btn-primary min-w-0 flex-1">{adding ? <Loader2 className="animate-spin" size={18} aria-hidden /> : <ShoppingCart size={18} aria-hidden />}{adding ? 'Adding…' : 'Add to cart'}</button><button type="button" className="icon-button border border-white/30" aria-label={wishlist.isWishlisted(product._id) ? 'Remove from saved products' : 'Save product'} aria-pressed={wishlist.isWishlisted(product._id)} disabled={wishlist.isLoading} onClick={() => wishlist.toggleWishlist(product._id)}><Heart size={20} className={wishlist.isWishlisted(product._id) ? 'fill-violet-200 text-violet-200' : ''} aria-hidden /></button><button type="button" onClick={() => void share()} className="icon-button border border-white/30" aria-label="Share product"><Share2 size={20} aria-hidden /></button></div>
             </>}
-            <ChevronRight size={12} />
-            <span className="text-white/60 truncate max-w-[200px]">{product.name}</span>
+            <div className="rounded-xl border border-white/15 p-4 text-sm text-secondary"><p>Choose online payment or cash on delivery at checkout. Follow payment and fulfillment updates in your orders.</p><Link href="/help" className="mt-2 inline-flex min-h-11 items-center text-violet-200 underline">Shopping and order information</Link></div>
+            <section className="field-panel"><h2>About this product</h2><p className="whitespace-pre-line break-words text-sm leading-relaxed text-secondary">{product.description}</p></section>
+            {Object.keys(product.specifications ?? {}).length > 0 && <section className="field-panel"><h2>Specifications</h2><dl>{Object.entries(product.specifications).map(([key, value]) => <div key={key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4 border-b border-white/10 py-3 text-sm"><dt className="break-words text-muted">{key}</dt><dd className="break-words text-secondary">{String(value)}</dd></div>)}</dl></section>}
           </div>
         </div>
-
-        <div className="page-container py-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-20">
-            {/* Gallery */}
-            <div className="lg:sticky lg:top-24 lg:self-start">
-              <ProductGallery images={product.images} name={product.name} />
-            </div>
-
-            {/* Info */}
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-              <div>
-                {product.brand && <p className="text-sm text-violet-400 font-medium mb-1">{product.brand}</p>}
-                <h1 className="font-syne text-2xl md:text-3xl font-bold text-white leading-tight">{product.name}</h1>
-              </div>
-
-              {/* Rating */}
-              {product.ratings.count > 0 && (
-                <div className="flex items-center gap-3">
-                  <div className="flex">
-                    {[1,2,3,4,5].map((s) => (
-                      <Star key={s} size={16} className={s <= Math.round(product.ratings.average) ? 'fill-amber-400 text-amber-400' : 'text-white/20'} />
-                    ))}
-                  </div>
-                  <span className="text-sm text-white/60">{product.ratings.average.toFixed(1)} ({product.ratings.count} reviews)</span>
-                </div>
-              )}
-
-              {/* Price */}
-              <div className="flex items-end gap-3">
-                <span className="font-syne text-4xl font-bold text-acid-400">{formatPrice(variant?.price || 0)}</span>
-                {variant?.comparePrice && (
-                  <span className="text-xl text-white/30 line-through mb-1">{formatPrice(variant.comparePrice)}</span>
-                )}
-                {discount > 0 && <span className="badge-acid mb-1">{discount}% OFF</span>}
-              </div>
-
-              {/* Variants */}
-              {product.variants.length > 1 && (
-                <VariantSelector variants={product.variants} selectedSku={selectedSku} onSelect={setSelectedSku} />
-              )}
-
-              {/* Quantity */}
-              <div>
-                <p className="text-xs font-medium text-white/60 mb-2">Quantity</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center glass rounded-xl">
-                    <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3 py-2 text-white/60 hover:text-white transition-colors">−</button>
-                    <span className="px-4 text-sm font-semibold">{qty}</span>
-                    <button onClick={() => setQty((q) => Math.min(variant?.stock || 1, q + 1))} className="px-3 py-2 text-white/60 hover:text-white transition-colors">+</button>
-                  </div>
-                  {variant && <p className="text-xs text-white/40">{variant.stock} in stock</p>}
-                </div>
-              </div>
-
-              {/* CTA */}
-              <div className="flex gap-3">
-                <button onClick={handleAddToCart} disabled={isAdding || !variant || variant.stock === 0}
-                  className="btn-primary flex-1 justify-center py-4 text-base">
-                  {isAdding ? <Loader2 size={18} className="animate-spin" /> : <><ShoppingCart size={18} /> Add to Cart</>}
-                </button>
-                <button onClick={() => toggleWishlist(product._id)} className={`p-4 rounded-xl transition-colors border ${isWishlisted(product._id) ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'glass border-white/10 text-white/50 hover:text-white'}`}>
-                  <Heart size={18} className={isWishlisted(product._id) ? 'fill-current' : ''} />
-                </button>
-                <button onClick={handleShare} className="p-4 rounded-xl glass border border-white/10 text-white/50 hover:text-white transition-colors">
-                  <Share2 size={18} />
-                </button>
-              </div>
-
-              {/* Trust badges */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                {[{ Icon: Shield, text: '100% Secure' }, { Icon: Truck, text: 'Fast Delivery' }, { Icon: RefreshCw, text: '30-Day Returns' }, { Icon: Package, text: 'Genuine Product' }].map(({ Icon, text }) => (
-                  <div key={text} className="flex items-center gap-2 text-xs text-white/50">
-                    <Icon size={13} className="text-violet-400" /> {text}
-                  </div>
-                ))}
-              </div>
-
-              {/* Description */}
-              <div className="border-t border-white/5 pt-6">
-                <h3 className="font-syne font-semibold text-white mb-3">About this product</h3>
-                <p className="text-sm text-white/60 leading-relaxed">{product.description}</p>
-              </div>
-
-              {/* Specifications */}
-              {Object.keys(product.specifications || {}).length > 0 && (
-                <div className="border-t border-white/5 pt-6">
-                  <h3 className="font-syne font-semibold text-white mb-3">Specifications</h3>
-                  <div className="space-y-2">
-                    {Object.entries(product.specifications).map(([k, v]) => (
-                      <div key={k} className="flex justify-between text-sm py-1 border-b border-white/5">
-                        <span className="text-white/50">{k}</span>
-                        <span className="text-white font-medium">{String(v)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </div>
-
-          {/* Related products */}
-          {relatedData?.data?.length > 0 && (
-            <div>
-              <h2 className="font-syne text-2xl font-bold text-white mb-6">You Might Also Like</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-                {(relatedData.data as Product[]).filter((p: Product) => p.slug !== slug).slice(0, 4).map((p: Product) => (
-                  <ProductCard key={p._id} product={p} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Reviews */}
-          {product && <ReviewSection productId={product._id} ratings={product.ratings} />}
-        </div>
-      </div>    </div>
-  );
+        <section id="product-reviews" className="mt-10 scroll-mt-24"><ReviewSection productId={product._id} ratings={product.ratings} /></section>
+        {related.isError ? <div className="mt-10"><QueryError label="Related products" onRetry={() => void related.refetch()} /></div> : related.data?.some(item => item._id !== product._id) && <section className="mt-10"><h2 className="section-heading mb-5">In this category</h2><div className="product-grid">{related.data.filter(item => item._id !== product._id).slice(0, 4).map(item => <ProductCard key={item._id} product={item} />)}</div></section>}
+      </>}
+  </div></main>;
 }

@@ -12,7 +12,7 @@ export default async function AdminLogin() {
   return (
     <AuthForm
       type="login"
-      role="admin"
+      portal="admin"
       title="Admin Portal"
       submitText="Admin Login"
       linkText={isAdmin ? 'Register New Admin' : ''}

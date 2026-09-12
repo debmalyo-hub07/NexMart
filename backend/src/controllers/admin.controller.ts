@@ -12,6 +12,7 @@ import { emitOrderStatusUpdate, emitDeliveryAssigned } from '../config/socket';
 import { refundPayment } from '../services/razorpay.service';
 import { upstashRedis } from '../config/redis';
 import { logger } from '../utils/logger';
+import { isTransitionAllowed } from '../utils/orderTransitions';
 
 // Server-side sort allow-lists. The `sort` query param uses Mongo syntax:
 // 'field' for ascending, '-field' for descending. parseSortField falls back
@@ -160,16 +161,31 @@ export async function assignDeliveryAgent(req: Request, res: Response): Promise<
   if (!order) { sendNotFound(res, 'Order not found'); return; }
   if (!agent) { sendNotFound(res, 'Delivery agent not found'); return; }
 
-  order.deliveryAgent = agent._id;
-  order.orderStatus = 'shipped';
-  order.statusHistory.push({ status: 'shipped', timestamp: new Date(), updatedBy: agent._id } as typeof order.statusHistory[0]);
-  await order.save();
+  // Assignment respects the shared state machine. An order already handed to
+  // the road keeps its status — re-assigning must not show the customer a jump
+  // back from "out for delivery" to "shipped" — and a delivered, cancelled or
+  // returned order cannot be assigned at all.
+  const alreadyDispatched = order.orderStatus === 'shipped' || order.orderStatus === 'out_for_delivery';
+  if (!alreadyDispatched && !isTransitionAllowed(order.orderStatus, 'shipped')) {
+    sendBadRequest(res, `An order that is "${order.orderStatus}" cannot be assigned to a delivery agent.`);
+    return;
+  }
 
+  // The assignment is written first. If this write fails the order still reads
+  // exactly as it did and the operator can retry; the reverse order could
+  // leave an order marked shipped that no agent has been given.
   await DeliveryAssignment.findOneAndUpdate(
     { order: orderId },
     { order: orderId, agent: agentId, assignedAt: new Date(), status: 'assigned' },
     { upsert: true, new: true }
   );
+
+  order.deliveryAgent = agent._id;
+  if (!alreadyDispatched) {
+    order.orderStatus = 'shipped';
+    order.statusHistory.push({ status: 'shipped', timestamp: new Date(), updatedBy: agent._id } as typeof order.statusHistory[0]);
+  }
+  await order.save();
 
   try {
     await sendAgentAssignmentEmail(agent.email, agent.name, order.orderId);
@@ -177,7 +193,8 @@ export async function assignDeliveryAgent(req: Request, res: Response): Promise<
     console.error('Failed to send agent assignment email:', err);
   }
 
-  emitOrderStatusUpdate(order.customer.toString(), order.orderId, 'shipped');
+  // Only a real status change is announced to the customer.
+  if (!alreadyDispatched) emitOrderStatusUpdate(order.customer.toString(), order.orderId, 'shipped');
   // Real-time assignment notification for the agent (email stays the
   // durable channel; the socket event makes the dashboard update instantly)
   emitDeliveryAssigned(agent._id.toString(), order.orderId, {

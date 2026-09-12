@@ -1,175 +1,111 @@
 'use client';
 
-import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Clock, Search, TrendingUp, X } from 'lucide-react';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Product } from '@/types';
+import { ArrowUpRight, Clock, Loader2, Search, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import type { ApiResponse, Product } from '@/types';
 import api from '@/lib/api';
+import { categoryQueryOptions } from '@/lib/catalog';
 import { formatPrice } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
+import { ProductImage } from '@/components/product/ProductImage';
+import { CategoryIcon } from '@/components/product/CategoryIcon';
 
-interface SearchBarProps {
-  autoFocus?: boolean;
-  /** Input id — lets a visible label in the embedding page target the control. */
-  id?: string;
-  onClose?: () => void;
-}
+interface SearchBarProps { id?: string; onClose?: () => void }
 
-export function SearchBar({ autoFocus = false, id, onClose }: SearchBarProps) {
+export function SearchBar({ id, onClose }: SearchBarProps) {
   const router = useRouter();
-  const searchId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const [query, setQuery] = useState('');
-  const [focused, setFocused] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const uid = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const container = useRef<HTMLDivElement>(null);
+  const [value, setValue] = useState('');
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   const [recent, setRecent] = useState<string[]>([]);
-  const [results, setResults] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [requestError, setRequestError] = useState(false);
-  const [retryNonce, setRetryNonce] = useState(0);
-  const debouncedQuery = useDebounce(query.trim(), 300);
-
-  useEffect(() => setMounted(true), []);
+  const trimmed = value.trim();
+  const debounced = useDebounce(trimmed, 300);
+  const categories = useQuery(categoryQueryOptions);
+  const query = useQuery({
+    queryKey: ['storefront', 'suggestions', debounced],
+    queryFn: ({ signal }) => api.get<ApiResponse<Product[]>>('/search', { params: { q: debounced, limit: 5 }, signal }).then(r => r.data.data ?? []),
+    enabled: open && debounced.length >= 2 && debounced === trimmed,
+    staleTime: 30_000,
+  });
+  const waiting = trimmed.length >= 2 && (debounced !== trimmed || query.isPending);
+  const products = !waiting && !query.isError ? query.data ?? [] : [];
+  const matchingCategories = trimmed.length >= 2 ? (categories.data ?? []).filter(category => category.name.toLowerCase().includes(trimmed.toLowerCase())).slice(0, 3) : [];
+  const options = trimmed.length < 2
+    ? recent.map(text => ({ label: text, href: `/search?q=${encodeURIComponent(text)}`, kind: 'recent' as const, product: undefined as Product | undefined }))
+    : [
+      ...matchingCategories.map(category => ({ label: category.name, href: `/categories/${category.slug}`, kind: 'category' as const, product: undefined as Product | undefined })),
+      ...products.map(product => ({ label: product.name, href: `/products/${product.slug}`, kind: 'product' as const, product })),
+      { label: `Search for “${trimmed}”`, href: `/search?q=${encodeURIComponent(trimmed)}`, kind: 'all' as const, product: undefined as Product | undefined },
+    ];
 
   useEffect(() => {
-    if (autoFocus) inputRef.current?.focus();
-  }, [autoFocus]);
-
-  useEffect(() => {
-    if (!mounted) return;
     try {
-      const stored = localStorage.getItem('nexmart_recent_searches');
-      const parsed: unknown = stored ? JSON.parse(stored) : [];
+      const parsed: unknown = JSON.parse(localStorage.getItem('nexmart_recent_searches') || '[]');
       if (Array.isArray(parsed)) setRecent(parsed.filter((item): item is string => typeof item === 'string').slice(0, 5));
-    } catch {
-      setRecent([]);
-    }
-  }, [mounted]);
-
+    } catch { /* Search remains usable without storage. */ }
+    // Focus is never taken on mount: inside a drawer that would pre-empt the
+    // overlay's focus bookkeeping. The drawer asks for it via `initialFocus`.
+  }, []);
   useEffect(() => {
-    if (debouncedQuery.length < 2) {
-      abortRef.current?.abort();
-      setResults([]);
-      setIsLoading(false);
-      setRequestError(false);
-      return;
-    }
+    const outside = (event: PointerEvent) => { if (!container.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, []);
+  useEffect(() => { setActive(-1); }, [trimmed, query.data]);
+  useEffect(() => {
+    if (active >= 0) document.getElementById(`${uid}-option-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }, [active, uid]);
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setIsLoading(true);
-    setRequestError(false);
+  function remember(text: string) {
+    if (!text) return;
+    const next = [text, ...recent.filter(item => item !== text)].slice(0, 5);
+    setRecent(next);
+    try { localStorage.setItem('nexmart_recent_searches', JSON.stringify(next)); } catch { /* optional */ }
+  }
+  function close() { remember(trimmed); setOpen(false); setActive(-1); onClose?.(); }
+  function submit() {
+    if (open && active >= 0 && options[active]) router.push(options[active].href);
+    else if (trimmed) router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    else return;
+    close();
+  }
 
-    api.get(`/search?q=${encodeURIComponent(debouncedQuery)}&limit=5`, { signal: controller.signal })
-      .then(({ data }) => setResults(Array.isArray(data?.data) ? data.data : []))
-      .catch((error: unknown) => {
-        const name = (error as { name?: string })?.name;
-        if (name !== 'CanceledError' && name !== 'AbortError') {
-          setResults([]);
-          setRequestError(true);
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setIsLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [debouncedQuery, retryNonce]);
-
-  const handleSearch = useCallback((value: string) => {
-    const next = value.trim();
-    if (!next) return;
-    const nextRecent = [next, ...recent.filter((item) => item !== next)].slice(0, 5);
-    try { localStorage.setItem('nexmart_recent_searches', JSON.stringify(nextRecent)); } catch { /* storage is optional */ }
-    setRecent(nextRecent);
-    setFocused(false);
-    router.push(`/search?q=${encodeURIComponent(next)}`);
-    onClose?.();
-  }, [onClose, recent, router]);
-
-  // One threshold drives both the dropdown's visibility and its content: below
-  // two trimmed characters show the intro panel (recent + explore copy), at or
-  // above it show results/error. Named so the two branches cannot disagree.
-  const trimmed = query.trim();
-  const showIntro = trimmed.length < 2;
-  const showDropdown = focused && (showIntro || isLoading || requestError || results.length > 0);
-  const containerClass = useMemo(() => [
-    'flex min-h-11 items-center gap-2 rounded-xl px-4 transition-[background-color,box-shadow] duration-200',
-    focused ? 'bg-white/[0.08] ring-1 ring-violet-500/60' : 'bg-white/5 hover:bg-white/[0.08]',
-  ].join(' '), [focused]);
-
-  return (
-    <div className="relative w-full">
-      <form onSubmit={(event) => { event.preventDefault(); handleSearch(query); }} className={containerClass} role="search">
-        <Search size={16} className={focused ? 'text-violet-400' : 'text-white/50'} aria-hidden />
-        <input
-          ref={inputRef}
-          id={id ?? `catalog-search-${searchId}`}
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => window.setTimeout(() => setFocused(false), 120)}
-          placeholder="Search products, brands, categories..."
-          autoComplete="off"
-          aria-label="Search products, brands, and categories"
-          className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
-          suppressHydrationWarning
-        />
-        {query && (
-          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setQuery('')} className="flex min-h-8 min-w-8 items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white" aria-label="Clear search">
-            <X size={14} aria-hidden />
-          </button>
-        )}
-      </form>
-
-      {showDropdown && (
-          <div
-            className="search-panel absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-white/15 bg-space-800/95 shadow-glow-violet backdrop-blur-xl"
-          >
-            {showIntro ? (
-              <div className="space-y-4 p-4">
-                {mounted && recent.length > 0 && (
-                  <div>
-                    <p className="mb-2 flex items-center gap-1.5 text-meta font-semibold uppercase tracking-wider text-white/55"><Clock size={11} aria-hidden /> Recent searches</p>
-                    <div className="flex flex-wrap gap-2">
-                      {recent.map((item) => <button key={item} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => handleSearch(item)} className="min-h-10 rounded-lg border border-white/10 px-3 text-sm text-white/70 hover:border-violet-500/50 hover:text-white">{item}</button>)}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <p className="mb-1 flex items-center gap-1.5 text-meta font-semibold uppercase tracking-wider text-white/55"><TrendingUp size={11} aria-hidden /> Explore the catalog</p>
-                  <p className="text-sm leading-relaxed text-white/60">Search by product, brand, or category to compare what is available now.</p>
-                </div>
-              </div>
-            ) : isLoading ? (
-              <div className="space-y-3 p-4" aria-label="Searching">
-                {[1, 2, 3].map((item) => <div key={item} className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg skeleton" /><div className="h-3 w-2/3 rounded skeleton" /></div>)}
-              </div>
-            ) : requestError ? (
-              <div className="p-6 text-center" role="alert">
-                <p className="text-sm text-red-300">Search is temporarily unavailable.</p>
-                <button type="button" onClick={() => setRetryNonce((value) => value + 1)} className="mt-3 min-h-11 rounded-lg border border-red-400/30 px-3 text-sm text-red-200 hover:bg-red-400/10">Try again</button>
-              </div>
-            ) : results.length > 0 ? (
-              <div className="divide-y divide-white/10">
-                {results.map((product) => (
-                  <button key={product._id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { router.push(`/products/${product.slug}`); onClose?.(); }} className="flex min-h-16 w-full items-center gap-3 p-3 text-left hover:bg-white/[0.05]">
-                    {product.images?.[0] ? <Image src={product.images[0]} alt="" width={40} height={40} className="h-10 w-10 rounded-lg object-cover" /> : <div className="h-10 w-10 rounded-lg bg-white/5" aria-hidden />}
-                    <span className="min-w-0 flex-1"><span className="block truncate text-sm text-white">{product.name}</span><span className="block truncate text-meta text-white/50">{product.category?.name || 'Catalog'}</span></span>
-                    <span className="shrink-0 font-mono text-sm text-acid-400">{formatPrice(product.variants?.[0]?.price || 0)}</span>
-                  </button>
-                ))}
-                <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => handleSearch(query)} className="flex min-h-11 w-full items-center justify-center gap-2 p-3 text-sm text-violet-300 hover:bg-violet-500/10 hover:text-white"><Search size={14} aria-hidden /> View all results</button>
-              </div>
-            ) : (
-              <div className="p-6 text-center text-sm text-white/60">No results for &ldquo;{query.trim()}&rdquo;</div>
-            )}
-          </div>
-      )}
-    </div>
-  );
+  return <div ref={container} className="relative w-full" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false); }}>
+    <form role="search" onSubmit={event => { event.preventDefault(); submit(); }} className="flex min-h-12 items-center rounded-xl border border-white/25 bg-space-800 focus-within:border-violet-300">
+      <Search size={18} className="ml-3 shrink-0 text-muted" aria-hidden />
+      <input ref={input} id={id || `${uid}-search`} type="search" name="q" value={value} maxLength={200}
+        placeholder="Search products or brands…" autoComplete="off" enterKeyHint="search" aria-label="Search products or brands"
+        role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={open ? `${uid}-results` : undefined} aria-activedescendant={open && active >= 0 ? `${uid}-option-${active}` : undefined}
+        className="min-w-0 flex-1 bg-transparent px-3 py-3 text-base text-white placeholder:text-muted focus-visible:outline-none sm:text-sm"
+        onChange={event => { setValue(event.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); setActive(-1); }
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault(); setOpen(true);
+            if (options.length) setActive(index => event.key === 'ArrowDown' ? (index + 1) % options.length : (index <= 0 ? options.length - 1 : index - 1));
+          }
+        }} />
+      {value && <button type="button" className="icon-button" aria-label="Clear search" onClick={() => { setValue(''); input.current?.focus(); }}><X size={17} aria-hidden /></button>}
+      <button type="submit" aria-label="Submit search" className="icon-button mr-1 text-violet-200"><ArrowUpRight size={19} aria-hidden /></button>
+    </form>
+    {open && <div className="search-panel absolute inset-x-0 top-full z-50 mt-2 max-h-[min(65dvh,480px)] overflow-y-auto overscroll-contain rounded-xl border border-white/20 bg-space-800 shadow-lg">
+      {trimmed.length < 2 && <div className="flex items-center justify-between gap-2 px-3 py-2"><p className="text-xs text-muted">{recent.length ? 'Recent searches' : 'Type at least 2 characters for suggestions'}</p>{recent.length > 0 && <button type="button" className="min-h-11 px-2 text-xs text-secondary" onClick={() => { setRecent([]); try { localStorage.removeItem('nexmart_recent_searches'); } catch { /* optional */ } }}>Clear recent</button>}</div>}
+      {waiting && <p role="status" className="flex items-center gap-2 p-4 text-sm text-secondary"><Loader2 size={16} className="animate-spin" aria-hidden />Searching…</p>}
+      {!waiting && trimmed.length >= 2 && query.isError && <div className="p-3 text-sm text-red-300" role="status">Suggestions are unavailable. <button type="button" className="min-h-11 underline" onClick={() => void query.refetch()}>Try again</button></div>}
+      {!waiting && trimmed.length >= 2 && !query.isError && !products.length && !matchingCategories.length && <p role="status" className="p-4 text-sm text-secondary">No suggestions. Try a product name or another spelling.</p>}
+      <ul id={`${uid}-results`} role="listbox" aria-label="Search suggestions">
+        {options.map((option, index) => <li key={`${option.kind}-${option.href}`} role="presentation"><Link id={`${uid}-option-${index}`} role="option" aria-selected={active === index} tabIndex={-1} href={option.href} onMouseDown={event => event.preventDefault()} onClick={close} className={`flex min-h-12 items-center gap-3 p-3 text-sm hover:bg-white/5 ${active === index ? 'bg-violet-500/15' : ''}`}>
+          {option.product ? <span className="product-stage relative h-11 w-11 shrink-0 overflow-hidden rounded-md"><ProductImage src={option.product.images?.[0]} alt="" sizes="44px" className="p-1" /></span> : option.kind === 'category' ? <CategoryIcon name={option.label} size={18} /> : option.kind === 'recent' ? <Clock size={17} className="shrink-0 text-muted" aria-hidden /> : <Search size={17} className="shrink-0 text-violet-200" aria-hidden />}
+          <span className="min-w-0 flex-1 break-words"><span className="line-clamp-2">{option.label}</span>{option.kind === 'category' && <span className="text-xs text-muted">Category</span>}</span>
+          {option.product?.variants?.[0] && <span className="shrink-0 font-mono text-xs">{formatPrice(option.product.variants[0].price)}</span>}
+        </Link></li>)}
+      </ul>
+    </div>}
+  </div>;
 }

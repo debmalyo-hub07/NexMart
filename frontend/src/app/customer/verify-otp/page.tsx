@@ -99,7 +99,7 @@ function VerifyOtpContent() {
               <CheckCircle size={32} className="text-green-400" />
             </div>
             <h1 className="text-xl font-bold text-white font-outfit mb-2">Email Verified!</h1>
-            <p className="text-white/50 text-sm">Redirecting you to login…</p>
+            <p className="text-muted text-sm">Redirecting you to login…</p>
           </div>
         ) : (
           <>
@@ -109,7 +109,7 @@ function VerifyOtpContent() {
                 <Mail size={22} className="text-violet-400" />
               </div>
               <h1 className="text-xl font-bold text-white font-outfit mb-2">Check your email</h1>
-              <p className="text-sm text-white/40 leading-relaxed">
+              <p className="text-sm text-muted leading-relaxed">
                 We sent a 6-digit verification code to<br />
                 <span className="text-violet-400 font-medium">{email}</span>
               </p>
@@ -158,7 +158,7 @@ function VerifyOtpContent() {
 
             {/* Resend */}
             <div className="text-center space-y-1.5">
-              <p className="text-xs text-white/35">Didn't receive the code?</p>
+              <p className="text-xs text-muted">Didn't receive the code?</p>
               <button
                 onClick={handleResend}
                 disabled={resendCooldown > 0 || resending}
@@ -174,7 +174,7 @@ function VerifyOtpContent() {
             </div>
 
             <div className="mt-6 pt-5 border-t border-white/[0.05] text-center">
-              <Link href="/customer/register" className="text-xs text-white/25 hover:text-white/50 transition-colors">
+              <Link href="/customer/register" className="text-xs text-secondary transition-colors hover:text-white">
                 ← Back to register
               </Link>
             </div>

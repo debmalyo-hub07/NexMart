@@ -6,7 +6,7 @@ export default function AgentLogin() {
   return (
     <AuthForm
       type="login"
-      role="agent"
+      portal="agent"
       title="Delivery Portal"
       submitText="Agent Login"
       linkText="Register as an Agent"

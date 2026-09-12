@@ -10,6 +10,13 @@ build/
 out/
 *.tsbuildinfo
 
+# Local browser QA (may contain private account/order screenshots)
+artifacts/
+playwright-report/
+test-results/
+.next-before/
+.next-verify/
+
 # Environment files — NEVER commit these
 .env
 .env.local

@@ -18,10 +18,10 @@ NexMart/
 ├── frontend/             # Next.js 15 App Router + Tailwind CSS 3.4
 │   └── src/              # app/ (routes) · components/ · hooks/ · lib/ · store/ (Zustand)
 ├── docs/
-│   ├── superpowers/plans # Dated implementation plans (P0–P4 remediation waves)
+│   ├── superpowers/plans # Dated implementation plans (P0–P9 remediation waves)
 │   ├── CHANGELOG.md      # Dated record of every change wave
 │   └── CONTRIBUTING.md   # The update workflow (plan → execute → strike roadmap → changelog)
-├── CLAUDE.md             # Authoritative dev directive: reality snapshot + design law + roadmap
+├── CLAUDE.md             # Authoritative dev directive: reality snapshot + design law + P0–P9 roadmap
 ├── .env.example          # Environment variable template (root, backend reads it)
 └── docker-compose.yml    # MongoDB + Redis for local dev
 ```
@@ -100,10 +100,10 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 - Auth: email+password with OTP email verification, or Google Sign-In
 
 ### 🏪 Admin panel (`/admin`)
-- KPI dashboard with real deltas, revenue chart, 60s auto-sync backstop + socket push
+- KPI dashboard with real data, revenue chart, auto-sync backstop + socket push
 - Products CRUD (variants, MRP, images via Cloudinary), categories tree (incl. inactive), orders with inline status + row-detail expansion
 - Customer directory with suspend/activate, delivery agent approve/reject + assignment
-- Analytics with skeletons and empty states; storefronst read-preview for product pages
+- Analytics with skeletons and empty states; storefront read-preview for product pages
 
 ### 🚚 Delivery app (`/delivery/dashboard`)
 - Assignment list with tap-to-call customer phone and Google Maps deep link
@@ -193,7 +193,7 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 
 | Doc | Purpose |
 |-----|---------|
-| [CLAUDE.md](./CLAUDE.md) | **Read first.** Reality snapshot, design law, interaction contracts, P0–P4 roadmap with status |
+| [CLAUDE.md](./CLAUDE.md) | **Read first.** Reality snapshot, design law, interaction contracts, P0–P9 roadmap with status |
 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Free-tier (₹0) deployment: Cloudflare Pages + Render with keep-alive |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | Dated record of every change wave |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | How to make changes (the plan → execute → verify → document workflow) |

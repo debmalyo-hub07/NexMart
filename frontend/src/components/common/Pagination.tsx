@@ -17,9 +17,9 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
   const pages: number[] = [];
   for (let p = windowStart; p <= windowEnd; p++) pages.push(p);
 
-  const buttonBase = 'h-9 min-w-9 px-2 rounded-lg text-sm transition-colors flex items-center justify-center';
+  const buttonBase = 'h-11 min-w-11 px-2 rounded-lg text-sm transition-colors flex items-center justify-center';
   const active = 'bg-violet-500 text-white font-medium';
-  const idle = 'glass text-white/60 hover:text-white hover:bg-white/[0.08]';
+  const idle = 'glass text-secondary hover:text-white hover:bg-white/[0.08]';
   const disabled = 'opacity-30 pointer-events-none';
 
   return (
@@ -33,7 +33,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
       {windowStart > 1 && (
         <>
           <button type="button" onClick={() => onPageChange(1)} className={`${buttonBase} ${idle}`}>1</button>
-          {windowStart > 2 && <span className="text-white/30 px-1">…</span>}
+          {windowStart > 2 && <span className="text-muted px-1">…</span>}
         </>
       )}
 
@@ -47,7 +47,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
 
       {windowEnd < totalPages && (
         <>
-          {windowEnd < totalPages - 1 && <span className="text-white/30 px-1">…</span>}
+          {windowEnd < totalPages - 1 && <span className="text-muted px-1">…</span>}
           <button type="button" onClick={() => onPageChange(totalPages)} className={`${buttonBase} ${idle}`}>{totalPages}</button>
         </>
       )}

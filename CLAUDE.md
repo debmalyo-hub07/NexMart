@@ -477,7 +477,35 @@ Audit artifacts (reusable harnesses) live in `backend/audit-*.js`. Also discover
 
 The commerce-first responsive/motion/observability wave (homepage rewrite, role-scoped motion budgets, WebGL gating, X-Request-Id/structured logs, `/health/{live,ready}`, query retry policy) landed, then was independently reviewed (line scan + cross-file + removed-behavior + reuse/simplification angles). 20 defects found, fixed, live-verified. Security: three enumeration oracles closed in register/verify-otp/resend-otp; plaintext-OTP persistence + admin-listing leak; featured-cache poisoning; unthrottled CSRF-flood. Production-critical: server-side auth fetches would have 403'd in the documented Cloudflare deploy (new `lib/serverApi.ts` derives Origin from the live request). Shared: `resolveCategoryFilter`, unified `sendError` envelope, `<QueryError>`, `useDrawerBehavior` (CartDrawer covered). Dead code removed: `deliveryAgent` index, pulse-glow/float/shimmer/confetti/slide/spin-slow animations, `.card-glow-*` CSS, `useScrollDirection`, `morgan`.
 
-**Known-open after P7:** ~10 untouched query consumers still render errors as empty (mega-menu, wishlist, reviews, several admin/profile pages) — adopt `<QueryError>`; agent-register "already exists" 400 (weak oracle); jsx-a11y plugin not in CI; Playwright E2E suite still queued.
+**Known-open after P7:** agent-register "already exists" 400 (weak oracle); Playwright E2E suite still queued. *(The `<QueryError>` adoption gap and the missing jsx-a11y plugin were closed in P8.)*
+
+### P8 — product experience consolidation — ✅ DONE 2026-09-12 (plan: `docs/superpowers/plans/2026-09-11-product-experience-consolidation.md`; full list in `docs/CHANGELOG.md` 2026-09-12)
+
+Waves 1–5 (foundations/navigation/discovery/purchase/trust) plus waves 6–9 (admin, delivery, accessibility, verification). Highlights that change the rules above:
+
+- **The order state machine is mirrored, not re-guessed.** `frontend/src/lib/orderStatus.ts` mirrors `backend/src/utils/orderTransitions.ts`; a unit test parses the backend source and fails on drift. Every role's UI offers only legal next transitions — never the full status list. Extend the graph in the backend first; the frontend test will tell you what to mirror.
+- **`plugin:jsx-a11y/recommended` is enabled** in `.eslintrc.json`, so `npm run lint` enforces §7. Note `AuthForm`'s portal prop is `portal`, not `role` — `role` is the ARIA attribute.
+- **Overlay owns focus restoration.** Never add `autoFocus` inside an `Overlay`; pass `initialFocus` (a selector) instead. A native autofocus fires before the overlay records the trigger, and focus is then lost on close.
+- **`DataTable` owns row expansion.** Do not add a per-page Eye/toggle button; pass `expandableRender` with `expandLabel`/`rowLabelKey`.
+- **`isUncertainError` (`lib/api.ts`)** distinguishes a lost response from a rejected one. A write whose response never arrived must never be reported as failed — refetch and let the user reconcile.
+- **Metric labels state their scope.** Dashboard "order value" counts every order; Analytics revenue counts paid orders only. Never present one as the other.
+
+**Known-open after P8:** no live end-to-end verification of the new admin/delivery flows (no backend was run during this wave — unit tests, types and static browser QA only); Chromium-only browser QA (WebKit/Firefox not installed locally); no field performance data (LCP/INP need a real deployment); the two P7 rows above remain.
+
+### P9 — audit-driven product experience polish — ✅ DONE 2026-09-13 (plan: `docs/superpowers/plans/2026-09-13-product-experience-polish.md`; full list in `docs/CHANGELOG.md` 2026-09-13)
+
+Full-platform audit (documentation, frontend arch, backend arch, UI quality, commerce UX) confirmed the platform is production-grade. 13 polish findings addressed across 12 files:
+
+- **WCAG border contrast:** `border-white/10` upgraded to `border-white/15` across Overlay, About, Help, Delivery Dashboard, AssignmentCard; admin top products panel `border-white/5` → `/10`.
+- **Error page quality:** `error.tsx` and `global-error.tsx` headings promoted to `<h1>`, `role="alert"` added, error copy improved, design system buttons adopted. `not-found.tsx` icons given `aria-hidden`.
+- **Page layout:** About and Help standardized to `.store-page` class (was inconsistent custom padding).
+- **Copy accuracy:** Admin dashboard refresh description corrected (was "about once a minute", actually 10–15s).
+- **Commerce UX:** PDP quantity stepper hidden when variant has zero stock; product gallery lightbox gained touch swipe + ArrowLeft/ArrowRight keyboard navigation.
+- **Accessibility:** Delivery AssignmentCard Call/Directions links given order-specific `aria-label`s; admin rank badges given `aria-label="Rank N"`.
+
+**Verification:** 31 frontend tests, 91 backend tests, 0 lint errors, production build clean. Zero backend changes.
+
+**Known-open after P9:** same as P8 — no live E2E for newest admin/delivery flows; Chromium-only QA; no field LCP/INP data; agent-register "already exists" oracle.
 
 ### Done-definitions (apply per item)
 - Build passes (`npm run build` in `frontend/`).
@@ -505,6 +533,6 @@ The commerce-first responsive/motion/observability wave (homepage rewrite, role-
 
 ---
 
-*NexMart CLAUDE.md v3.0 — "Deep-Space Kinetic Editorial"*
-*Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09.*
+*NexMart CLAUDE.md v3.1 — "Deep-Space Kinetic Editorial"*
+*Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09. P9 audit-verified 2026-09-13.*
 *Seed admin: debmalyobarman2003@gmail.com · Admin secret: ADMIN_SECRET_KEY in .env*

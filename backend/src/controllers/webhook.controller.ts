@@ -3,9 +3,7 @@ import crypto from 'crypto';
 import { env } from '../config/env';
 import { Order } from '../models/Order';
 import { logger } from '../utils/logger';
-import { emitOrderStatusUpdate } from '../config/socket';
-import { queueInvoiceGeneration } from '../queues/invoiceQueue';
-import { generateDeliveryId } from '../utils/helpers';
+import { recordCapturedPayment } from '../services/orderPayment.service';
 
 /**
  * POST /api/v1/webhooks/razorpay
@@ -60,33 +58,22 @@ export async function razorpayWebhook(req: Request, res: Response): Promise<void
 
     if (rzpOrderId && (type === 'payment.captured' || type === 'order.paid')) {
       const order = await Order.findOne({ razorpayOrderId: rzpOrderId });
-      if (order && order.paymentStatus !== 'paid') {
-        order.paymentStatus = 'paid';
-        order.orderStatus = 'confirmed';
-        if (payment?.id) order.razorpayPaymentId = payment.id;
-        if (!order.deliveryId) order.deliveryId = generateDeliveryId();
-        order.statusHistory.push({
-          status: 'confirmed',
-          timestamp: new Date(),
-          updatedBy: order.customer,
-          note: 'Confirmed via Razorpay webhook',
-        } as any);
-        await order.save();
-
-        emitOrderStatusUpdate(order.customer.toString(), order.orderId, 'confirmed');
-        await queueInvoiceGeneration(order._id.toString());
+      if (order && typeof payment?.id === 'string') {
+        await recordCapturedPayment(String(order._id), rzpOrderId, payment.id);
         logger.info(`Razorpay webhook: order ${order.orderId} marked paid (${type}).`);
       }
     } else if (rzpOrderId && type === 'payment.failed') {
       await Order.findOneAndUpdate(
         { razorpayOrderId: rzpOrderId, paymentStatus: 'pending' },
-        { paymentStatus: 'failed' }
+        { $set: { paymentStatus: 'failed' }, $inc: { __v: 1 } }
       );
       logger.info(`Razorpay webhook: order for ${rzpOrderId} marked failed.`);
     }
   } catch (err) {
-    // We already verified the signature; log and still 200 so Razorpay does not hammer retries.
     logger.error('Razorpay webhook processing error:', err);
+    // Acknowledging a failed write would discard the provider's retry.
+    res.status(503).json({ success: false, message: 'Payment update could not be saved' });
+    return;
   }
 
   res.status(200).json({ success: true });

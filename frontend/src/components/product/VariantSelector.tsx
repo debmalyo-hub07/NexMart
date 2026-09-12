@@ -1,68 +1,17 @@
-'use client';
+﻿'use client';
 
-import { ProductVariant } from '@/types';
-import { cn } from '@/lib/utils';
+import { useId } from 'react';
+import type { ProductVariant } from '@/types';
+import { formatPrice, cn } from '@/lib/utils';
+import { variantLabel } from '@/lib/commerce';
 
-interface VariantSelectorProps {
-  variants: ProductVariant[];
-  selectedSku: string;
-  onSelect: (sku: string) => void;
-}
-
-export function VariantSelector({ variants, selectedSku, onSelect }: VariantSelectorProps) {
-  // Group by attribute keys
-  const attributeKeys = variants.length > 0
-    ? Object.keys(variants[0].attributes || {})
-    : [];
-
-  if (!attributeKeys.length) return null;
-
-  return (
-    <div className="space-y-4">
-      {attributeKeys.map((key) => {
-        const values = [...new Set(variants.map((v) => v.attributes?.[key]).filter(Boolean))];
-        const selectedVariant = variants.find((v) => v.sku === selectedSku);
-        const selectedValue = selectedVariant?.attributes?.[key];
-
-        return (
-          <div key={key}>
-            <p className="text-sm font-medium text-white/70 mb-2 capitalize">
-              {key}: <span className="text-white">{selectedValue}</span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {values.map((value) => {
-                const matchingVariant = variants.find(
-                  (v) => v.attributes?.[key] === value &&
-                    (selectedVariant ? Object.entries(selectedVariant.attributes || {}).every(
-                      ([k, v2]) => k === key || v.attributes?.[k] === v2
-                    ) : true)
-                );
-                const inStock = matchingVariant ? matchingVariant.stock > 0 : false;
-                const isSelected = value === selectedValue;
-
-                return (
-                  <button
-                    key={value}
-                    onClick={() => matchingVariant && onSelect(matchingVariant.sku)}
-                    disabled={!inStock}
-                    className={cn(
-                      'px-4 py-2 rounded-xl text-sm font-medium transition-[color,background-color,border-color,box-shadow] duration-200 border',
-                      isSelected
-                        ? 'border-violet-500 bg-violet-500/20 text-white glow-violet'
-                        : inStock
-                        ? 'border-white/10 text-white/70 hover:border-white/30 hover:text-white glass'
-                        : 'border-white/5 text-white/20 cursor-not-allowed line-through'
-                    )}
-                  >
-                    {value}
-                    {!inStock && <span className="ml-1 text-xs">(OOS)</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+export function VariantSelector({ variants, selectedSku, onSelect }: { variants: ProductVariant[]; selectedSku: string; onSelect: (sku: string) => void }) {
+  const id = useId();
+  if (!variants.length) return null;
+  return <fieldset><legend className="field-label">{variants.length > 1 ? 'Choose an option' : 'Product option'}</legend><div className="grid gap-2 sm:grid-cols-2">
+    {variants.map(variant => <label key={variant.sku} className={cn('relative flex min-h-12 cursor-pointer flex-col gap-1 rounded-xl border p-3 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-violet-300', selectedSku === variant.sku ? 'border-violet-300 bg-violet-500/10' : 'border-white/30')}>
+      <input type="radio" name={id} value={variant.sku} checked={selectedSku === variant.sku} onChange={() => onSelect(variant.sku)} className="sr-only" />
+      <span className="break-words font-medium">{variantLabel(variant)}</span><span className="text-xs text-secondary"><span className="font-mono">{formatPrice(variant.price)}</span> · {variant.stock > 0 ? 'In stock' : 'Out of stock'}</span>
+    </label>)}
+  </div></fieldset>;
 }

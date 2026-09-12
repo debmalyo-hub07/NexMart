@@ -3,8 +3,6 @@
 import { usePathname } from 'next/navigation';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
-import { SmoothScrollProvider } from '@/components/common/SmoothScrollProvider';
-import { CustomCursor } from '@/components/common/CustomCursor';
 
 export function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -19,10 +17,7 @@ export function StorefrontLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       {showNavAndFooter && <Navbar />}
-      {showNavAndFooter && <CustomCursor />}
-      {showNavAndFooter
-        ? <SmoothScrollProvider>{children}</SmoothScrollProvider>
-        : children}
+      {children}
       {showNavAndFooter && <Footer />}
     </>
   );

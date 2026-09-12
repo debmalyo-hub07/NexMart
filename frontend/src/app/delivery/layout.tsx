@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { LiveSyncBadge } from '@/components/common/LiveSyncBadge';
+import { ConnectivityNotice } from '@/components/common/ConnectivityNotice';
 import { Logo } from '@/components/common/Logo';
 import { User, LogOut } from 'lucide-react';
 import Link from 'next/link';
@@ -26,7 +27,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
             <Logo size={30} />
           </Link>
           <div className="flex-1">
-            <h1 className="font-syne text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 leading-none">
+            <h1 className="font-outfit text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 leading-none">
               {pathname?.includes('/profile') ? 'Agent Profile' : 'Delivery Dashboard'}
             </h1>
           </div>
@@ -44,6 +45,10 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
           </div>
         </div>
       </div>
+
+      {/* Field work happens on patchy mobile networks: the agent must know the
+          screen may be stale before acting on it. */}
+      <ConnectivityNotice />
 
       <main className="flex-grow">
         {children}

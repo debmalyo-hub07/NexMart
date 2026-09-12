@@ -1,8 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, XCircle, Info } from 'lucide-react';
+import { CheckCircle, XCircle, Info, X } from 'lucide-react';
 import { useUIStore, type ToastItem } from '@/store/uiStore';
 
 const ICONS: Record<ToastItem['type'], ReactElement> = {
@@ -19,25 +18,21 @@ export function Toast() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed bottom-4 right-4 z-[9999] flex flex-col gap-2"
+      className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[9999] flex w-[calc(100%_-_2rem)] max-w-sm flex-col gap-2"
     >
-      <AnimatePresence>
         {toasts.map((toast) => (
-          <motion.button
+          <button
             key={toast.id}
             type="button"
-            layout
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
             onClick={() => dismissToast(toast.id)}
-            className="glass pointer-events-auto flex min-w-[280px] max-w-sm items-center gap-3 rounded-2xl border border-white/10 px-5 py-3.5 text-left shadow-glow-violet"
+            aria-label={`${toast.message}. Dismiss notification`}
+            className="pointer-events-auto flex min-h-12 w-full items-center gap-3 rounded-xl border border-white/25 bg-space-700 px-4 py-3 text-left"
           >
             {ICONS[toast.type]}
-            <span className="break-words text-sm font-medium text-white">{toast.message}</span>
-          </motion.button>
+            <span className="min-w-0 flex-1 break-words text-sm font-medium text-white">{toast.message}</span>
+            <X size={16} aria-hidden className="shrink-0 text-secondary" />
+          </button>
         ))}
-      </AnimatePresence>
     </div>
   );
 }

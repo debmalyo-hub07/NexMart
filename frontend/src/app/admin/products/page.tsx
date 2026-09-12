@@ -31,12 +31,12 @@ export default function AdminProductsPage() {
     ...liveQueryOptions,
   });
 
-  const handleSort = (key: string) => {
-    setSort((prev) =>
-      prev.key === key
-        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
-        : { key, direction: 'asc' },
-    );
+  // Desktop headers toggle; the mobile select names the direction outright.
+  const handleSort = (key: string, direction?: 'asc' | 'desc') => {
+    setSort((prev) => ({
+      key,
+      direction: direction ?? (prev.key === key ? (prev.direction === 'asc' ? 'desc' : 'asc') : 'asc'),
+    }));
     setPage(1);
   };
 
@@ -60,7 +60,7 @@ export default function AdminProductsPage() {
           )}
           <div>
             <p className="text-sm text-white font-medium line-clamp-1">{r.name as string}</p>
-            <p className="text-xs text-white/40">{(r.category as { name: string })?.name}</p>
+            <p className="text-xs text-muted">{(r.category as { name: string })?.name}</p>
           </div>
         </div>
       ),
@@ -77,15 +77,15 @@ export default function AdminProductsPage() {
       },
     },
     { key: 'isPublished', header: 'Status', render: (r) => <span className={r.isPublished ? 'badge-acid' : 'badge-amber'}>{r.isPublished ? 'Published' : 'Draft'}</span> },
-    { key: 'createdAt', header: 'Created', render: (r) => <span className="text-white/50 text-xs">{formatDate(r.createdAt as string)}</span>, sortable: true },
+    { key: 'createdAt', header: 'Created', render: (r) => <span className="text-muted text-xs">{formatDate(r.createdAt as string)}</span>, sortable: true },
   ];
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-syne text-2xl font-bold text-white">Products</h1>
-          <p className="text-white/50 text-sm mt-1">{isError ? 'Product data unavailable' : `${data?.meta?.total ?? 0} total products`}</p>
+          <h1 className="font-outfit text-2xl font-bold text-white">Products</h1>
+          <p className="text-muted text-sm mt-1">{isError ? 'Product data unavailable' : `${data?.meta?.total ?? 0} total products`}</p>
         </div>
         <Link href="/admin/products/new" className="btn-primary text-sm">
           <Plus size={15} /> Add Product
@@ -108,13 +108,13 @@ export default function AdminProductsPage() {
         emptyMessage="No products found"
         actions={(row) => (
           <div className="flex items-center gap-2">
-              <Link href={`/products/${row.slug || ''}`} aria-label="Preview product" className={`flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors ${row.slug ? 'text-white/40 hover:text-violet-400 hover:bg-violet-500/10' : 'text-white/10 pointer-events-none'}`}>
+              <Link href={`/products/${row.slug || ''}`} aria-label="Preview product" className={`flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors ${row.slug ? 'text-muted hover:text-violet-400 hover:bg-violet-500/10' : 'text-white/10 pointer-events-none'}`}>
               <Eye size={14} aria-hidden />
             </Link>
-            <Link href={`/admin/products/${row._id}/edit`} aria-label="Edit product" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/40 hover:text-acid-400 hover:bg-acid-400/10 transition-colors">
+            <Link href={`/admin/products/${row._id}/edit`} aria-label="Edit product" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted hover:text-acid-400 hover:bg-acid-400/10 transition-colors">
               <Edit2 size={14} aria-hidden />
             </Link>
-            <button type="button" onClick={() => setDeleteId(row._id as string)} aria-label="Delete product" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+            <button type="button" onClick={() => setDeleteId(row._id as string)} aria-label="Delete product" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors">
               <Trash2 size={14} aria-hidden />
             </button>
           </div>

@@ -1,5 +1,3 @@
-'use client';
-
 import { cn } from '@/lib/utils';
 
 interface SkeletonProps {
@@ -7,13 +5,13 @@ interface SkeletonProps {
 }
 
 export function Skeleton({ className }: SkeletonProps) {
-  return <div className={cn('skeleton rounded-lg', className)} />;
+  return <div aria-hidden className={cn('skeleton rounded-lg', className)} />;
 }
 
 export function ProductCardSkeleton() {
   return (
     <div className="glass rounded-2xl overflow-hidden">
-      <Skeleton className="h-52 w-full rounded-none" />
+      <Skeleton className="aspect-square w-full rounded-none" />
       <div className="p-4 space-y-3">
         <Skeleton className="h-3 w-1/3" />
         <Skeleton className="h-4 w-full" />
@@ -27,7 +25,7 @@ export function ProductCardSkeleton() {
 
 export function OrderRowSkeleton() {
   return (
-    <div className="flex items-center gap-4 p-4 border-b border-white/5">
+    <div className="flex flex-wrap items-center gap-4 p-4 border-b border-white/10">
       <Skeleton className="h-4 w-28" />
       <Skeleton className="h-4 w-20" />
       <Skeleton className="h-4 w-16" />

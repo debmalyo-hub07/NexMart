@@ -92,9 +92,14 @@ export interface ICartItem {
 // ── Order ─────────────────────────────────────────────────────
 export interface IOrder extends Document {
   orderId: string;
+  checkoutId?: string;
+  checkoutFingerprint?: string;
+  paymentAttemptedAt?: Date;
   deliveryId?: string;
   customer: Types.ObjectId;
   items: {
+    name?: string;
+    image?: string;
     product: Types.ObjectId | { name: string; images?: string[] };
     variant: string;
     quantity: number;

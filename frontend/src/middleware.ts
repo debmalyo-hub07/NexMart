@@ -109,7 +109,7 @@ export default auth((req) => {
   }
 
   // Protected customer paths
-  const protectedPaths = ['/cart', '/checkout', '/orders', '/profile'];
+  const protectedPaths = ['/checkout', '/orders', '/profile', '/wishlist'];
   if (protectedPaths.some((p) => pathname.startsWith(p))) {
     if (!isAuthenticated) {
       return NextResponse.redirect(new URL(`/customer/login?redirect=${pathname}`, req.url));

@@ -14,6 +14,9 @@ const orderFindById = vi.hoisted(() => vi.fn());
 const orderFind = vi.hoisted(() => vi.fn());
 const restockSpy = vi.hoisted(() => vi.fn());
 const fetchPaymentsMock = vi.hoisted(() => vi.fn());
+const capturedMock = vi.hoisted(() => vi.fn());
+vi.mock('../orderPayment.service', () => ({ recordCapturedPayment: capturedMock }));
+vi.mock('../../models/Customer', () => ({ Customer: { findById: () => ({ select: async () => null }) } }));
 
 vi.mock('../../models/Order', () => ({
   Order: {
@@ -86,6 +89,12 @@ describe('orderReaper sweep (audit §3.2/§3.2b/§3.4)', () => {
       return foundOrders.find((o) => o.orderId === key) || null;
     });
     fetchPaymentsMock.mockReset();
+    capturedMock.mockImplementation(async (id, _rzp, paymentId) => {
+      const order = foundOrders.find(item => item.orderId === id);
+      order.paymentStatus = 'paid'; order.orderStatus = 'confirmed'; order.razorpayPaymentId = paymentId;
+      await order.save();
+      return { order, changed: true };
+    });
   });
 
   it('cancels + restocks a stale abandoned pending order (the crash that made the reaper dead)', async () => {
@@ -113,8 +122,7 @@ describe('orderReaper sweep (audit §3.2/§3.2b/§3.4)', () => {
     const saved = savedDocs.find((d) => d.orderId === 'ORD-FAILED');
     expect(saved?.orderStatus).toBe('cancelled');
     expect(restockSpy).toHaveBeenCalledWith(expect.objectContaining({ orderId: 'ORD-FAILED' }));
-    // No Razorpay call needed for known-failed orders
-    expect(fetchPaymentsMock).not.toHaveBeenCalled();
+    expect(fetchPaymentsMock).toHaveBeenCalledWith('order_ORD-FAILED');
   });
 
   it('isolates failures: one bad order does not block the next (§3.2b)', async () => {
@@ -150,6 +158,21 @@ describe('orderReaper sweep (audit §3.2/§3.2b/§3.4)', () => {
     expect(saved?.orderStatus).toBe('confirmed');
     expect(saved?.paymentStatus).toBe('paid');
     expect(saved?.razorpayPaymentId).toBe('pay_ok');
+    expect(restockSpy).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a capture after an earlier failed payment attempt', async () => {
+    foundOrders.push(makeOrder({ orderId: 'ORD-RETRY', paymentStatus: 'failed' }));
+    fetchPaymentsMock.mockResolvedValue([{ id: 'pay_retry', status: 'captured' }]);
+    await sweepNow();
+    expect(capturedMock).toHaveBeenCalledWith('ORD-RETRY', 'order_ORD-RETRY', 'pay_retry');
+    expect(restockSpy).not.toHaveBeenCalled();
+  });
+  it('leaves an authorized payment to finish capturing', async () => {
+    foundOrders.push(makeOrder({ orderId: 'ORD-AUTHORIZED', paymentStatus: 'pending' }));
+    fetchPaymentsMock.mockResolvedValue([{ id: 'pay_auth', status: 'authorized' }]);
+    await sweepNow();
+    expect(savedDocs).toHaveLength(0);
     expect(restockSpy).not.toHaveBeenCalled();
   });
 });

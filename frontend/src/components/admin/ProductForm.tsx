@@ -1,488 +1,174 @@
 'use client';
 
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
-import { z } from 'zod';
+import { useEffect, useState } from 'react';
+import { useFieldArray, useForm, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, Upload, X, Zap, Search, ChevronRight } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
-import { useUIStore } from '@/store/uiStore';
+import { AxiosError } from 'axios';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { Loader2, Plus, Trash2, Upload, X } from 'lucide-react';
+import api, { getApiError } from '@/lib/api';
+import { parentId } from '@/lib/catalog';
+import { PRODUCT_IMAGE_TYPES, productFormDefaults, productFormPayload, productFormSchema, validateProductImages, type ProductFormData } from '@/lib/productForm';
+import { useUIStore } from '@/store/uiStore';
+import { QueryError } from '@/components/common/QueryError';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { ProductImage } from '@/components/product/ProductImage';
+import type { ApiResponse, Category, Product } from '@/types';
 
-const productSchema = z.object({
-  name: z.string().min(2, 'Name is required'),
-  description: z.string().min(10, 'Description is required'),
-  richDescription: z.string().optional(),
-  category: z.string().min(1, 'Category is required'),
-  subCategory: z.string().optional(),
-  brand: z.string().optional(),
-  isPublished: z.boolean().default(false),
-  isFeatured: z.boolean().default(false),
-  variants: z.array(z.object({
-    sku: z.string().min(1, 'SKU is required'),
-    price: z.number().min(0, 'Price must be positive'),
-    comparePrice: z.number().optional(),
-    stock: z.number().min(0, 'Stock must be positive'),
-  })).min(1, 'At least one variant is required'),
-});
-
-type ProductFormData = z.infer<typeof productSchema>;
-
-type Category = {
-  _id: string;
-  name: string;
-  slug: string;
-  icon?: string;
-  parent?: { _id: string; name: string } | null;
-};
-
-// ─── Premium Category Picker ─────────────────────────────────────────────────
-function CategoryPicker({
-  categories,
-  value,
-  subValue,
-  onSelect,
-  onSubSelect,
-  error,
-}: {
-  categories: Category[];
-  value: string;
-  subValue: string;
-  onSelect: (id: string) => void;
-  onSubSelect: (id: string) => void;
-  error?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [hoveredParent, setHoveredParent] = useState<string | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const parents = useMemo(() => categories.filter(c => !c.parent), [categories]);
-  const filteredParents = useMemo(
-    () => parents.filter(p => p.name.toLowerCase().includes(search.toLowerCase())),
-    [parents, search]
-  );
-
-  const getChildren = useCallback(
-    (parentId: string) => categories.filter(c => c.parent?._id === parentId),
-    [categories]
-  );
-
-  const selectedParent = parents.find(p => p._id === value);
-  const children = value ? getChildren(value) : [];
-  const selectedChild = categories.find(c => c._id === subValue);
-  const activeHover: string | null = hoveredParent ?? (open ? (parents[0]?._id ?? null) : null);
-  const hoverChildren = activeHover ? getChildren(activeHover) : [];
-
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const displayLabel = selectedParent
-    ? `${selectedParent.icon || '📦'} ${selectedParent.name}${selectedChild ? ` › ${selectedChild.name}` : ''}`
-    : 'Select Category';
-
-  return (
-    <div ref={ref} className="relative">
-      <label className="text-xs text-white/60 mb-1.5 flex justify-between items-center">
-        <span>Category</span>
-        <Link href="/admin/categories" className="text-[10px] text-violet-400 hover:text-violet-300 transition-colors">
-          Manage categories ↗
-        </Link>
-      </label>
-
-      {/* Trigger */}
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        suppressHydrationWarning
-        className={`w-full input text-left flex items-center justify-between gap-2 transition-[color,border-color,box-shadow] ${open ? 'border-violet-500/50 ring-1 ring-violet-500/20' : ''} ${!selectedParent ? 'text-white/30' : 'text-white'}`}
-      >
-        <span className="truncate">{displayLabel}</span>
-        <ChevronRight size={14} className={`shrink-0 text-white/30 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
-      </button>
-      {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
-
-      {/* Dropdown */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute top-full left-0 right-0 mt-2 z-50 bg-space-900 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
-          >
-            {/* Search */}
-            <div className="p-2 border-b border-white/5">
-              <div className="relative">
-                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search categories…"
-                  className="w-full bg-white/5 text-sm text-white placeholder-white/30 rounded-lg py-1.5 pl-7 pr-3 outline-none border border-transparent focus:border-violet-500/40"
-                  suppressHydrationWarning
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="flex min-h-[200px] max-h-[280px]">
-              {/* Parent list */}
-              <div className="w-[48%] border-r border-white/5 overflow-y-auto p-1.5 space-y-0.5">
-                {filteredParents.length === 0 ? (
-                  <p className="text-xs text-white/30 px-3 py-4 text-center">No results</p>
-                ) : filteredParents.map(cat => (
-                  <button
-                    key={cat._id}
-                    type="button"
-                    suppressHydrationWarning
-                    onMouseEnter={() => setHoveredParent(cat._id)}
-                    onClick={() => {
-                      onSelect(cat._id);
-                      onSubSelect('');
-                      if (getChildren(cat._id).length === 0) setOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left transition-colors ${
-                      value === cat._id
-                        ? 'bg-violet-600/20 text-white border border-violet-500/30'
-                        : hoveredParent === cat._id
-                        ? 'bg-white/[0.08] text-white border border-white/10'
-                        : 'text-white/60 hover:text-white border border-transparent'
-                    }`}
-                  >
-                    <span className="text-base leading-none">{cat.icon || '📦'}</span>
-                    <span className="flex-1 truncate font-medium">{cat.name}</span>
-                    {getChildren(cat._id).length > 0 && (
-                      <ChevronRight size={12} className="shrink-0 opacity-40" />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Subcategory panel */}
-              <div className="w-[52%] overflow-y-auto p-1.5 space-y-0.5">
-                {hoverChildren.length > 0 ? (
-                  <>
-                    <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-3 py-1.5">Subcategories</p>
-                    {hoverChildren.map(sub => (
-                      <button
-                        key={sub._id}
-                        type="button"
-                        suppressHydrationWarning
-                        onClick={() => {
-                          onSelect(activeHover!);
-                          onSubSelect(sub._id);
-                          setOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left transition-colors ${
-                          subValue === sub._id
-                            ? 'bg-violet-600/20 text-white border border-violet-500/30'
-                            : 'text-white/55 hover:text-white hover:bg-white/[0.06] border border-transparent'
-                        }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400/50 shrink-0" />
-                        {sub.name}
-                      </button>
-                    ))}
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-xs text-white/20 text-center px-4">
-                      {filteredParents.length > 0 ? 'Hover a category to see subcategories' : ''}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-3 py-2 border-t border-white/5 flex justify-between items-center">
-              <span className="text-[10px] text-white/25">{parents.length} categories</span>
-              <Link
-                href="/admin/categories"
-                onClick={() => setOpen(false)}
-                className="text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
-              >
-                + New category
-              </Link>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+function DetailFields({ form, name, label }: { form: UseFormReturn<ProductFormData>; name: 'specifications' | `variants.${number}.attributes`; label: string }) {
+  const { fields, append, remove } = useFieldArray({ control: form.control, name });
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-sm font-medium text-secondary">{label}</h3>
+      <button type="button" className="btn-secondary px-3" onClick={() => append({ key: '', value: '' })}><Plus size={15} aria-hidden />Add detail</button>
     </div>
-  );
+    {fields.map((field, index) => {
+      const keyPath = `${name}.${index}.key` as const;
+      const valuePath = `${name}.${index}.value` as const;
+      const keyError = form.getFieldState(keyPath, form.formState).error?.message;
+      const valueError = form.getFieldState(valuePath, form.formState).error?.message;
+      return <div key={field.id} className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <div><label htmlFor={keyPath} className="field-label">Name</label><input id={keyPath} {...form.register(keyPath)} className="input" placeholder="e.g. Colour" aria-invalid={!!keyError} aria-describedby={keyError ? `${keyPath}-error` : undefined} />{keyError && <p id={`${keyPath}-error`} className="field-error">{keyError}</p>}</div>
+        <div className="col-start-1 sm:col-start-auto"><label htmlFor={valuePath} className="field-label">Value</label><input id={valuePath} {...form.register(valuePath)} className="input" placeholder="e.g. Blue" aria-invalid={!!valueError} aria-describedby={valueError ? `${valuePath}-error` : undefined} />{valueError && <p id={`${valuePath}-error`} className="field-error">{valueError}</p>}</div>
+        <button type="button" className="icon-button col-start-2 row-start-1 self-end sm:col-start-auto" aria-label={`Remove ${label.toLowerCase()} detail ${index + 1}`} onClick={() => remove(index)}><X size={18} aria-hidden /></button>
+      </div>;
+    })}
+  </div>;
 }
 
-// ─── Main ProductForm ─────────────────────────────────────────────────────────
-export function ProductForm({ initialData, productId }: { initialData?: any; productId?: string }) {
-  const router = useRouter();
-  const { showToast } = useUIStore();
-  const queryClient = useQueryClient();
-  const [images, setImages] = useState<File[]>([]);
-  const [existingImages, setExistingImages] = useState<string[]>(initialData?.images || []);
-  const [isDragging, setIsDragging] = useState(false);
+function UploadPreview({ file }: { file: File }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    const nextUrl = URL.createObjectURL(file);
+    setUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [file]);
+  return url ? <Image src={url} alt={file.name} fill sizes="160px" unoptimized className="object-contain" /> : null;
+}
 
-  const { data: categoriesData } = useQuery({
+export function ProductForm({ initialData, productId }: { initialData?: Product; productId?: string }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { showToast } = useUIStore();
+  const form = useForm<ProductFormData>({ resolver: zodResolver(productFormSchema), defaultValues: productFormDefaults(initialData) });
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = form;
+  const variants = useFieldArray({ control: form.control, name: 'variants' });
+  const [savedId, setSavedId] = useState(productId);
+  const [images, setImages] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState(initialData?.images ?? []);
+  const [imageError, setImageError] = useState<string>();
+  const [saveError, setSaveError] = useState<string>();
+  const [uncertain, setUncertain] = useState(false);
+  const [removeVariant, setRemoveVariant] = useState<number>();
+  const category = watch('category');
+  const categories = useQuery({
     queryKey: ['admin', 'categories'],
-    queryFn: () => api.get('/categories').then(r => r.data),
+    queryFn: ({ signal }) => api.get<ApiResponse<Category[]>>('/categories?includeInactive=true', { signal }).then(response => response.data.data ?? []),
     staleTime: 30_000,
   });
+  const parents = categories.data?.filter(item => !item.parent) ?? [];
+  const children = categories.data?.filter(item => parentId(item) === category) ?? [];
 
-  const categories: Category[] = useMemo(() => {
-    const raw = categoriesData;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-    if (Array.isArray(raw?.data)) return raw.data;
-    return [];
-  }, [categoriesData]);
+  function addImages(files: File[]) {
+    const error = validateProductImages(files, images.length);
+    setImageError(error);
+    if (!error) setImages(previous => [...previous, ...files]);
+  }
 
-  const { register, control, handleSubmit, setValue, getValues, watch, formState: { errors, isSubmitting } } = useForm<ProductFormData>({
-    resolver: zodResolver(productSchema),
-    defaultValues: initialData ? {
-      name: initialData.name,
-      description: initialData.description,
-      category: typeof initialData.category === 'object' ? initialData.category._id : initialData.category,
-      subCategory: initialData.subCategory,
-      brand: initialData.brand,
-      isPublished: initialData.isPublished,
-      isFeatured: initialData.isFeatured,
-      variants: initialData.variants,
-    } : {
-      isPublished: false,
-      isFeatured: false,
-      variants: [{ sku: '', price: 0, stock: 0 }],
-    },
-  });
-
-  const { fields, append, remove } = useFieldArray({ control, name: 'variants' });
-
-  const selectedCategory = watch('category');
-  const selectedSubCategory = watch('subCategory') || '';
-
-  const generateSKU = (index: number) => {
-    const brandStr = getValues('brand')?.substring(0, 3).toUpperCase() || 'NXM';
-    const catId = getValues('category');
-    const cat = categories.find(c => c._id === catId);
-    const catStr = cat?.name?.substring(0, 4).toUpperCase() || 'GEN';
-    const hash = Math.random().toString(36).substring(2, 6).toUpperCase();
-    setValue(`variants.${index}.sku`, `${brandStr}-${catStr}-${hash}-${index + 1}`, { shouldValidate: true });
-  };
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files) {
-      setImages(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
-    }
-  }, []);
-
-  const onSubmit = async (data: ProductFormData) => {
+  async function onSubmit(data: ProductFormData) {
+    if (uncertain) return;
+    setSaveError(undefined);
+    let detailsSaved = false;
+    let id = savedId;
     try {
-      if (productId) {
-        const payload = { ...data, images: existingImages };
-        await api.put(`/products/${productId}`, payload);
-        if (images.length > 0) {
-          const imageForm = new FormData();
-          images.forEach(img => imageForm.append('images', img));
-          await api.post(`/products/${productId}/images`, imageForm, { headers: { 'Content-Type': 'multipart/form-data' } });
-        }
-        showToast('Product updated successfully');
-      } else {
-        const formData = new FormData();
-        Object.entries(data).forEach(([key, value]) => {
-          if (key === 'variants') formData.append(key, JSON.stringify(value));
-          else formData.append(key, value as any);
-        });
-        images.forEach(img => formData.append('images', img));
-        await api.post('/products', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        showToast('Product created successfully');
+      const payload = { ...productFormPayload(data), images: existingImages };
+      // Save details first so an upload failure never requires creating another product.
+      const response = id
+        ? await api.put<ApiResponse<Product>>(`/products/${id}`, payload)
+        : await api.post<ApiResponse<Product>>('/products', payload);
+      id = response.data.data?._id ?? id;
+      if (!id) throw new Error('Missing product identity');
+      setSavedId(id);
+      detailsSaved = true;
+      if (images.length) {
+        const body = new FormData();
+        images.forEach(file => body.append('images', file));
+        await api.post(`/products/${id}/images`, body, { headers: { 'Content-Type': 'multipart/form-data' } });
       }
-      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'product', id] });
+      showToast(productId ? 'Product updated' : 'Product created');
       router.push('/admin/products');
-    } catch {
-      showToast('Failed to save product', 'error');
+    } catch (error) {
+      const unknownOutcome = !(error instanceof AxiosError) || !error.response || error.response.status >= 500;
+      setUncertain(unknownOutcome);
+      setSaveError(`${detailsSaved ? 'Product details were saved. The image upload could not be confirmed. ' : ''}${getApiError(error)}${unknownOutcome ? ' Check the saved product before submitting again.' : ''}`);
     }
-  };
+  }
 
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* ── Left: main fields ── */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass rounded-2xl p-6 border border-white/5 space-y-4">
-            <h2 className="font-syne font-semibold text-white">Basic Information</h2>
-
-            <div>
-              <label className="text-xs text-white/60 mb-1.5 block">Product Name</label>
-              <input {...register('name')} className="input" placeholder="e.g. Wireless Noise Cancelling Headphones" suppressHydrationWarning />
-              {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name.message}</p>}
-            </div>
-
-            <div>
-              <label className="text-xs text-white/60 mb-1.5 block">Description</label>
-              <textarea {...register('description')} className="input min-h-[120px] py-3" placeholder="Detailed product description..." suppressHydrationWarning />
-              {errors.description && <p className="text-xs text-red-400 mt-1">{errors.description.message}</p>}
-            </div>
-          </div>
-
-          {/* Variants */}
-          <div className="glass rounded-2xl p-6 border border-white/5 space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h2 className="font-syne font-semibold text-white">Variants & Pricing</h2>
-                <p className="text-xs text-white/40 mt-1">Manage SKUs, stock and pricing</p>
+  return <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+    {saveError && <div className="card border-amber-400/40 text-sm" role="alert"><p>{saveError}</p>{uncertain && <a className="btn-secondary mt-3" href={savedId ? `/admin/products/${savedId}/edit` : '/admin/products'}>{savedId ? 'Review saved product' : 'Check product list'}</a>}</div>}
+    <fieldset disabled={isSubmitting || uncertain} className="min-w-0 space-y-6">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
+          <section className="card space-y-4" aria-labelledby="product-basics">
+            <h2 id="product-basics" className="text-xl">Product information</h2>
+            <div><label htmlFor="product-name" className="field-label">Product name</label><input id="product-name" {...register('name')} className="input" maxLength={200} aria-invalid={!!errors.name} aria-describedby="product-name-error" />{errors.name && <p id="product-name-error" className="field-error">{errors.name.message}</p>}</div>
+            <div><label htmlFor="product-description" className="field-label">Description</label><textarea id="product-description" {...register('description')} rows={5} className="input" aria-invalid={!!errors.description} aria-describedby="product-description-error" />{errors.description && <p id="product-description-error" className="field-error">{errors.description.message}</p>}</div>
+            <div><label htmlFor="product-brand" className="field-label">Brand <span className="text-muted">(optional)</span></label><input id="product-brand" {...register('brand')} className="input" /></div>
+            <details><summary className="min-h-11 cursor-pointer py-2 text-sm text-secondary">Additional description</summary><label htmlFor="product-rich-description" className="sr-only">Additional description</label><textarea id="product-rich-description" {...register('richDescription')} rows={4} className="input" /></details>
+            <DetailFields form={form} name="specifications" label="Specifications" />
+          </section>
+          <section className="card space-y-5" aria-labelledby="product-variants">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="product-variants" className="text-xl">Pricing & inventory</h2><p className="field-hint">One SKU for each purchasable option. Prices are in rupees.</p></div><button type="button" className="btn-secondary" onClick={() => variants.append({ sku: '', price: 0, stock: 0, attributes: [], images: [] })}><Plus size={16} aria-hidden />Add variant</button></div>
+            {variants.fields.map((variant, index) => <fieldset key={variant.id} className="min-w-0 space-y-4 rounded-xl border border-white/15 p-3 sm:p-4">
+              <legend className="px-2 text-sm font-semibold">Variant {index + 1}</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div><label htmlFor={`sku-${index}`} className="field-label">SKU</label><input id={`sku-${index}`} {...register(`variants.${index}.sku`)} className="input font-mono" aria-invalid={!!errors.variants?.[index]?.sku} aria-describedby={`sku-error-${index}`} />{errors.variants?.[index]?.sku && <p id={`sku-error-${index}`} className="field-error">{errors.variants[index]?.sku?.message}</p>}</div>
+                <div><label htmlFor={`stock-${index}`} className="field-label">Stock quantity</label><input id={`stock-${index}`} type="number" min="0" step="1" inputMode="numeric" {...register(`variants.${index}.stock`, { valueAsNumber: true })} className="input" aria-invalid={!!errors.variants?.[index]?.stock} aria-describedby={`stock-error-${index}`} />{errors.variants?.[index]?.stock && <p id={`stock-error-${index}`} className="field-error">{errors.variants[index]?.stock?.message}</p>}</div>
+                <div><label htmlFor={`price-${index}`} className="field-label">Selling price (₹)</label><input id={`price-${index}`} type="number" min="0.01" step="0.01" inputMode="decimal" {...register(`variants.${index}.price`, { valueAsNumber: true })} className="input" aria-invalid={!!errors.variants?.[index]?.price} aria-describedby={`price-error-${index}`} />{errors.variants?.[index]?.price && <p id={`price-error-${index}`} className="field-error">{errors.variants[index]?.price?.message}</p>}</div>
+                <div><label htmlFor={`mrp-${index}`} className="field-label">MRP (₹, optional)</label><input id={`mrp-${index}`} type="number" min="0.01" step="0.01" inputMode="decimal" {...register(`variants.${index}.comparePrice`, { setValueAs: value => value === '' ? undefined : Number(value) })} className="input" aria-invalid={!!errors.variants?.[index]?.comparePrice} aria-describedby={`mrp-error-${index}`} />{errors.variants?.[index]?.comparePrice && <p id={`mrp-error-${index}`} className="field-error">{errors.variants[index]?.comparePrice?.message}</p>}</div>
               </div>
-              <button type="button" onClick={() => append({ sku: '', price: 0, stock: 0 })} className="btn-secondary py-1.5 px-3 text-xs" suppressHydrationWarning>
-                <Plus size={14} /> Add Variant
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {fields.map((field, index) => (
-                <div key={field.id} className="p-5 rounded-xl border border-white/10 bg-white/5 relative group transition-colors hover:bg-white/10">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="relative">
-                      <label className="text-xs text-white/60 mb-1.5 flex justify-between items-center">
-                        <span>SKU</span>
-                        <button type="button" onClick={() => generateSKU(index)} className="text-[10px] text-violet-400 hover:text-violet-300 flex items-center gap-1" suppressHydrationWarning>
-                          <Zap size={10} /> Auto-Gen
-                        </button>
-                      </label>
-                      <input {...register(`variants.${index}.sku`)} className="input text-sm" placeholder="SKU-123" suppressHydrationWarning />
-                      {errors.variants?.[index]?.sku && <p className="text-xs text-red-400 mt-1">{errors.variants[index]?.sku?.message}</p>}
-                    </div>
-                    <div>
-                      <label className="text-xs text-white/60 mb-1.5 block">Price (₹)</label>
-                      <input type="number" {...register(`variants.${index}.price`, { valueAsNumber: true })} className="input text-sm" placeholder="0" suppressHydrationWarning />
-                      {errors.variants?.[index]?.price && <p className="text-xs text-red-400 mt-1">{errors.variants[index]?.price?.message}</p>}
-                    </div>
-                    <div>
-                      <label className="text-xs text-white/60 mb-1.5 block">MRP (₹)</label>
-                      <input type="number" step="0.01" {...register(`variants.${index}.comparePrice`, { setValueAs: (v) => (v === '' ? undefined : Number(v)) })} className="input text-sm" placeholder="MRP (optional)" suppressHydrationWarning />
-                      {errors.variants?.[index]?.comparePrice && <p className="text-xs text-red-400 mt-1">{errors.variants[index]?.comparePrice?.message}</p>}
-                    </div>
-                    <div>
-                      <label className="text-xs text-white/60 mb-1.5 block">Stock</label>
-                      <input type="number" {...register(`variants.${index}.stock`, { valueAsNumber: true })} className="input text-sm" placeholder="0" suppressHydrationWarning />
-                      {errors.variants?.[index]?.stock && <p className="text-xs text-red-400 mt-1">{errors.variants[index]?.stock?.message}</p>}
-                    </div>
-                  </div>
-                  {fields.length > 1 && (
-                    <button type="button" onClick={() => remove(index)} className="absolute -top-3 -right-3 p-1.5 rounded-full bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white" suppressHydrationWarning>
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
-              {errors.variants?.root && <p className="text-xs text-red-400">{errors.variants.root.message}</p>}
-            </div>
-          </div>
+              <DetailFields form={form} name={`variants.${index}.attributes`} label="Variant attributes" />
+              {!!variant.images.length && <p className="field-hint">{variant.images.length} existing variant image{variant.images.length === 1 ? '' : 's'} will be retained.</p>}
+              {variants.fields.length > 1 && <button type="button" className="btn-secondary text-red-300" onClick={() => setRemoveVariant(index)}><Trash2 size={16} aria-hidden />Remove variant {index + 1}</button>}
+            </fieldset>)}
+          </section>
         </div>
-
-        {/* ── Right: sidebar ── */}
-        <div className="space-y-6">
-          <div className="glass rounded-2xl p-6 border border-white/5 space-y-4">
-            <h2 className="font-syne font-semibold text-white">Organization</h2>
-
-            {/* Premium Category Picker */}
-            <CategoryPicker
-              categories={categories}
-              value={selectedCategory}
-              subValue={selectedSubCategory}
-              onSelect={id => setValue('category', id, { shouldValidate: true })}
-              onSubSelect={id => setValue('subCategory', id)}
-              error={errors.category?.message}
-            />
-
-            <div>
-              <label className="text-xs text-white/60 mb-1.5 block">Brand</label>
-              <input {...register('brand')} className="input" placeholder="Brand name" suppressHydrationWarning />
+        <div className="min-w-0 space-y-6">
+          <section className="card space-y-4" aria-labelledby="product-organization">
+            <h2 id="product-organization" className="text-xl">Category & publishing</h2>
+            {categories.isError ? <QueryError label="Categories" onRetry={() => void categories.refetch()} /> : <>
+              <div><label htmlFor="product-category" className="field-label">Category</label><select id="product-category" {...register('category', { onChange: () => setValue('subCategory', '', { shouldDirty: true }) })} className="input" disabled={categories.isPending} aria-invalid={!!errors.category} aria-describedby="product-category-error"><option value="">{categories.isPending ? 'Loading categories…' : 'Choose a category'}</option>{parents.map(item => <option key={item._id} value={item._id}>{item.name}{item.isActive === false ? ' (inactive)' : ''}</option>)}</select>{errors.category && <p id="product-category-error" className="field-error">{errors.category.message}</p>}</div>
+              <div><label htmlFor="product-subcategory" className="field-label">Subcategory <span className="text-muted">(optional)</span></label><select id="product-subcategory" {...register('subCategory')} className="input" disabled={!category || categories.isPending}><option value="">No subcategory</option>{children.map(item => <option key={item._id} value={item._id}>{item.name}{item.isActive === false ? ' (inactive)' : ''}</option>)}</select></div>
+              {!categories.isPending && !parents.length && <p className="field-hint">Add a category before publishing a product.</p>}
+            </>}
+            <Link href="/admin/categories" className="inline-flex min-h-11 items-center text-sm text-violet-300">Manage categories</Link>
+            <div><label htmlFor="product-tags" className="field-label">Search tags <span className="text-muted">(optional)</span></label><input id="product-tags" {...register('tags')} className="input" aria-describedby="product-tags-hint" /><p id="product-tags-hint" className="field-hint">Separate tags with commas.</p></div>
+            <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" {...register('isPublished')} className="h-5 w-5 accent-violet-600" />Published in the store</label>
+            <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" {...register('isFeatured')} className="h-5 w-5 accent-violet-600" />Featured on the homepage</label>
+          </section>
+          <section className="card space-y-4" aria-labelledby="product-media">
+            <h2 id="product-media" className="text-xl">Product images</h2>
+            <p className="text-sm text-secondary">Use clear, consistent product photos. The first image appears in the catalog.</p>
+            <div className="rounded-xl border border-dashed border-white/40 p-4" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (!isSubmitting && !uncertain) addImages(Array.from(event.dataTransfer.files)); }}>
+              <label htmlFor="product-images" className="field-label flex items-center gap-2"><Upload size={18} aria-hidden />Add images</label>
+              <input id="product-images" type="file" multiple accept={PRODUCT_IMAGE_TYPES.join(',')} className="block min-h-11 w-full min-w-0 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-space-700 file:px-3 file:py-3 file:text-white" aria-describedby="product-images-hint product-images-error" onChange={event => { addImages(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
+              <p id="product-images-hint" className="field-hint">Drop files here or choose files. JPEG, PNG, WebP or GIF; up to 10 MB each, 10 new images per save.</p>
             </div>
-
-            <div className="pt-4 border-t border-white/5 space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input type="checkbox" {...register('isPublished')} className="peer sr-only" />
-                  <div className="w-10 h-5 bg-white/10 rounded-full peer-checked:bg-acid-400/20 transition-colors" />
-                  <div className="absolute left-1 top-1 w-3 h-3 bg-white/50 rounded-full peer-checked:translate-x-5 peer-checked:bg-acid-400 transition-transform" />
-                </div>
-                <span className="text-sm text-white/70 group-hover:text-white transition-colors">Publish Product</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input type="checkbox" {...register('isFeatured')} className="peer sr-only" />
-                  <div className="w-10 h-5 bg-white/10 rounded-full peer-checked:bg-violet-500/20 transition-colors" />
-                  <div className="absolute left-1 top-1 w-3 h-3 bg-white/50 rounded-full peer-checked:translate-x-5 peer-checked:bg-violet-400 transition-transform" />
-                </div>
-                <span className="text-sm text-white/70 group-hover:text-white transition-colors">Featured Product</span>
-              </label>
+            {imageError && <p id="product-images-error" className="field-error" role="alert">{imageError}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              {existingImages.map((url, index) => <div key={`${url}-${index}`} className="space-y-1"><div className="product-stage relative aspect-square overflow-hidden rounded-xl"><ProductImage src={url} alt={`Product image ${index + 1}`} sizes="160px" /></div><button type="button" className="btn-secondary w-full px-2" onClick={() => setExistingImages(previous => previous.filter((_, imageIndex) => imageIndex !== index))}><X size={14} aria-hidden />Remove {index + 1}</button></div>)}
+              {images.map((file, index) => <div key={`${file.name}-${index}`} className="space-y-1"><div className="product-stage relative aspect-square overflow-hidden rounded-xl"><UploadPreview file={file} /></div><button type="button" className="btn-secondary w-full px-2" onClick={() => setImages(previous => previous.filter((_, imageIndex) => imageIndex !== index))}><X size={14} aria-hidden />Remove new {index + 1}</button></div>)}
             </div>
-          </div>
-
-          {/* Media */}
-          <div className="glass rounded-2xl p-6 border border-white/5 space-y-4">
-            <h2 className="font-syne font-semibold text-white">Media</h2>
-
-            <div
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${isDragging ? 'border-violet-500 bg-violet-500/10' : 'border-white/10 hover:bg-white/5'}`}
-            >
-              <input type="file" multiple accept="image/*" className="hidden" id="images"
-                onChange={(e) => { if (e.target.files) setImages(prev => [...prev, ...Array.from(e.target.files!)]); }}
-              />
-              <label htmlFor="images" className="cursor-pointer flex flex-col items-center">
-                <Upload size={24} className={`${isDragging ? 'text-violet-400' : 'text-white/40'} mb-2 transition-colors`} />
-                <span className="text-sm text-white/60">Drag & drop or <span className="text-violet-400">click to upload</span></span>
-                <span className="text-xs text-white/40 mt-1">PNG, JPG up to 5MB</span>
-              </label>
-            </div>
-
-            {(images.length > 0 || existingImages.length > 0) && (
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                {existingImages.map((url, i) => (
-                  <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} key={i} className="relative aspect-square rounded-lg overflow-hidden bg-white/5 border border-white/10 group">
-                    <Image src={url} alt="" fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <button type="button" onClick={() => setExistingImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-black/50 rounded-md text-white/70 hover:text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100" suppressHydrationWarning>
-                      <X size={12} />
-                    </button>
-                  </motion.div>
-                ))}
-                {images.map((img, i) => (
-                  <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} key={i} className="relative aspect-square rounded-lg overflow-hidden bg-white/5 border border-white/10 group">
-                    <Image src={URL.createObjectURL(img)} alt="" fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <button type="button" onClick={() => setImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-black/50 rounded-md text-white/70 hover:text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100" suppressHydrationWarning>
-                      <X size={12} />
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </div>
+          </section>
         </div>
       </div>
-
-      <div className="flex justify-end gap-4 pt-6 border-t border-white/5">
-        <button type="button" onClick={() => router.back()} className="btn-secondary" suppressHydrationWarning>Cancel</button>
-        <button type="submit" disabled={isSubmitting} className="btn-primary" suppressHydrationWarning>
-          {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : (productId ? 'Update Product' : 'Save Product')}
-        </button>
-      </div>
-    </form>
-  );
+      <div className="flex flex-wrap justify-end gap-3 border-t border-white/10 pt-5"><Link href="/admin/products" className="btn-secondary">Back to products</Link><button type="submit" className="btn-primary" disabled={isSubmitting || categories.isPending || categories.isError || uncertain}>{isSubmitting && <Loader2 size={16} className="animate-spin" aria-hidden />}{isSubmitting ? 'Saving product…' : savedId ? 'Save changes' : 'Create product'}</button></div>
+    </fieldset>
+    <ConfirmDialog open={removeVariant !== undefined} title="Remove variant" description="Remove this option from the product? It will no longer be available to buy after you save changes." confirmLabel="Remove variant" onCancel={() => setRemoveVariant(undefined)} onConfirm={() => { if (removeVariant !== undefined) variants.remove(removeVariant); setRemoveVariant(undefined); }} />
+  </form>;
 }

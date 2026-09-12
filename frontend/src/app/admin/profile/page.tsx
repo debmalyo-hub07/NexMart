@@ -53,8 +53,8 @@ export default function AdminProfilePage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2 font-syne">Admin Control Center</h1>
-        <p className="text-white/50 text-sm">Manage your admin details.</p>
+        <h1 className="text-3xl font-bold text-white mb-2 font-outfit">Admin Control Center</h1>
+        <p className="text-muted text-sm">Manage your admin details.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -69,8 +69,8 @@ export default function AdminProfilePage() {
               {formName ? formName.charAt(0).toUpperCase() : 'A'}
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white font-syne">{formName || 'Admin'}</h2>
-              <p className="text-sm text-white/40">{formEmail}</p>
+              <h2 className="text-xl font-semibold text-white font-outfit">{formName || 'Admin'}</h2>
+              <p className="text-sm text-muted">{formEmail}</p>
             </div>
             <div className="badge-violet text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider">
               Admin
@@ -90,17 +90,17 @@ export default function AdminProfilePage() {
             animate={{ opacity: 1, y: 0 }}
             className="card"
           >
-            <h3 className="text-lg font-semibold text-white mb-4 font-syne">Account Details</h3>
+            <h3 className="text-lg font-semibold text-white mb-4 font-outfit">Account Details</h3>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white/70 ml-1">Full Name</label>
+                <label htmlFor="admin-profile-name" className="text-sm font-medium text-white/70 ml-1">Full Name</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User size={18} className="text-white/40" />
+                    <User size={18} className="text-muted" />
                   </div>
                   <input
                     type="text"
-                    {...register('name')}
+                    id="admin-profile-name" {...register('name')}
                     className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] transition-colors"
                     placeholder="Enter your full name"
                   />
@@ -109,14 +109,14 @@ export default function AdminProfilePage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white/70 ml-1">Email Address</label>
+                <label htmlFor="admin-profile-email" className="text-sm font-medium text-white/70 ml-1">Email Address</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Mail size={18} className="text-white/40" />
+                    <Mail size={18} className="text-muted" />
                   </div>
                   <input
                     type="email"
-                    {...register('email')}
+                    id="admin-profile-email" {...register('email')}
                     className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50 focus:bg-[#1a1a24] transition-colors"
                     placeholder="Enter your email address"
                   />

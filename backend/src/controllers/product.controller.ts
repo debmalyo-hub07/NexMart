@@ -55,10 +55,11 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
       sendPaginated(res, [], 0, page, limit);
       return;
     }
-    if (categoryId !== undefined) filter.category = categoryId;
+    if (categoryId !== undefined) filter.$and = [{ $or: [{ category: categoryId }, { subCategory: categoryId }] }];
   }
   if (req.query.brand) filter.brand = new RegExp(escapeRegExp(String(req.query.brand)), 'i');
   if (req.query.featured === 'true') filter.isFeatured = true;
+  if (req.query.inStock === 'true') filter['variants.stock'] = { $gt: 0 };
   if (req.query.q) {
     const searchRegex = new RegExp(escapeRegExp(String(req.query.q)), 'i');
     filter.$or = [{ name: searchRegex }, { description: searchRegex }];
@@ -87,6 +88,7 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
     !req.query.minPrice &&
     !req.query.maxPrice &&
     !req.query.rating &&
+    !req.query.inStock &&
     !req.query.sort;
   if (isHomepageFeatured) {
     try {

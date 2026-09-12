@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, UserRole } from '@/types';
 import api, { saveToken, clearToken } from '@/lib/api';
+import { useCartStore } from '@/store/cartStore';
 
 interface AuthState {
   user: User | null;
@@ -34,6 +35,8 @@ export const useAuthStore = create<AuthState>()(
       },
 
       reset: () => {
+        clearToken();
+        useCartStore.getState().reset();
         set({ user: null, token: null, isAuthenticated: false });
       },
 
@@ -83,22 +86,7 @@ export const useAuthStore = create<AuthState>()(
               }
             }).catch(() => {});
 
-            if (resolvedRole === 'customer') {
-              const { useCartStore } = await import('@/store/cartStore');
-              const guestItems = useCartStore.getState().items;
-              if (guestItems.length > 0) {
-                api.post('/cart/merge', {
-                  items: guestItems.map((i) => ({ product: i.product?._id ?? i.product, variant: i.variant, quantity: i.quantity })),
-                }).then(({ data }) => {
-                  if (data?.data?.items) {
-                    useCartStore.setState({ items: data.data.items });
-                  }
-                }).catch(() => {
-                  // Merge failure is non-fatal — the guest cart stays in localStorage
-                });
-              }
-            }
-            
+            // CartSync merges the server guest cart once the session is ready.
           } else {
             throw new Error('Session not established');
           }

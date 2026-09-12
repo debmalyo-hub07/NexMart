@@ -21,7 +21,7 @@ const CartSchema = new Schema<ICartDoc>(
     sessionId: { type: String, sparse: true, index: true },
     items: [CartItemSchema],
   },
-  { timestamps: true }
+  { timestamps: true, optimisticConcurrency: true }
 );
 
 // Note: user has implicit unique index; sessionId indexed above

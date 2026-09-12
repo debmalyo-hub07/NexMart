@@ -8,6 +8,7 @@ import { formatPrice } from '@/lib/utils';
 import { BarChart3, TrendingUp, ShoppingBag, Package } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { analyticsQueryOptions } from '@/lib/syncConfig';
+import type { AnalyticsSummary } from '@/types';
 
 const COLORS = ['#7C3AED', '#22D58D', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
@@ -16,20 +17,20 @@ export default function AdminAnalyticsPage() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'analytics', days],
-    queryFn: () => api.get(`/admin/analytics?days=${days}`).then((r) => r.data.data),
+    queryFn: () => api.get(`/admin/analytics?days=${days}`).then((r) => r.data.data as AnalyticsSummary),
     ...analyticsQueryOptions,
   });
 
   // Only treat the query as failed when there is no cached data to fall back on.
   const analyticsFailed = isError && !data;
 
-  const chartData = (data?.dailyRevenue || []).map((d: { _id: string; revenue: number; orders: number }) => ({
+  const chartData = (data?.dailyRevenue || []).map((d) => ({
     date: d._id?.slice(5),
     revenue: d.revenue,
     orders: d.orders,
   }));
 
-  const statusData = (data?.ordersByStatus || []).map((d: { _id: string; count: number }) => ({
+  const statusData = (data?.ordersByStatus || []).map((d) => ({
     name: d._id?.replace(/_/g, ' '),
     count: d.count,
   }));
@@ -40,14 +41,19 @@ export default function AdminAnalyticsPage() {
     <div className="max-w-7xl mx-auto space-y-8">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="font-syne text-2xl font-bold text-white">Analytics</h1>
-          <p className="text-white/50 text-sm mt-1">Business performance overview</p>
+          <h1 className="font-outfit text-2xl font-bold text-white">Analytics</h1>
+          <p className="text-secondary text-sm mt-1">Paid revenue, order mix and best sellers over the selected window.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Reporting window">
           {[7, 14, 30, 90].map((d) => (
-            <button key={d} onClick={() => setDays(d)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-[color,background-color,box-shadow] ${days === d ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass text-white/50 hover:text-white border border-white/10'}`}>
-              {d}d
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDays(d)}
+              aria-pressed={days === d}
+              className={`min-h-11 rounded-lg px-4 text-sm font-medium transition-[color,background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 ${days === d ? 'bg-violet-600 text-white shadow-glow-violet' : 'glass border border-white/10 text-secondary hover:text-white'}`}
+            >
+              Last {d} days
             </button>
           ))}
         </div>
@@ -55,6 +61,8 @@ export default function AdminAnalyticsPage() {
 
       {/* Revenue Chart */}
       <RevenueChart
+        title={`Paid revenue, last ${days} days`}
+        description="Counts orders whose payment has been received. Unpaid and cancelled orders are excluded."
         data={chartData}
         isLoading={isLoading}
         isError={analyticsFailed}
@@ -64,7 +72,7 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Order Status Distribution */}
         <div className="glass rounded-2xl p-6 border border-white/5">
-          <h3 className="font-syne font-semibold text-white mb-6 flex items-center gap-2">
+          <h3 className="font-outfit font-semibold text-white mb-6 flex items-center gap-2">
             <BarChart3 size={18} className="text-violet-400" /> Orders by Status
           </h3>
           {isLoading ? (
@@ -72,12 +80,12 @@ export default function AdminAnalyticsPage() {
           ) : analyticsFailed ? (
             <div className="flex flex-col items-center justify-center gap-2 h-[220px] text-center">
               <BarChart3 size={28} className="text-white/20" aria-hidden="true" />
-              <p className="text-sm text-white/40">Failed to load order status data</p>
+              <p className="text-sm text-muted">Failed to load order status data</p>
             </div>
           ) : statusData.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 h-[220px] text-center">
               <BarChart3 size={28} className="text-white/20" aria-hidden="true" />
-              <p className="text-sm text-white/40">No data for this period</p>
+              <p className="text-sm text-muted">No data for this period</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
@@ -98,7 +106,7 @@ export default function AdminAnalyticsPage() {
 
         {/* Top Products */}
         <div className="glass rounded-2xl p-6 border border-white/5">
-          <h3 className="font-syne font-semibold text-white mb-6 flex items-center gap-2">
+          <h3 className="font-outfit font-semibold text-white mb-6 flex items-center gap-2">
             <TrendingUp size={18} className="text-acid-400" /> Top Selling Products
           </h3>
           <div className="space-y-3">
@@ -114,12 +122,12 @@ export default function AdminAnalyticsPage() {
                 </div>
               ))
             ) : analyticsFailed ? (
-              <p className="text-sm text-white/40 text-center py-8">Failed to load product data</p>
+              <p className="text-sm text-muted text-center py-8">Failed to load product data</p>
             ) : (
               <>
                 {topProducts.slice(0, 7).map((p: { name: string; totalSold: number; revenue: number }, i: number) => (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="text-xs text-white/30 w-4 shrink-0">{i + 1}</span>
+                    <span className="text-xs text-muted w-4 shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between mb-1">
                         <p className="text-xs text-white truncate">{p.name}</p>
@@ -132,10 +140,10 @@ export default function AdminAnalyticsPage() {
                         />
                       </div>
                     </div>
-                    <span className="text-xs text-white/50 shrink-0">{p.totalSold}</span>
+                    <span className="text-xs text-muted shrink-0">{p.totalSold}</span>
                   </div>
                 ))}
-                {topProducts.length === 0 && <p className="text-sm text-white/30 text-center py-8">No sales data yet</p>}
+                {topProducts.length === 0 && <p className="text-sm text-muted text-center py-8">No sales data yet</p>}
               </>
             )}
           </div>

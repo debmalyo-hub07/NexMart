@@ -7,7 +7,7 @@ function errorWithStatus(status: number) {
     status,
     statusText: '',
     headers: {},
-    config: {},
+    config: { headers: new axios.AxiosHeaders() },
     data: {},
   });
 }

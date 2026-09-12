@@ -11,7 +11,7 @@ export async function searchProducts(req: Request, res: Response): Promise<void>
   const { page, limit, skip } = parsePagination(req.query, 20);
   const sort = parseSortField(req.query.sort as string, ALLOWED_SORT, '-createdAt');
   const {
-    q, category, brand, minPrice, maxPrice, rating, inStock,
+    q, category, brand, minPrice, maxPrice, rating, inStock, featured,
   } = req.query as Record<string, string>;
 
   const filter: FilterQuery<IProduct> = { isPublished: true };
@@ -29,9 +29,10 @@ export async function searchProducts(req: Request, res: Response): Promise<void>
       sendPaginated(res, [], 0, page, limit);
       return;
     }
-    if (categoryId !== undefined) filter.category = categoryId;
+    if (categoryId !== undefined) filter.$and = [{ $or: [{ category: categoryId }, { subCategory: categoryId }] }];
   }
   if (brand) filter.brand = new RegExp(escapeRegExp(brand), 'i');
+  if (featured === 'true') filter.isFeatured = true;
 
   if (minPrice || maxPrice) {
     filter['variants.0.price'] = {};
@@ -44,12 +45,12 @@ export async function searchProducts(req: Request, res: Response): Promise<void>
   }
 
   if (inStock === 'true') {
-    filter['variants.0.stock'] = { $gt: 0 };
+    filter['variants.stock'] = { $gt: 0 };
   }
 
   // Build sort
   const sortObj: Record<string, 1 | -1 | { $meta: 'textScore' }> = {};
-  if (q) sortObj.score = { $meta: 'textScore' };
+  if (q && !req.query.sort) sortObj.score = { $meta: 'textScore' };
   const sortField = sort.startsWith('-') ? sort.slice(1) : sort;
   const sortDir: 1 | -1 = sort.startsWith('-') ? -1 : 1;
   sortObj[sortField] = sortDir;

@@ -31,7 +31,7 @@ export function FullPageLoader({ show = true }: { show?: boolean }) {
               />
             </div>
 
-            <p className="font-syne text-sm text-white/40 tracking-widest uppercase">
+            <p className="font-outfit text-sm text-muted tracking-widest uppercase">
               Loading NexMart
             </p>
           </div>

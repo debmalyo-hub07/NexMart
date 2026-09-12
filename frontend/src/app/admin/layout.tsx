@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { ConnectivityNotice } from '@/components/common/ConnectivityNotice';
 import { LiveSyncBadge } from '@/components/common/LiveSyncBadge';
 import { useSocket } from '@/hooks/useSocket';
 import { useDrawerBehavior } from '@/hooks/useDrawerBehavior';
@@ -104,12 +105,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <Menu size={20} />
         </button>
-        <span className="font-syne font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 flex-1">Admin Panel</span>
+        <span className="font-outfit font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 flex-1">Admin Panel</span>
         <LiveSyncBadge />
       </div>
 
       {/* Main content — normal document flow; offset past the fixed sidebar on desktop.
           The page itself is the only scroll container (no nested overflow wrappers). */}
+      {/* An operator acting on stale data can ship the wrong thing — say so
+          before they act, not after the write fails. */}
+      <div className="lg:pl-[var(--sidebar-width)]"><ConnectivityNotice /></div>
+
       <main className="p-6 lg:pl-[calc(var(--sidebar-width)+1.5rem)]">
         {children}
       </main>

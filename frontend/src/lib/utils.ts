@@ -10,17 +10,17 @@ export function formatPrice(amount: number, currency = 'INR'): string {
     style: 'currency',
     currency,
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
 export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions): string {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return 'Date unavailable';
   return new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+    ...(!options?.dateStyle && !options?.timeStyle ? { day: 'numeric', month: 'short', year: 'numeric' } as const : {}),
     ...options,
-  }).format(new Date(date));
+  }).format(parsed);
 }
 
 export function truncate(str: string, length: number): string {
@@ -62,8 +62,12 @@ export function getStatusColor(status: string): string {
     assigned: 'badge-violet',
     picked: 'badge-amber',
     attempted: 'badge-amber',
+    active: 'badge-acid',
+    suspended: 'badge-red',
+    published: 'badge-acid',
+    draft: 'badge-neutral',
   };
-  return colors[status] || 'badge-amber';
+  return colors[status] || 'badge-neutral';
 }
 
 export function capitalizeStatus(status: string): string {

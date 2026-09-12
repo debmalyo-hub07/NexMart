@@ -7,6 +7,7 @@ import { Toast } from '@/components/common/Toast';
 import { useAuthStore } from '@/store/authStore';
 import api, { saveToken } from '@/lib/api';
 import { queryRetryDelay, shouldRetryQuery } from '@/lib/queryPolicy';
+import { useUIStore } from '@/store/uiStore';
 
 function AuthSync() {
   const { data: session, status } = useSession();
@@ -15,6 +16,7 @@ function AuthSync() {
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
       const accessToken = (session.user as { accessToken?: string }).accessToken;
+      if (accessToken) saveToken(accessToken);
       if (accessToken && (!isAuthenticated || !useAuthStore.getState().user?.name)) {
         saveToken(accessToken);
         const role = (session.user as { role?: string }).role || 'customer';
@@ -28,7 +30,7 @@ function AuthSync() {
               role,
             }, accessToken);
           })
-          .catch(() => { void logout(); });
+          .catch(() => { useUIStore.getState().showToast('Your profile could not be refreshed. Check your connection and reload the page.', 'error'); });
       }
     } else if (status === 'unauthenticated' && isAuthenticated) {
       void logout();

@@ -26,3 +26,10 @@ export const analyticsQueryOptions = {
   refetchIntervalInBackground: false,
   staleTime: ANALYTICS_SYNC_MS,
 } as const;
+
+/** Customer order tracking remains useful when sockets cannot connect. */
+export const orderQueryOptions = {
+  refetchInterval: 30_000,
+  refetchIntervalInBackground: false,
+  staleTime: 10_000,
+} as const;

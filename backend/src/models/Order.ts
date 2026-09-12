@@ -14,6 +14,8 @@ const AddressSchema = new Schema({
 });
 
 const OrderItemSchema = new Schema({
+  name: String,
+  image: String,
   product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   variant: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
@@ -36,6 +38,9 @@ const OrderSchema = new Schema<IOrder>(
   {
     orderId: { type: String, required: true, unique: true },
     customer: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
+    checkoutId: String,
+    checkoutFingerprint: { type: String, select: false },
+    paymentAttemptedAt: Date,
     items: [OrderItemSchema],
     shippingAddress: { type: AddressSchema, required: true },
     paymentMethod: { type: String, enum: ['online', 'cod'], required: true },
@@ -63,10 +68,11 @@ const OrderSchema = new Schema<IOrder>(
     invoiceUrl: String,
     notes: String,
   },
-  { timestamps: true, toJSON: { virtuals: true } }
+  { timestamps: true, optimisticConcurrency: true, toJSON: { virtuals: true } }
 );
 
 OrderSchema.index({ customer: 1, createdAt: -1 });
+OrderSchema.index({ customer: 1, checkoutId: 1 }, { unique: true, partialFilterExpression: { checkoutId: { $type: 'string' } } });
 OrderSchema.index({ orderStatus: 1, createdAt: -1 });
 OrderSchema.index({ paymentStatus: 1, createdAt: -1 });
 OrderSchema.index({ razorpayOrderId: 1 }, { unique: true, sparse: true });

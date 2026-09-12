@@ -16,6 +16,10 @@ interface RevenueChartProps {
   isError?: boolean;
   /** Invoked by the "Retry" button shown in the error state. */
   onRetry?: () => void;
+  /** Heading rendered inside the card. Omit when the page supplies its own. */
+  title?: string;
+  /** One line stating what the series actually count. */
+  description?: string;
 }
 
 const CustomTooltip = memo(function CustomTooltip({
@@ -24,12 +28,12 @@ const CustomTooltip = memo(function CustomTooltip({
   if (!active || !payload?.length) return null;
   return (
     <div className="glass rounded-xl p-3 border border-white/[0.08] text-sm">
-      <p className="text-white/60 mb-1">{label}</p>
+      <p className="text-secondary mb-1">{label}</p>
       {payload.map((p) => (
         <p key={p.name} className="font-semibold text-white">
           {p.name === 'revenue' ? '₹' : ''}
           {p.value.toLocaleString('en-IN')}
-          <span className="text-white/40 font-normal ml-1">{p.name}</span>
+          <span className="text-muted font-normal ml-1">{p.name}</span>
         </p>
       ))}
     </div>
@@ -38,36 +42,41 @@ const CustomTooltip = memo(function CustomTooltip({
 
 // Gradient IDs are stable strings — no recreation risk
 const CHART_MARGINS = { top: 5, right: 5, left: 0, bottom: 5 };
-const X_TICK = { fill: 'rgba(255,255,255,0.4)', fontSize: 11 };
-const Y_TICK = { fill: 'rgba(255,255,255,0.4)', fontSize: 11 };
+const X_TICK = { fill: 'rgba(255,255,255,0.65)', fontSize: 11 };
+const Y_TICK = { fill: 'rgba(255,255,255,0.65)', fontSize: 11 };
 
 export const RevenueChart = memo(function RevenueChart({
-  data, isLoading, isError, onRetry,
+  data, isLoading, isError, onRetry, title, description,
 }: RevenueChartProps) {
   return (
     <div className="glass rounded-2xl p-6 border border-white/5">
-      <h3 className="font-syne font-semibold text-white mb-6">Revenue Overview</h3>
+      {(title || description) && (
+        <div className="mb-6">
+          {title && <h3 className="font-outfit font-semibold text-white">{title}</h3>}
+          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+        </div>
+      )}
       {isLoading ? (
         <div className="w-full h-[260px] rounded-xl skeleton" aria-hidden="true" />
       ) : isError ? (
-        <div className="flex flex-col items-center justify-center gap-3 h-[260px] text-center">
-          <LineChart size={28} className="text-white/20" aria-hidden="true" />
-          <p className="text-sm text-white/40">Failed to load revenue data</p>
+        <div className="flex h-[260px] flex-col items-center justify-center gap-3 text-center" role="alert">
+          <LineChart size={28} className="text-white/25" aria-hidden="true" />
+          <p className="text-sm text-red-300">Revenue data could not be loaded.</p>
           {onRetry && (
             <button
               type="button"
               onClick={onRetry}
-              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white"
+              className="btn-secondary min-h-11"
             >
-              <RotateCw size={12} aria-hidden="true" />
-              Retry
+              <RotateCw size={14} aria-hidden="true" />
+              Try again
             </button>
           )}
         </div>
       ) : data.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 h-[260px] text-center">
           <LineChart size={28} className="text-white/20" aria-hidden="true" />
-          <p className="text-sm text-white/40">No revenue data for this period</p>
+          <p className="text-sm text-secondary">No paid orders in this period.</p>
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={260}>

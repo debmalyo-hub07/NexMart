@@ -4,6 +4,7 @@ import { z } from 'zod';
 // { items: [{ product, variant, quantity }] }. (The original schema expected a
 // bare array, which the frontend never sends — every login merge 400'd.)
 export const cartMergeSchema = z.object({
+  fromSession: z.boolean().optional(),
   items: z.array(z.object({
     product: z.string(),
     variant: z.string(),

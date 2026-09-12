@@ -1,7 +1,8 @@
 'use client';
 
 import { memo } from 'react';
-import { LucideIcon, RotateCw } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, LucideIcon, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StatsCardProps {
@@ -19,6 +20,15 @@ interface StatsCardProps {
   isError?: boolean;
   /** Invoked by the "Retry" button shown in the error state. */
   onRetry?: () => void;
+  /**
+   * What the number actually covers. Operators compare these tiles against
+   * analytics, so a tile whose scope is not stated invites a false reading.
+   */
+  hint?: string;
+  /** Where this metric is worked on — turns the tile into a shortcut. */
+  href?: string;
+  /** Link text; defaults to "View". */
+  hrefLabel?: string;
 }
 
 const colorMap = {
@@ -30,7 +40,7 @@ const colorMap = {
 
 export const StatsCard = memo(function StatsCard({
   title, value, icon: Icon, color = 'violet', prefix = '', suffix = '',
-  isLoading, isError, onRetry,
+  isLoading, isError, onRetry, hint, href, hrefLabel = 'View',
 }: StatsCardProps) {
   const colors = colorMap[color];
   const formattedValue = typeof value === 'number' ? value.toLocaleString('en-IN') : value;
@@ -47,22 +57,31 @@ export const StatsCard = memo(function StatsCard({
           <button
             type="button"
             onClick={onRetry}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-white/5 hover:text-white"
           >
             <RotateCw size={12} aria-hidden="true" />
             Retry
           </button>
         )}
       </div>
-      <p className="text-sm text-white/50 mb-1">{title}</p>
+      <p className="text-sm text-secondary mb-1">{title}</p>
       {isError ? (
-        <p className="font-syne text-2xl font-bold text-white/30">—</p>
+        <p className="font-outfit text-2xl font-bold text-muted">—</p>
       ) : isLoading || value === undefined ? (
         <div className="h-8 w-24 rounded-lg skeleton" aria-hidden="true" />
       ) : (
-        <p className={cn('font-syne text-2xl font-bold', colors.text)}>
+        <p className={cn('font-outfit text-2xl font-bold tabular-nums', colors.text)}>
           {prefix}{formattedValue}{suffix}
         </p>
+      )}
+      {hint && <p className="mt-1.5 text-xs leading-relaxed text-muted">{hint}</p>}
+      {href && (
+        <Link
+          href={href}
+          className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm text-violet-300 transition-colors hover:text-violet-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+        >
+          {hrefLabel} <ArrowRight size={14} aria-hidden />
+        </Link>
       )}
     </div>
   );

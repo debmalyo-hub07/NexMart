@@ -5,6 +5,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-13 — product experience polish (audit-driven consolidation)
+
+Full-platform audit covering documentation, frontend architecture (50+ components, 25+ routes), backend architecture (11 route modules, 91 tests), design tokens, accessibility, trust integrity, and responsive behavior. Baseline: 31 frontend tests passing, 91 backend tests passing, 0 lint errors, zero fabricated data.
+
+### WCAG border contrast
+- Upgraded `border-white/10` → `border-white/15` across Overlay, About, Help, Delivery Dashboard, and AssignmentCard for WCAG 2.2 AA 3:1 non-text contrast compliance.
+- Upgraded `border-white/5` → `border-white/10` on admin top products panel.
+
+### Error page quality
+- `error.tsx`: heading `<h2>` → `<h1>`, added `role="alert"`, improved copy from vague "Something went wrong" to specific "This page could not be loaded", replaced hand-rolled button with `.btn-secondary`, added `flex-wrap`.
+- `global-error.tsx`: heading `<h2>` → `<h1>`, added `role="alert"`.
+- `not-found.tsx`: added `aria-hidden` to decorative icons, added `flex-wrap`.
+
+### Page layout standardization
+- About and Help pages: replaced custom `pt-[calc(var(--navbar-height)+Xrem)]` with standard `.store-page` class.
+
+### UX copy accuracy
+- Admin dashboard: corrected "refreshed about once a minute" to "refreshed automatically while this tab is open" (actual polling is 10–15s).
+
+### Commerce UX polish
+- PDP: quantity stepper hidden when selected variant has zero stock (Add to Cart remains visible but disabled).
+- Product gallery: added touch swipe and keyboard ArrowLeft/ArrowRight navigation to the enlarged lightbox modal.
+
+### Accessibility improvements
+- Delivery AssignmentCard: added order-specific `aria-label` to Call/Directions links, added `(opens in Maps)` screen-reader indicator.
+- Admin dashboard: added `aria-label="Rank N"` to top product rank badges.
+
+**Verification:** 31 frontend tests passed, 0 lint errors, production build clean. 12 files modified, 0 backend changes.
+
+---
+
+## 2026-09-12 — product experience consolidation, waves 6–9 (operations & field)
+
+Completes the consolidation plan (`docs/superpowers/plans/2026-09-11-product-experience-consolidation.md`). Waves 1–5 (foundations, navigation/home, discovery, purchase/payment recovery, trust/account/orders) were already implemented in the working tree; this entry covers the store-operations and delivery waves, then the accessibility, browser and documentation gates for the whole effort.
+
+**One state machine, mirrored rather than re-guessed:**
+
+- New `frontend/src/lib/orderStatus.ts` mirrors the backend's `ALLOWED_ORDER_TRANSITIONS` and derives what each role may actually do next. A unit test parses the backend source and asserts the two graphs are identical, so a change to the server machine fails the frontend suite instead of reaching an operator as a dropdown of 400s.
+- **Admin orders** previously offered all eight statuses on every row — most of them illegal for that row and rejected by the server. The control now offers only the legal next transitions, labelled as actions ("Confirm order", "Mark out for delivery"). Cancel and return, which move stock and money, require a confirmation naming the consequence.
+- **Delivery** replaces the generic status dropdown (which listed `assigned`, a display-only value the API rejects, and allowed skipping stages) with the one legal next action as a 48px button, plus confirmation on the two actions that settle payment or stock.
+
+**Honest operator data:**
+
+- The dashboard's revenue tile summed *every* order — paid, unpaid and cancelled — while the chart beside it counted only received payments, so the two disagreed with no explanation. The tile is now "Order value, all orders" with its scope stated and a link to paid revenue in Analytics; every tile states what it counts, and the queue that needs work leads the grid. The reference clock moved below the operational content.
+- `AnalyticsSummary` replaces `as any` on the analytics payload (admin dashboard and analytics page).
+- A failed product fetch rendered "Product not found" — an invitation to recreate a product that already exists. Failure and absence are now distinct states. Same fix for the category manager and the agent profile, where a failed load silently fell back to session data (including approval status).
+
+**Field readiness (delivery):**
+
+- Assignments render as task cards: full address (never clamped), tap-to-call, "Directions" via a maps deep link, and the amount to collect stated as an instruction for cash orders rather than a payment status. Finished deliveries collapse below the active ones.
+- A lost response is no longer reported as a failure: `isUncertainError` distinguishes "no answer" from "rejected", and the agent is told the update may have gone through, with the list refreshed, instead of being invited to repeat an action that may already have applied.
+- The offline notice now mounts in the delivery and admin layouts, not only the storefront.
+
+**Backend contracts (isolated regression tests, 82 → 91):**
+
+- `assignDeliveryAgent` could drag a delivered or cancelled order back to `shipped`, and re-assigning an order already out for delivery showed the customer a backwards jump. It now respects the shared transition graph, keeps a dispatched order's status while still recording the new assignment, and emits a status update only when the status genuinely changed.
+- The same handler wrote the order first and the assignment second, so a failed assignment write left an order marked shipped that no agent had been given. The assignment is now written first.
+- Repeating a delivery status (double tap, or a retry after a lost response) rewrote `pickedAt`/`deliveredAt`. Milestones are now recorded once; `attemptedAt` still tracks the latest attempt, because each attempt is a real new event.
+
+**Accessibility:**
+
+- **Focus never returned to the trigger after closing an overlay** — it dropped to `<body>`, on every dialog and drawer in the app. `Overlay`'s hand-rolled handler cancelled Radix's own restoration and then focused a reference captured after focus had already moved inside. The trigger is now tracked while the surface is closed, and the search field is focused through an `initialFocus` prop rather than a native `autoFocus` that pre-empted the bookkeeping. Verified: focus returns to the trigger on both the pointer and keyboard paths.
+- Table rows were expanded by clicking a `<tr>` — unreachable by keyboard or screen reader. `DataTable` now owns one labelled disclosure button per row ("Show order details for NEX-1042"), declared at module scope so toggling cannot remount it and steal focus. Sortable columns exist only in the desktop table, so narrow screens gained a sort control; pagination buttons gained labels and 44px targets.
+- `plugin:jsx-a11y/recommended` is now in the lint config, so CI enforces this. It surfaced 16 issues: seven unassociated form labels (fixed), two `autoFocus` uses inside deliberately-opened overlays (one removed, one documented), and six false positives from an `AuthForm` prop named `role`, which collided with the ARIA attribute — renamed to `portal`.
+- Contrast: an interactive link at `text-white/25`, chart axis labels at `white/40`, and the sort affordance raised to meet the §2.1 floors.
+
+**Verification.** Frontend: production build, 31 vitest tests (19 → 31), 0 lint errors/warnings with jsx-a11y enabled. Backend: `tsc`, 91 vitest tests (82 → 91), 0 lint errors. Browser (Chromium, built app): **192 route×width combinations across all 12 required widths — zero horizontal overflow, zero page errors**; reduced-motion renders no infinite animations and no WebGL canvas; 24/24 tabbed elements show a visible focus indicator; skip link reaches `#main-content`. The API was deliberately unreachable during the sweep, which confirmed the retry policy resolves to an honest error state (~13s) on the storefront rather than a fake empty one. Harnesses: `frontend/scripts/responsive-audit.cjs`, `frontend/scripts/a11y-audit.cjs`.
+
+**Not done / carried forward.** No live end-to-end run against a running backend (no local API or test database was started, per the plan's read-only constraint), so the new admin/delivery flows are verified by unit tests, types and static browser QA rather than a real order lifecycle. WebKit and Firefox engines are not installed locally; only Chromium was exercised. No field performance data — LCP/INP numbers would need a real deployment.
+
+---
+
 ## 2026-09-11 — stabilization review of the responsive/motion/reliability wave
 
 A quality review of the uncommitted responsive-motion-reliability working set (37 files + 8 new) found defects the wave's own verification gates missed; all fixed and live-verified. Plan: `docs/superpowers/plans/2026-09-10-responsive-motion-stabilization.md`.

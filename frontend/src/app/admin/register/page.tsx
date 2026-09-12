@@ -6,7 +6,7 @@ export default function AdminRegister() {
   return (
     <AuthForm
       type="register"
-      role="admin"
+      portal="admin"
       title="Admin Registration"
       submitText="Register as Admin"
       linkText="Already have an account? Admin Login"
