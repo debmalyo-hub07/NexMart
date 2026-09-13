@@ -32,6 +32,12 @@ export interface ICustomer extends Document {
   // OTP flow
   otp?: string;
   otpExpiry?: Date;
+  // Password reset — code stored hashed, never plaintext
+  resetOtpHash?: string;
+  resetOtpExpiry?: Date;
+  resetOtpAttempts?: number;
+  /** Any session issued before this instant is rejected (reset / sign-out-everywhere). */
+  credentialsChangedAt?: Date;
   createdAt: Date;
 }
 
@@ -69,6 +75,11 @@ const CustomerSchema = new Schema<ICustomer>(
     // OTP
     otp: { type: String },
     otpExpiry: { type: Date },
+    // Reset codes are select:false — they must never ride along on a profile read.
+    resetOtpHash: { type: String, select: false },
+    resetOtpExpiry: { type: Date, select: false },
+    resetOtpAttempts: { type: Number, default: 0, select: false },
+    credentialsChangedAt: { type: Date },
   },
   { timestamps: true }
 );

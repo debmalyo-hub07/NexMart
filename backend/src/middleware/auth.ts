@@ -75,6 +75,17 @@ export const protectCustomer = async (req: Request, res: Response, next: NextFun
     // tokens live 7 days, so the check has to happen per request.
     if (!customer.isActive) return sendForbidden(res, 'Your account has been suspended. Please contact support.');
 
+    // A password reset or an explicit "sign out everywhere" stamps
+    // credentialsChangedAt. Every token minted before that instant dies here —
+    // without this, an attacker holding a live session keeps it through the
+    // victim's reset, which would make the reset security-theatre.
+    if (customer.credentialsChangedAt && typeof decoded.iat === 'number') {
+      const issuedAtMs = decoded.iat * 1000;
+      if (issuedAtMs < customer.credentialsChangedAt.getTime()) {
+        return sendUnauthorized(res, 'Session expired. Please login again.');
+      }
+    }
+
     (req as any).user = { id: customer.id, role: customer.role, ...decoded, userId: customer.id };
     next();
   } catch {
