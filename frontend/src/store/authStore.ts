@@ -142,9 +142,15 @@ export const useAuthStore = create<AuthState>()(
           if (data.data) {
             set((state) => ({ user: { ...state.user!, ...data.data } }));
           }
-        } catch {
-          set({ user: null, token: null, isAuthenticated: false });
-          clearToken();
+        } catch (error) {
+          // Only a rejected identity clears the session. A timeout, a 5xx or an
+          // offline moment must not read as a logout — the axios interceptor
+          // already handles a real 401 by routing to the login page.
+          const status = (error as { response?: { status?: number } })?.response?.status;
+          if (status === 401 || status === 403) {
+            set({ user: null, token: null, isAuthenticated: false });
+            clearToken();
+          }
         }
       },
 

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { Logo } from '@/components/common/Logo';
+import { OtpInput } from '@/components/auth/OtpInput';
 import { Loader2, CheckCircle, Mail } from 'lucide-react';
 
 function VerifyOtpContent() {
@@ -18,37 +19,12 @@ function VerifyOtpContent() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  useEffect(() => { inputRefs.current[0]?.focus(); }, []);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [resendCooldown]);
-
-  const handleChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return;
-    const next = [...otp];
-    next[index] = value.slice(-1);
-    setOtp(next);
-    if (value && index < 5) inputRefs.current[index + 1]?.focus();
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length === 6) {
-      setOtp(pasted.split(''));
-      inputRefs.current[5]?.focus();
-    }
-  };
 
   const handleVerify = async () => {
     const code = otp.join('');
@@ -74,7 +50,6 @@ function VerifyOtpContent() {
       await api.post('/customer/auth/resend-otp', { email });
       setResendCooldown(60);
       setOtp(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to resend. Please try again.');
     } finally {
@@ -110,7 +85,7 @@ function VerifyOtpContent() {
               </div>
               <h1 className="text-xl font-bold text-white font-outfit mb-2">Check your email</h1>
               <p className="text-sm text-muted leading-relaxed">
-                We sent a 6-digit verification code to<br />
+                If that address is eligible, we sent a 6-digit code to<br />
                 <span className="text-violet-400 font-medium">{email}</span>
               </p>
             </div>
@@ -122,26 +97,7 @@ function VerifyOtpContent() {
               </div>
             )}
 
-            {/* OTP boxes */}
-            <div className="flex gap-2 justify-center mb-6" onPaste={handlePaste}>
-              {otp.map((digit, i) => (
-                <input
-                  key={i}
-                  ref={(el) => { inputRefs.current[i] = el; }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  aria-label={`Verification digit ${i + 1}`}
-                  autoComplete={i === 0 ? 'one-time-code' : 'off'}
-                  value={digit}
-                  onChange={(e) => handleChange(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  suppressHydrationWarning
-                  className="h-[52px] w-11 text-center text-xl font-bold text-white bg-black/50 border border-white/10 rounded-xl focus-visible:outline-none focus-visible:border-violet-500/60 focus-visible:ring-2 focus-visible:ring-violet-500/30 transition-[border-color,box-shadow]"
-                  style={{ height: '52px' }}
-                />
-              ))}
-            </div>
+            <OtpInput value={otp} onChange={setOtp} disabled={loading} />
 
             {/* Verify button */}
             <button

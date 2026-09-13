@@ -18,11 +18,6 @@ export default function CustomerRegister() {
         { name: 'email', label: 'Email Address', type: 'email' },
         { name: 'password', label: 'Password', type: 'password' },
         { name: 'confirmPassword', label: 'Confirm Password', type: 'password' },
-        { name: 'address', label: 'Address', type: 'text' },
-        { name: 'city', label: 'City', type: 'text' },
-        { name: 'phone', label: 'Phone (10-digit mobile)', type: 'tel' },
-        { name: 'state', label: 'State', type: 'text' },
-        { name: 'pincode', label: 'Pincode', type: 'text' },
       ]}
     />
   );

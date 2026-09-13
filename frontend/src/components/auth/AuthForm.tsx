@@ -45,11 +45,19 @@ function autocompleteForField(field: Field, formType: AuthFormProps['type']): st
 }
 
 // Validation rules per field, derived from the fields prop
-const fieldSchema = (field: Field): z.ZodString => {
+const fieldSchema = (field: Field, formType: AuthFormProps['type']): z.ZodString => {
   if (field.name === 'email') return z.string().min(1, 'Enter your email').email('Enter a valid email address');
   if (field.type === 'password') {
     if (field.name === 'confirmPassword') return z.string().min(1, 'Confirm your password');
-    return z.string().min(8, 'Password must be at least 8 characters');
+    // Strength is enforced on REGISTER only. On login the rule must stay
+    // "not empty": an account whose password predates the policy still has to
+    // be able to sign in — and be told by the server, not blocked by the form.
+    if (formType === 'login') return z.string().min(1, 'Enter your password');
+    // Same policy the backend enforces (utils/validation.ts) — a weaker rule
+    // here would let a signup fail server-side after the form said it was fine.
+    return z.string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number');
   }
   if (field.name === 'phone') return z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number');
   if (field.name === 'pincode') return z.string().regex(/^\d{6}$/, 'Enter a valid 6-digit pincode');
@@ -61,11 +69,11 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
   const { showToast } = useUIStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
 
   // Build the zod schema dynamically from the fields prop
   const schema = useMemo(() => {
-    const shape = Object.fromEntries(fields.map((f) => [f.name, fieldSchema(f)] as [string, z.ZodString]));
+    const shape = Object.fromEntries(fields.map((f) => [f.name, fieldSchema(f, type)] as [string, z.ZodString]));
     const base = z.object(shape);
     return type === 'register'
       ? base.refine((values) => values.password === values.confirmPassword, {
@@ -104,13 +112,15 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
       if (type === 'register') {
         const res = await api.post(`/${portal}/auth/register`, values);
         if (res.data.success) {
-          showToast(res.data.message);
-
-          // Customer registration requires OTP verification before login
-          if (portal === 'customer' && res.data.data?.requiresOtp) {
-            const email = encodeURIComponent(res.data.data.email || values.email);
-            router.push(`/customer/verify-otp?email=${email}`);
+          if (portal === 'customer') {
+            // The backend answers registration with a deliberately opaque 202 on
+            // every existence branch, so `requiresOtp` can never honestly say
+            // whether a code was sent. Always route to the code screen — its
+            // copy is true whether the address was new, already pending (which
+            // really did just receive a code), or already taken.
+            router.push(`/customer/verify-otp?email=${encodeURIComponent(values.email)}`);
           } else {
+            showToast(res.data.message);
             router.push(redirectUrl);
           }
         }
@@ -161,7 +171,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
             <span className="font-outfit font-bold text-2xl text-white tracking-tight">NexMart</span>
           </Link>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-2 font-outfit">{title}</h1>
-          <p className="text-sm text-muted font-inter">{type === 'login' ? 'Welcome back to your workspace' : 'Join the next-gen platform'}</p>
+          <p className="text-sm text-muted font-inter">{type === 'login' ? 'Sign in to your NexMart account' : 'Create your NexMart account'}</p>
         </div>
 
         {error && (
@@ -178,7 +188,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
                 <input
                   id={`auth-${field.name}`}
                   suppressHydrationWarning
-                  type={field.type === 'password' && showPassword ? 'text' : field.type}
+                  type={field.type === 'password' && visibleFields[field.name] ? 'text' : field.type}
                   {...register(field.name)}
                   autoComplete={autocompleteForField(field, type)}
                   aria-invalid={errors[field.name] ? 'true' : 'false'}
@@ -189,12 +199,12 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
                 {field.type === 'password' && (
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    aria-pressed={showPassword}
+                    onClick={() => setVisibleFields((prev) => ({ ...prev, [field.name]: !prev[field.name] }))}
+                    aria-label={visibleFields[field.name] ? `Hide ${field.label.toLowerCase()}` : `Show ${field.label.toLowerCase()}`}
+                    aria-pressed={!!visibleFields[field.name]}
                     className="absolute right-2 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-muted transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
                   >
-                    {showPassword ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+                    {visibleFields[field.name] ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
                   </button>
                 )}
               </div>
@@ -216,6 +226,14 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
             </span>
           </button>
         </form>
+
+        {type === 'login' && portal === 'customer' && (
+          <div className="mt-4 text-center">
+            <Link href="/customer/forgot-password" className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 font-inter text-sm text-secondary transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60">
+              Forgot your password?
+            </Link>
+          </div>
+        )}
 
         {showGoogle && (
           <>

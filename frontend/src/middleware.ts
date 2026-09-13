@@ -116,6 +116,15 @@ export default auth((req) => {
     }
   }
 
+  // Password recovery must stay reachable for signed-out visitors, exactly
+  // like verify-otp. Signed-in customers are sent to their account instead.
+  if (pathname.startsWith('/customer/forgot-password') || pathname.startsWith('/customer/reset-password')) {
+    if (isAuthenticated && role === 'customer') {
+      return NextResponse.redirect(new URL('/profile', req.url));
+    }
+    return NextResponse.next();
+  }
+
   // Redirect auth paths away if logged in; allow verify-otp always (needed before login)
   if (pathname.startsWith('/customer/verify-otp')) {
     return NextResponse.next(); // always allow — needed for post-registration email verification
