@@ -5,13 +5,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const findCustomer = vi.hoisted(() => vi.fn());
 const createCustomer = vi.hoisted(() => vi.fn());
+const updateCustomer = vi.hoisted(() => vi.fn());
 const findAdmin = vi.hoisted(() => vi.fn());
 const findAgent = vi.hoisted(() => vi.fn());
 const verifyToken = vi.hoisted(() => vi.fn());
 const generateToken = vi.hoisted(() => vi.fn());
 
 vi.mock('../../models/Customer', () => ({
-  Customer: { findOne: findCustomer, create: createCustomer },
+  Customer: { findOne: findCustomer, create: createCustomer, updateOne: updateCustomer },
 }));
 vi.mock('../../models/Admin', () => ({ Admin: { findOne: findAdmin } }));
 vi.mock('../../models/DeliveryAgent', () => ({ DeliveryAgent: { findOne: findAgent } }));
@@ -89,7 +90,7 @@ describe('googleAuthCallback (audit §3.1: server-side verification)', () => {
     verifyToken.mockResolvedValue({ googleId: 'g1', email: 'real@x.com', emailVerified: true, name: 'Real', picture: 'pic' });
     const customer = {
       _id: 'c1', email: 'real@x.com', name: 'Real', role: 'customer',
-      googleId: 'g1', isActive: true, save: vi.fn(),
+      googleId: 'g1', isActive: true, authProviders: ['email', 'google'], save: vi.fn(),
     };
     findCustomer.mockResolvedValue(customer);
     generateToken.mockReturnValue('jwt-token');
@@ -104,6 +105,28 @@ describe('googleAuthCallback (audit §3.1: server-side verification)', () => {
       })
     );
     expect(verifyToken).toHaveBeenCalledWith('good.jwt');
+    // Already recorded — nothing to repair.
+    expect(updateCustomer).not.toHaveBeenCalled();
+  });
+
+  it('records the google provider when linking an email account', async () => {
+    verifyToken.mockResolvedValue({ googleId: 'g9', email: 'linkme@x.com', emailVerified: true, name: 'Link', picture: '' });
+    const customer = {
+      _id: 'c9', email: 'linkme@x.com', name: 'Link', role: 'customer',
+      isActive: true, authProviders: ['email'], save: vi.fn(),
+    };
+    findCustomer.mockResolvedValue(customer);
+    generateToken.mockReturnValue('jwt-link');
+
+    const res = makeRes();
+    await googleAuthCallback(makeReq({ idToken: 'good.jwt' }), res);
+
+    // authProviders drives the account security screen — linking must record
+    // the provider or the screen tells the customer they have no Google sign-in.
+    expect(updateCustomer).toHaveBeenCalledWith(
+      { _id: 'c9' },
+      { $addToSet: { authProviders: 'google' } },
+    );
   });
 
   it('creates a customer for a brand-new verified Google identity', async () => {

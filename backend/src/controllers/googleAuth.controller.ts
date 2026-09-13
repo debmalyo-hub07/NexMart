@@ -80,6 +80,14 @@ export const googleAuthCallback = async (req: Request, res: Response) => {
         await customer.save();
       }
 
+      // authProviders is what the account's security screen renders from, so it
+      // has to reflect reality — previously linking set googleId and left the
+      // array saying 'email' only, and the screen told the customer they had no
+      // Google sign-in (and offered them no way to see otherwise).
+      if (!customer.authProviders?.includes('google')) {
+        await Customer.updateOne({ _id: customer._id }, { $addToSet: { authProviders: 'google' } });
+      }
+
       const token = generateToken(
         { id: customer._id, role: 'customer' },
         env.JWT_SECRET_CUSTOMER,

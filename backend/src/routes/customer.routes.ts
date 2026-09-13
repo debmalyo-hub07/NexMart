@@ -15,7 +15,9 @@ import {
   resetPassword,
 } from '../controllers/roleAuth.controller';
 import { getWishlist, addToWishlist, removeFromWishlist } from '../controllers/wishlist.controller';
-import { passwordChangeSchema } from '../utils/validation';
+import { passwordChangeSchema, profileUpdateSchema, setPasswordSchema } from '../utils/validation';
+import { generateResetCode, hashResetCode, RESET_CODE_TTL_MS, RESET_CODE_MAX_ATTEMPTS } from '../utils/resetCode';
+import { sendEmail, buildResetEmail } from '../services/email.service';
 
 const router = Router();
 
@@ -42,16 +44,11 @@ router.get('/profile', async (req: any, res) => {
 });
 
 router.put('/profile', async (req: any, res) => {
-  const { name, phone, gender, address, city } = req.body;
+  // Previously unvalidated — req.body was spread straight into $set.
+  const values = profileUpdateSchema.parse(req.body);
   const customer = await Customer.findByIdAndUpdate(
     req.user.id,
-    { $set: {
-      ...(name && { name }),
-      ...(phone && { phone }),
-      ...(gender && { gender }),
-      ...(address && { address }),
-      ...(city && { city }),
-    }},
+    { $set: values },
     { new: true }
   ).select('-password -otp -otpExpiry');
   res.json({ success: true, data: customer, message: 'Profile updated' });
@@ -76,6 +73,69 @@ router.put('/password', async (req: any, res) => {
   const hashedPassword = await bcrypt.hash(password, 12);
   await Customer.findByIdAndUpdate(req.user.id, { password: hashedPassword });
   res.json({ success: true, message: 'Password updated successfully' });
+});
+
+/**
+ * Ask for a code to set a FIRST password. Only reachable by an authenticated
+ * customer, so there is nothing to enumerate — but an account that already has
+ * a password must use the current-password route instead, which proves
+ * ownership without needing the inbox.
+ */
+router.post('/set-password/request', otpLimit, async (req: any, res) => {
+  const customer = await Customer.findById(req.user.id);
+  if (!customer) return res.status(404).json({ success: false, message: 'Account not found' });
+  if (customer.password) {
+    return res.status(409).json({ success: false, message: 'This account already has a password. Change it from your security settings.' });
+  }
+
+  const code = generateResetCode();
+  await Customer.findByIdAndUpdate(customer._id, {
+    $set: { resetOtpHash: hashResetCode(code), resetOtpExpiry: new Date(Date.now() + RESET_CODE_TTL_MS), resetOtpAttempts: 0 },
+  });
+  try {
+    await sendEmail({ to: customer.email, subject: 'NexMart — Set your password', html: buildResetEmail(customer.name, code) });
+  } catch (emailErr: unknown) {
+    console.error('[SetPassword] SMTP failed:', emailErr instanceof Error ? emailErr.message : String(emailErr));
+  }
+  res.status(202).json({ success: true, message: 'If your account can take a password, we have sent a code.', data: null });
+});
+
+/** Complete the first-password flow with the emailed code. */
+router.post('/set-password', async (req: any, res) => {
+  const { otp, password } = setPasswordSchema.parse(req.body);
+  const customer = await Customer.findById(req.user.id).select('+resetOtpHash +resetOtpExpiry +resetOtpAttempts');
+  if (!customer) return res.status(404).json({ success: false, message: 'Account not found' });
+  if (customer.password) {
+    return res.status(409).json({ success: false, message: 'This account already has a password.' });
+  }
+
+  const fail = () => res.status(400).json({ success: false, message: 'Unable to set a password with that code. Please request a new one.', data: null });
+  if (!customer.resetOtpHash || !customer.resetOtpExpiry) return fail();
+  if (customer.resetOtpExpiry.getTime() < Date.now()) return fail();
+  if ((customer.resetOtpAttempts ?? 0) >= RESET_CODE_MAX_ATTEMPTS) return fail();
+  if (hashResetCode(otp) !== customer.resetOtpHash) {
+    await Customer.findByIdAndUpdate(customer._id, { $inc: { resetOtpAttempts: 1 } });
+    return fail();
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+  await Customer.findByIdAndUpdate(customer._id, {
+    $set: { password: hashedPassword },
+    $unset: { resetOtpHash: 1, resetOtpExpiry: 1, resetOtpAttempts: 1 },
+    $addToSet: { authProviders: 'email' },
+  });
+  res.json({ success: true, message: 'Password set. You can now sign in with your email too.', data: null });
+});
+
+/**
+ * Sign out everywhere. Stamps credentialsChangedAt, which protectCustomer
+ * checks against each token's mint time — so every session, including this
+ * one, stops working immediately.
+ */
+router.post('/sign-out-everywhere', async (req: any, res) => {
+  await Customer.findByIdAndUpdate(req.user.id, { $set: { credentialsChangedAt: new Date() } });
+  res.clearCookie('nexmart_customer_session', { path: '/' });
+  res.json({ success: true, message: 'Signed out on all devices.', data: null });
 });
 
 router.post('/address', async (req: any, res) => {
