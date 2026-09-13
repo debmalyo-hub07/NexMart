@@ -340,3 +340,30 @@ export async function sendAgentAssignmentEmail(
 </body></html>`,
   });
 }
+
+/** Password-reset code mail. Six digits, 15-minute expiry stated plainly. */
+export function buildResetEmail(name: string, code: string): string {
+  return `
+  <div style="font-family:Arial,Helvetica,sans-serif;background:#050508;padding:32px;color:#ffffff;">
+    <h1 style="font-size:20px;margin:0 0 16px;">Reset your NexMart password</h1>
+    <p style="color:#c9c9d4;margin:0 0 20px;">Hi ${name}, use this code to set a new password. It expires in 15 minutes.</p>
+    <p style="font-size:32px;letter-spacing:10px;font-weight:bold;background:#1a1035;border:1.5px solid #6d28d9;border-radius:10px;padding:16px;text-align:center;margin:0 0 20px;">${code}</p>
+    <p style="color:#9a9aa8;font-size:13px;margin:0;">If you did not ask for this, you can ignore this email &mdash; your password will not change.</p>
+  </div>`;
+}
+
+/**
+ * Sent when a Google-only account asks for a password reset. There is no
+ * password to reset, so the honest answer is "use Google" — delivered by mail,
+ * where only the true owner can read it. The HTTP response stays identical to
+ * every other forgot-password branch.
+ */
+export function buildGoogleOnlyResetEmail(name: string): string {
+  return `
+  <div style="font-family:Arial,Helvetica,sans-serif;background:#050508;padding:32px;color:#ffffff;">
+    <h1 style="font-size:20px;margin:0 0 16px;">Sign in with Google</h1>
+    <p style="color:#c9c9d4;margin:0 0 20px;">Hi ${name}, your NexMart account signs in with Google, so it has no password to reset.</p>
+    <p style="color:#c9c9d4;margin:0 0 20px;">Use &ldquo;Continue with Google&rdquo; on the sign-in page. You can add a password afterwards from your account&rsquo;s security settings.</p>
+    <p style="color:#9a9aa8;font-size:13px;margin:0;">If you did not ask for this, you can ignore this email.</p>
+  </div>`;
+}

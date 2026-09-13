@@ -20,3 +20,19 @@ export const passwordChangeSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number'),
 });
+
+// Password reset. The email is the only input on request; the code plus the
+// new password on completion. The strength policy is identical to
+// passwordChangeSchema — one policy, stated once per schema so the messages
+// reach the client through the standard `errors` key.
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
+  otp: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number'),
+});

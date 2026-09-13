@@ -11,6 +11,8 @@ import {
   loginCustomer,
   verifyOtp,
   resendOtp,
+  forgotPassword,
+  resetPassword,
 } from '../controllers/roleAuth.controller';
 import { getWishlist, addToWishlist, removeFromWishlist } from '../controllers/wishlist.controller';
 import { passwordChangeSchema } from '../utils/validation';
@@ -26,6 +28,10 @@ router.post('/auth/login', authLimit, loginCustomer);
 // OTP verification routes (rate-limited with otpLimit — stricter)
 router.post('/auth/verify-otp', otpLimit, verifyOtp);
 router.post('/auth/resend-otp', otpLimit, resendOtp);
+
+// Password recovery — opaque on request, uniform on failure (see controller).
+router.post('/auth/forgot-password', otpLimit, forgotPassword);
+router.post('/auth/reset-password', otpLimit, resetPassword);
 
 // --- Protected Routes ---
 router.use(protectCustomer, checkIP(Customer));

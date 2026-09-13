@@ -6,7 +6,9 @@ import { Customer } from '../models/Customer';
 import { DeliveryAgent } from '../models/DeliveryAgent';
 import { generateToken } from '../middleware/auth';
 import { env } from '../config/env';
-import { sendEmail, buildOtpEmail } from '../services/email.service';
+import { sendEmail, buildOtpEmail, buildResetEmail, buildGoogleOnlyResetEmail } from '../services/email.service';
+import { generateResetCode, hashResetCode, RESET_CODE_TTL_MS, RESET_CODE_MAX_ATTEMPTS } from '../utils/resetCode';
+import { forgotPasswordSchema, resetPasswordSchema } from '../utils/validation';
 import {
   getFailedLoginAttempts,
   incrementFailedLoginAttempts,
@@ -390,7 +392,9 @@ export const loginCustomer = async (req: Request, res: Response) => {
 
   // Block login if email not verified
   if (!customer.emailVerified) {
-    await incrementFailedLoginAttempts(ip);
+    // A correct password on an unverified account is not a failed attempt —
+    // counting it locked legitimate users out of their own signup (the same
+    // reasoning already applied to pending agents in P1-15).
     return res.status(403).json({
       success: false,
       message: 'Please verify your email before logging in. Check your inbox for the OTP.',
@@ -557,4 +561,128 @@ export const loginAgent = async (req: Request, res: Response) => {
       user: { id: agent._id, name: agent.name, email: agent.email, role: agent.role },
     },
   });
+};
+
+// ─── PASSWORD RESET ────────────────────────────────────────────────────────────
+
+/**
+ * POST forgot-password — always 202, whatever the truth is.
+ *
+ * Anti-enumeration (CLAUDE.md §1.3): the rate limit is consumed BEFORE the
+ * lookup so even a 429 cannot prove an address exists, and unknown address,
+ * cross-role address, and Google-only account all answer with the identical
+ * body. Only the true owner — who can read the inbox — experiences the
+ * difference between these branches.
+ */
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, message: 'Enter a valid email address', data: null });
+    return;
+  }
+  const { email } = parsed.data;
+
+  const emailLimit = await otpEmailRateLimiter.limit(email);
+  if (!emailLimit.success) {
+    sendEligibilityPending(res, 'If the address is eligible, we will send a reset code by email.');
+    return;
+  }
+
+  const customer = await Customer.findOne({ email });
+
+  if (!customer || !customer.isActive) {
+    sendEligibilityPending(res, 'If the address is eligible, we will send a reset code by email.');
+    return;
+  }
+
+  if (!customer.password) {
+    // Google-only: no password exists to reset. Tell the owner by mail; the
+    // HTTP response is the same as every other branch.
+    try {
+      await sendEmail({
+        to: email,
+        subject: 'NexMart — Signing in to your account',
+        html: buildGoogleOnlyResetEmail(customer.name),
+      });
+    } catch (emailErr: unknown) {
+      console.error(`[Reset] Google-only notice failed for ${email}:`, emailErr instanceof Error ? emailErr.message : String(emailErr));
+    }
+    sendEligibilityPending(res, 'If the address is eligible, we will send a reset code by email.');
+    return;
+  }
+
+  const code = generateResetCode();
+  await Customer.findByIdAndUpdate(customer._id, {
+    $set: {
+      resetOtpHash: hashResetCode(code),
+      resetOtpExpiry: new Date(Date.now() + RESET_CODE_TTL_MS),
+      resetOtpAttempts: 0,
+    },
+  });
+
+  try {
+    await sendEmail({
+      to: email,
+      subject: 'NexMart — Reset your password',
+      html: buildResetEmail(customer.name, code),
+    });
+  } catch (emailErr: unknown) {
+    console.error(`[Reset] SMTP failed for ${email}:`, emailErr instanceof Error ? emailErr.message : String(emailErr));
+  }
+
+  sendEligibilityPending(res, 'If the address is eligible, we will send a reset code by email.');
+};
+
+/**
+ * POST reset-password — one uniform 400 for every miss.
+ *
+ * Unknown address, wrong code, expired code and a burnt code are
+ * indistinguishable. On success the password is replaced and
+ * credentialsChangedAt is stamped, which kills every session issued earlier.
+ */
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const errors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+    res.status(400).json({ success: false, message: 'Check the code and your new password.', code: 'VALIDATION_ERROR', errors, data: null });
+    return;
+  }
+  const { email, otp, password } = parsed.data;
+
+  const fail = (): void => {
+    res.status(400).json({
+      success: false,
+      message: 'Unable to reset with that code. Please request a new one.',
+      data: null,
+    });
+  };
+
+  const customer = await Customer.findOne({ email }).select('+resetOtpHash +resetOtpExpiry +resetOtpAttempts');
+
+  // Timing parity: hash on every path, present or absent.
+  const presented = hashResetCode(otp);
+
+  if (!customer || !customer.resetOtpHash || !customer.resetOtpExpiry || !customer.isActive) { fail(); return; }
+  if (customer.resetOtpExpiry.getTime() < Date.now()) { fail(); return; }
+  if ((customer.resetOtpAttempts ?? 0) >= RESET_CODE_MAX_ATTEMPTS) { fail(); return; }
+
+  if (presented !== customer.resetOtpHash) {
+    await Customer.findByIdAndUpdate(customer._id, { $inc: { resetOtpAttempts: 1 } });
+    fail();
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+  await Customer.findByIdAndUpdate(customer._id, {
+    $set: {
+      password: hashedPassword,
+      // A reset proves control of the inbox, which is what verification asks.
+      emailVerified: true,
+      credentialsChangedAt: new Date(),
+    },
+    $unset: { resetOtpHash: 1, resetOtpExpiry: 1, resetOtpAttempts: 1 },
+    $addToSet: { authProviders: 'email' },
+  });
+
+  res.json({ success: true, message: 'Password updated. Sign in with your new password.', data: null });
 };

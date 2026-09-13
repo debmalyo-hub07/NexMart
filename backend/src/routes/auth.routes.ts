@@ -11,7 +11,9 @@ import {
   verifyOtp,
   resendOtp,
   registerAgent,
-  loginAgent
+  loginAgent,
+  forgotPassword,
+  resetPassword
 } from '../controllers/roleAuth.controller';
 
 const router = Router();
@@ -30,6 +32,8 @@ router.post('/customer/login', authLimit, loginCustomer);
 router.post('/customer/register', registerLimit, registerCustomer);
 router.post('/customer/verify-otp', otpLimit, verifyOtp);
 router.post('/customer/resend-otp', otpLimit, resendOtp);
+router.post('/customer/forgot-password', otpLimit, forgotPassword);
+router.post('/customer/reset-password', otpLimit, resetPassword);
 
 router.post('/delivery/login', authLimit, loginAgent);
 router.post('/delivery/register', registerLimit, registerAgent);

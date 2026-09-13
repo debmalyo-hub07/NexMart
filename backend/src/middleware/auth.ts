@@ -11,7 +11,13 @@ import { DeliveryAgent } from '../models/DeliveryAgent';
 export function generateToken(payload: any, secret: string, expiresIn: string): string {
   // Every token carries a unique jti so it can be revoked (blacklisted) on logout.
   // Node's built-in randomUUID replaces the uuid package (CVE in <11.1.1).
-  return jwt.sign({ ...payload, jti: randomUUID() }, secret, { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] });
+  //
+  // iatMs is millisecond-precision mint time. The standard `iat` claim is whole
+  // seconds, which cannot be ordered against a sub-second event: a password
+  // reset and the login that follows it land in the same second, and a
+  // second-resolution comparison either keeps the session it was meant to kill
+  // or kills the one it just issued. iatMs removes the ambiguity.
+  return jwt.sign({ ...payload, jti: randomUUID(), iatMs: Date.now() }, secret, { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] });
 }
 
 const getCookieToken = (req: Request, cookieName: string): string | null => {
@@ -79,9 +85,18 @@ export const protectCustomer = async (req: Request, res: Response, next: NextFun
     // credentialsChangedAt. Every token minted before that instant dies here —
     // without this, an attacker holding a live session keeps it through the
     // victim's reset, which would make the reset security-theatre.
-    if (customer.credentialsChangedAt && typeof decoded.iat === 'number') {
-      const issuedAtMs = decoded.iat * 1000;
-      if (issuedAtMs < customer.credentialsChangedAt.getTime()) {
+    //
+    // iatMs (see generateToken) is used rather than the standard `iat` because
+    // a reset and the login that follows it occur within the same second, and
+    // whole-second precision cannot order them. Tokens minted before this
+    // claim existed fall back to `iat`, which is correct for them: they are
+    // necessarily older than any subsequent credential change.
+    if (customer.credentialsChangedAt) {
+      const changedAtMs = customer.credentialsChangedAt.getTime();
+      const mintedAtMs = typeof decoded.iatMs === 'number'
+        ? decoded.iatMs
+        : typeof decoded.iat === 'number' ? decoded.iat * 1000 : undefined;
+      if (mintedAtMs !== undefined && mintedAtMs < changedAtMs) {
         return sendUnauthorized(res, 'Session expired. Please login again.');
       }
     }
