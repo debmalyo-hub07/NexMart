@@ -106,7 +106,7 @@ export function generateNumericOtp(length = 6): string {
 }
 
 /**
- * Mask an email for logs: debmalyobarman2003@gmail.com → deb***@gmail.com
+ * Mask an email for logs: user@example.com → use***@example.com
  * Emails are PII — they never appear in full in log output.
  */
 export function maskEmail(email: string): string {

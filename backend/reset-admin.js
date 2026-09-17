@@ -41,7 +41,7 @@ async function resetAdmin() {
       { email },
       {
         $set: {
-          name: 'Debmalyo Barman',
+          name: 'NexMart Administrator',
           email,
           password: hashedPassword,
           role: 'admin',

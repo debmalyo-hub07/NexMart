@@ -35,6 +35,12 @@ Baseline: 119 backend / 31 frontend tests → **142 backend tests (25 suites, 10
 - 25/25 backend test suites passing (142/142 tests) including race-condition reservation tests, double-entry balance verification, and seller isolation checks.
 - 54/54 frontend routes statically compiled and validated with zero type errors.
 
+### 5. Credential & Security Incident Remediation
+- **Environment Template Sanitization**: Replaced placeholder password in `.env.example` (`ADMIN_SEED_PASSWORD=change_this_admin_seed_password`) to prevent scanner false positives and credential confusion.
+- **Obsolete Script Purge**: Removed orphaned test script `backend/test-profile.js` containing hardcoded email.
+- **Identity & PII Sanitization**: Replaced developer name and email references across `backend/reset-admin.js`, `backend/src/seed/adminSeed.ts`, `backend/src/utils/helpers.ts`, and `CLAUDE.md` with standard administrative constants.
+- **Branch Normalization**: Consolidated all marketplace features and fixes onto `main`, removing temporary feature branches.
+
 ---
 
 ## 2026-09-13 — Piece 0: customer auth repair + account extension

@@ -133,14 +133,14 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 | Auth | NextAuth v5 (JWT strategy) + backend httpOnly cookies — hybrid, see CLAUDE.md §1.3 |
 | Animation | framer-motion, GSAP + ScrollTrigger, Lenis (storefront only), three.js (homepage hero only) |
 | Backend | Node.js, Express, TypeScript |
-| Database | MongoDB (Mongoose; collections `admins`, `customers`, `deliveryagents`, `products`, `categories`, `orders`, `carts`, `deliveryassignments`, `wishlists`) |
+| Database | MongoDB (Mongoose; collections `admins`, `customers`, `deliveryagents`, `products`, `categories`, `orders`, `carts`, `deliveryassignments`, `wishlists`, `sellers`, `sellerlistings`, `sellerinventories`, `inventorymovements`, `sellerauditlogs`, `listingauditlogs`, `fulfillmentgroups`, `shipments`, `marketplacefeerules`, `marketplaceledgerentries`) |
 | Cache/rate-limit | Upstash Redis (REST) |
 | Payments | Razorpay (test mode) |
 | Media | Cloudinary |
 | Realtime | Socket.IO (canonical event names in `frontend/src/lib/socketEvents.ts`) |
 | Email | Brevo SMTP |
 | Charts | Recharts |
-| Tests | Vitest — `frontend/src/lib/*.test.ts` + backend unit tests (`backend/src/utils/__tests__/`) |
+| Tests | Vitest — `frontend/src/lib/*.test.ts` + backend unit & integration tests (`backend/src/test/`, `backend/src/utils/__tests__/`) |
 
 ---
 
@@ -152,7 +152,7 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 |----------|-------|
 | `MONGODB_URI` | Atlas or local |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | Must be a live Upstash database (see warning above) |
-| `JWT_SECRET_ADMIN` / `_CUSTOMER` / `_AGENT` | Three separate secrets — never mix |
+| `JWT_SECRET_ADMIN` / `_CUSTOMER` / `_AGENT` / `_SELLER` | Four role-isolated secrets — never mix |
 | `ADMIN_SECRET_KEY` | Required to register additional admins |
 | `RAZORPAY_KEY_ID` / `_SECRET` | Test mode works end-to-end |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | For customer Google Sign-In |

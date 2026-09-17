@@ -19,7 +19,7 @@ export async function seedAdmin(): Promise<void> {
     const passwordHash = await bcrypt.hash(env.ADMIN_SEED_PASSWORD, 12);
 
     await Admin.create({
-      name: 'Debmalyo Barman',
+      name: 'NexMart Super Admin',
       email: env.ADMIN_SEED_EMAIL,
       password: passwordHash,
       role: 'admin',

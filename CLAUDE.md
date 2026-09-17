@@ -546,4 +546,4 @@ Full-platform audit (documentation, frontend arch, backend arch, UI quality, com
 
 *NexMart CLAUDE.md v3.1 — "Deep-Space Kinetic Editorial"*
 *Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09. P9 audit-verified 2026-09-13.*
-*Seed admin: debmalyobarman2003@gmail.com · Admin secret: ADMIN_SECRET_KEY in .env*
+*Seed admin: admin@nexmart.in (configured via ADMIN_SEED_EMAIL) · Admin secret: ADMIN_SECRET_KEY in .env*
