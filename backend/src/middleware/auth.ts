@@ -7,6 +7,7 @@ import { isTokenBlacklisted } from '../config/redis';
 import { Admin } from '../models/Admin';
 import { Customer } from '../models/Customer';
 import { DeliveryAgent } from '../models/DeliveryAgent';
+import { Seller } from '../models/Seller';
 
 export function generateToken(payload: any, secret: string, expiresIn: string): string {
   // Every token carries a unique jti so it can be revoked (blacklisted) on logout.
@@ -136,6 +137,60 @@ export const protectAgent = async (req: Request, res: Response, next: NextFuncti
   } catch {
     return sendUnauthorized(res, 'Invalid or expired agent token');
   }
+};
+
+/**
+ * Authenticates a seller account but deliberately does not imply marketplace
+ * activation. Draft and under-review sellers need access to onboarding; write
+ * operations that publish inventory must add requireActiveSeller.
+ */
+export const protectSeller = async (req: Request, res: Response, next: NextFunction) => {
+  let token = getCookieToken(req, 'nexmart_seller_session');
+
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) token = authHeader.split(' ')[1];
+  }
+  if (!token) return sendUnauthorized(res, 'No token provided');
+
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET_SELLER) as any;
+    if (await isTokenBlacklisted(decoded.jti)) return sendUnauthorized(res, 'Session expired. Please login again.');
+    const seller = await Seller.findById(decoded.id);
+    if (!seller) return sendUnauthorized(res, 'Seller account not found');
+    if (!seller.isActive || ['suspended', 'blocked', 'closed'].includes(seller.lifecycleStatus)) {
+      return sendForbidden(res, 'This seller account is not active. Contact NexMart support.');
+    }
+    if (seller.credentialsChangedAt) {
+      const mintedAtMs = typeof decoded.iatMs === 'number'
+        ? decoded.iatMs
+        : typeof decoded.iat === 'number' ? decoded.iat * 1000 : undefined;
+      if (mintedAtMs !== undefined && mintedAtMs < seller.credentialsChangedAt.getTime()) {
+        return sendUnauthorized(res, 'Session expired. Please login again.');
+      }
+    }
+    (req as any).user = {
+      ...decoded,
+      id: seller.id,
+      userId: seller.id,
+      role: 'seller',
+      sellerLifecycleStatus: seller.lifecycleStatus,
+    };
+    next();
+  } catch {
+    return sendUnauthorized(res, 'Invalid or expired seller token');
+  }
+};
+
+/** Requires a seller to have passed admin approval and be active. */
+export const requireActiveSeller = async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req as any).user?.userId;
+  if (!userId) return sendUnauthorized(res, 'No seller session');
+  const seller = await Seller.findById(userId).select('isActive lifecycleStatus');
+  if (!seller || !seller.isActive || seller.lifecycleStatus !== 'active') {
+    return sendForbidden(res, 'Seller approval is required before this operation.');
+  }
+  next();
 };
 
 // Attaches req.user when a valid customer token is present; never rejects.

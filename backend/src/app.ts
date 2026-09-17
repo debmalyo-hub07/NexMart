@@ -25,6 +25,7 @@ import searchRoutes from './routes/search.routes';
 import customerRoutes from './routes/customer.routes';
 import agentRoutes from './routes/agent.routes';
 import authRoutes from './routes/auth.routes';
+import sellerRoutes from './routes/seller.routes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -130,6 +131,7 @@ export function createApp(): express.Application {
   app.use(`${apiPrefix}/admin`, adminRoutes);
   app.use(`${apiPrefix}/customer`, customerRoutes);
   app.use(`${apiPrefix}/agent`, agentRoutes);
+  app.use(`${apiPrefix}/seller`, sellerRoutes);
 
   // General routes / Domain routes 
   // We attach them to their domain endpoints, but they should be consumed by respective client apps 

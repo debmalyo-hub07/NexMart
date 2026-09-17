@@ -59,7 +59,7 @@ export async function razorpayWebhook(req: Request, res: Response): Promise<void
     if (rzpOrderId && (type === 'payment.captured' || type === 'order.paid')) {
       const order = await Order.findOne({ razorpayOrderId: rzpOrderId });
       if (order && typeof payment?.id === 'string') {
-        await recordCapturedPayment(String(order._id), rzpOrderId, payment.id);
+        await recordCapturedPayment(String(order._id), rzpOrderId, payment.id, 'payment_webhook', (req as Request & { requestId?: string }).requestId);
         logger.info(`Razorpay webhook: order ${order.orderId} marked paid (${type}).`);
       }
     } else if (rzpOrderId && type === 'payment.failed') {

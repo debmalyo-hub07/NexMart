@@ -52,7 +52,11 @@ api.interceptors.response.use(
         useAuthStore.getState().reset();
         const { signOut } = await import('next-auth/react');
         try { await signOut({ redirect: false }); } catch { /* Still route to sign-in if session refresh fails. */ }
-        const loginPath = role === 'admin' ? '/admin/login' : (role === 'agent' || role === 'delivery') ? '/delivery/login' : '/customer/login';
+        const loginPath = role === 'admin'
+          ? '/admin/login'
+          : role === 'seller'
+            ? '/seller/login'
+            : (role === 'agent' || role === 'delivery') ? '/delivery/login' : '/customer/login';
         const currentPath = window.location.pathname + window.location.search;
         if (!currentPath.includes('/login')) {
           window.location.href = `${loginPath}?redirect=${encodeURIComponent(currentPath)}`;

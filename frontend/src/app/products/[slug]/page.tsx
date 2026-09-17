@@ -20,6 +20,7 @@ import { ReviewSection } from '@/components/product/ReviewSection';
 import { QueryError } from '@/components/common/QueryError';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Skeleton } from '@/components/common/SkeletonLoader';
+import { SellerOffers } from '@/components/product/SellerOffers';
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -74,6 +75,7 @@ export default function ProductDetailPage() {
           </div>
         </div>
         <section id="product-reviews" className="mt-10 scroll-mt-24"><ReviewSection productId={product._id} ratings={product.ratings} /></section>
+        <SellerOffers productId={product._id} currentSku={variant?.sku ?? ''} />
         {related.isError ? <div className="mt-10"><QueryError label="Related products" onRetry={() => void related.refetch()} /></div> : related.data?.some(item => item._id !== product._id) && <section className="mt-10"><h2 className="section-heading mb-5">In this category</h2><div className="product-grid">{related.data.filter(item => item._id !== product._id).slice(0, 4).map(item => <ProductCard key={item._id} product={item} />)}</div></section>}
       </>}
   </div></main>;

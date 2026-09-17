@@ -22,7 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = z.object({
           email: z.string().email(),
           password: z.string().min(1),
-          role: z.enum(['admin', 'customer', 'agent']).default('customer'),
+          role: z.enum(['admin', 'customer', 'agent', 'seller']).default('customer'),
         }).safeParse(credentials);
 
         if (!parsed.success) return null;

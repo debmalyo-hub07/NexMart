@@ -35,18 +35,20 @@ export async function getOrderById(req: Request, res: Response): Promise<void> {
   const order = await Order.findOne(filter)
     .populate('customer', 'name email phone')
     .populate('items.product', 'name images slug')
-    .populate('deliveryAgent', 'name phone');
+    .populate('deliveryAgent', 'name phone')
+    .populate({
+      path: 'fulfillmentGroups',
+      populate: [
+        { path: 'seller', select: 'storefrontName performance' },
+        { path: 'shipment', select: 'shipmentId status trackingId updatedAt' },
+      ],
+    });
 
   if (!order) { sendNotFound(res, 'Order not found'); return; }
   sendSuccess(res, order);
 }
 
 // ── Update Order Status (Admin/Delivery) ──────────────────────
-
-// Forward-only transition graph lives in utils/orderTransitions and is shared
-// with the delivery-agent status path (CLAUDE.md §4.3: an order never moves
-// backwards; cancellation/return are the only exits from the happy path).
-
 export async function updateOrderStatus(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;
   const { status, note } = z.object({
@@ -77,13 +79,10 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
       order.paymentStatus = 'paid';
     }
 
-    await order.save();
-
-    // Audit §3.3: cancelled and returned orders release their reserved stock
-    // back to sellable inventory. Fulfilment transitions consume stock — no restock.
-    if (status === 'cancelled' || status === 'returned') {
-      await restockOrderItems(order);
-    }
+    // Terminal transitions and inventory release are committed together. A
+    // failed seller-inventory mutation leaves the order transition retryable.
+    if (status === 'cancelled' || status === 'returned') await restockOrderItems(order);
+    else await order.save();
   }
 
   const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };

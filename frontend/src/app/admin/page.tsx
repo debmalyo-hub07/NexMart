@@ -51,7 +51,7 @@ const recentOrderCols: Column<Record<string, unknown>>[] = [
 
 const TopProductRow = memo(function TopProductRow({
   product, index,
-}: { product: { name: string; slug?: string; totalSold: number; revenue: number }; index: number }) {
+}: { product: { name: string; slug?: string; totalSold: number; gmv?: number; revenue?: number }; index: number }) {
   return (
     <div className="flex items-center gap-3 p-3">
       <div
@@ -70,7 +70,7 @@ const TopProductRow = memo(function TopProductRow({
         )}
         <p className="text-xs text-muted">{product.totalSold} sold</p>
       </div>
-      <p className="shrink-0 font-mono text-sm font-medium text-acid-400">{formatPrice(product.revenue)}</p>
+      <p className="shrink-0 font-mono text-sm font-medium text-acid-400">{formatPrice(product.gmv ?? product.revenue ?? 0)}</p>
     </div>
   );
 });
@@ -153,14 +153,14 @@ export default function AdminDashboard() {
           onRetry={() => refetchStats()}
         />
         <StatsCard
-          title="Order value, all orders"
-          value={statsData?.totalRevenue}
+          title="Platform fee revenue"
+          value={statsData?.platformRevenue ?? statsData?.totalRevenue}
           prefix="₹"
           icon={IndianRupee}
           color="acid"
-          hint="Sum of every order total, whether paid, unpaid or cancelled. Paid revenue is in Analytics."
+          hint="Configured marketplace fees recorded in the immutable ledger. GMV is reported separately."
           href="/admin/analytics"
-          hrefLabel="See paid revenue"
+          hrefLabel="Open finance analytics"
           isLoading={statsLoading}
           isError={statsFailed}
           onRetry={() => refetchStats()}
@@ -180,8 +180,8 @@ export default function AdminDashboard() {
       </div>
 
       <RevenueChart
-        title="Paid revenue, last 30 days"
-        description="Counts orders whose payment has been received. Unpaid and cancelled orders are excluded."
+        title="Platform fee revenue, last 30 days"
+        description="Net configured marketplace fees from captured payments and ledger reversals."
         data={chartData}
         isLoading={analyticsLoading}
         isError={analyticsFailed}

@@ -16,7 +16,21 @@ export function CartContents({ onNavigate }: { onNavigate?: () => void }) {
     {error && <div role="alert" className="mb-4 rounded-xl border border-red-400/30 p-4 text-sm text-red-300"><p>{error}</p><p className="mt-1 text-secondary">Refresh to check the latest cart before continuing.</p><button type="button" className="btn-secondary mt-3" disabled={isLoading || !online} onClick={() => void fetchCart()}>Refresh cart</button></div>}
     {notice && <p role="status" className="mb-4 rounded-xl border border-amber-400/30 p-3 text-sm text-amber-200">{notice}</p>}
     {isLoading && <p role="status" className="mb-3 flex items-center gap-2 text-sm text-secondary"><Loader2 size={16} className="animate-spin" aria-hidden />Updating cart…</p>}
-    {!ready && !error && !items.length ? <p className="py-6 text-sm text-secondary" role="status">Loading your cart…</p> : ready && !items.length && !error ? <EmptyState icon={ShoppingBag} title="Your cart is empty" description="Explore the catalog and add a product when you find the right option." action={<Link href="/products" onClick={onNavigate} className="btn-primary">Browse products</Link>} /> : <ul className="divide-y divide-white/10">{items.map(item => {
+    {!ready && !error && !items.length ? <p className="py-6 text-sm text-secondary" role="status">Loading your cart…</p> : ready && !items.length && !error ? <EmptyState icon={ShoppingBag} title="Your cart is empty" description="Explore the catalog and add a product when you find the right option." action={<Link href="/products" onClick={onNavigate} className="btn-primary">Browse products</Link>} /> : <div className="space-y-6">{Object.entries(
+      items.reduce((acc, item) => {
+        const sellerId = item.seller?._id || item.seller?.id || 'nexmart';
+        const sellerName = item.seller?.storefrontName || 'NexMart Retail';
+        if (!acc[sellerId]) acc[sellerId] = { name: sellerName, items: [] };
+        acc[sellerId].items.push(item);
+        return acc;
+      }, {} as Record<string, { name: string, items: typeof items }>)
+    ).map(([sellerId, group]) => (
+      <div key={sellerId} className="rounded-xl border border-white/10 bg-space-800 p-4">
+        <div className="mb-4 flex items-center gap-2 border-b border-white/10 pb-3 text-sm text-violet-300">
+          <ShoppingBag size={16} />
+          <span className="font-medium">Sold by {group.name}</span>
+        </div>
+        <ul className="divide-y divide-white/10">{group.items.map(item => {
       const state = getCartItemState(item);
       const name = item.product?.name || 'Unavailable product';
       const href = item.product?.slug ? `/products/${item.product.slug}` : undefined;
@@ -29,6 +43,6 @@ export function CartContents({ onNavigate }: { onNavigate?: () => void }) {
           <div className="mt-2 flex flex-wrap items-center gap-2"><div className="flex items-center rounded-xl border border-white/30"><button type="button" className="icon-button" aria-label={`Decrease quantity of ${name}`} disabled={isLoading || !online || item.quantity <= 1 || !state.variant} onClick={() => void updateItem(item._id, item.quantity - 1)}><Minus size={16} aria-hidden /></button><span className="min-w-6 text-center font-mono text-sm" aria-label={`Quantity ${item.quantity}`}>{item.quantity}</span><button type="button" className="icon-button" aria-label={`Increase quantity of ${name}`} disabled={isLoading || !online || item.quantity >= Math.min(10, state.variant?.stock ?? 0)} onClick={() => void updateItem(item._id, item.quantity + 1)}><Plus size={16} aria-hidden /></button></div><button type="button" className="icon-button ml-auto text-red-300" aria-label={`Remove ${name} from cart`} disabled={isLoading || !online} onClick={() => void removeItem(item._id)}><Trash2 size={17} aria-hidden /></button></div>
         </div>
       </li>;
-    })}</ul>}
+    })}</ul></div>))}</div>}
   </div>;
 }

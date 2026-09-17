@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { Admin } from '../models/Admin';
 import { Customer } from '../models/Customer';
 import { DeliveryAgent } from '../models/DeliveryAgent';
+import { Seller } from '../models/Seller';
 import { generateToken } from '../middleware/auth';
 import { env } from '../config/env';
 import { sendEmail, buildOtpEmail, buildResetEmail, buildGoogleOnlyResetEmail } from '../services/email.service';
@@ -28,7 +29,7 @@ function generateOTP(): string {
  * "no such account / already exists / already verified" branch answers with
  * the same opaque 202. One shape, three handlers — never hand-patch a copy.
  */
-function sendEligibilityPending(res: Response, message: string, data?: Record<string, unknown>): void {
+export function sendEligibilityPending(res: Response, message: string, data?: Record<string, unknown>): void {
   res.status(202).json({
     success: true,
     message,
@@ -51,7 +52,8 @@ export const registerAdmin = async (req: Request, res: Response) => {
   }
 
   const existing = await Admin.findOne({ email });
-  if (existing) {
+  const sellerExists = await Seller.findOne({ email }).select('_id').lean();
+  if (existing || sellerExists) {
     return res.status(400).json({ success: false, message: 'Admin already exists', data: null });
   }
 
@@ -96,6 +98,16 @@ export const loginAdmin = async (req: Request, res: Response) => {
     return res.status(403).json({
       success: false,
       message: 'Access denied. This portal is for authorized personnel only.',
+      data: null,
+    });
+  }
+
+  const isSeller = await Seller.findOne({ email });
+  if (isSeller) {
+    await incrementFailedLoginAttempts(ip);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Use the seller portal for this account.',
       data: null,
     });
   }
@@ -160,9 +172,10 @@ export const registerCustomer = async (req: Request, res: Response) => {
   const hashedPassword = await bcrypt.hash(password || '', 12);
 
   // 3. Cross-role + duplicate check — all answered with the same opaque 202.
-  const [isAdmin, isAgent, existing] = await Promise.all([
+  const [isAdmin, isAgent, isSeller, existing] = await Promise.all([
     Admin.findOne({ email }).select('_id').lean(),
     DeliveryAgent.findOne({ email }).select('_id').lean(),
+    Seller.findOne({ email }).select('_id').lean(),
     Customer.findOne({ email }),
   ]);
 
@@ -192,7 +205,7 @@ export const registerCustomer = async (req: Request, res: Response) => {
     return;
   }
 
-  if (isAdmin || isAgent || existing) {
+  if (isAdmin || isAgent || isSeller || existing) {
     sendEligibilityPending(res, 'If the address is eligible, we will send the next step by email.', { requiresOtp: false });
     return;
   }
@@ -378,6 +391,16 @@ export const loginCustomer = async (req: Request, res: Response) => {
     });
   }
 
+  const isSeller = await Seller.findOne({ email });
+  if (isSeller) {
+    await incrementFailedLoginAttempts(ip);
+    return res.status(403).json({
+      success: false,
+      message: 'This account is not a customer account. Please use the seller portal.',
+      data: null,
+    });
+  }
+
   const customer = await Customer.findOne({ email });
   if (!customer || !customer.password) {
     await incrementFailedLoginAttempts(ip);
@@ -447,7 +470,8 @@ export const loginCustomer = async (req: Request, res: Response) => {
 export const registerAgent = async (req: Request, res: Response) => {
   const { name, email, password, vehicleType, vehicleModel, licensePlate, city, address, aadharNumber } = req.body;
   const existing = await DeliveryAgent.findOne({ email });
-  if (existing) {
+  const sellerExists = await Seller.findOne({ email }).select('_id').lean();
+  if (existing || sellerExists) {
     return res.status(400).json({ success: false, message: 'Agent already exists', data: null });
   }
 
@@ -505,6 +529,16 @@ export const loginAgent = async (req: Request, res: Response) => {
     return res.status(403).json({
       success: false,
       message: 'Access denied. This portal is for authorized personnel only.',
+      data: null,
+    });
+  }
+
+  const isSeller = await Seller.findOne({ email });
+  if (isSeller) {
+    await incrementFailedLoginAttempts(ip);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Use the seller portal for this account.',
       data: null,
     });
   }

@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ApiResponse, Cart, CartItem } from '@/types';
 import api, { getApiError } from '@/lib/api';
@@ -15,7 +15,7 @@ interface CartState {
   synchronize: (owner: string) => Promise<void>;
   reset: () => void;
   fetchCart: () => Promise<void>;
-  addItem: (productId: string, variant: string, quantity?: number) => Promise<void>;
+  addItem: (productId: string, variant: string, quantity?: number, listingId?: string) => Promise<void>;
   updateItem: (itemId: string, quantity: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -76,7 +76,7 @@ export const useCartStore = create<CartState>()(persist((set, get) => {
         if (current()) accept(response.data);
       } catch (error) { if (current()) set({ error: getApiError(error), ready: false }); }
     }),
-    addItem: (productId, variant, quantity = 1) => mutate(() => api.post<CartPayload>('/cart/items', { productId, variant, quantity }), true),
+    addItem: (productId, variant, quantity = 1, listingId) => mutate(() => api.post<CartPayload>('/cart/items', { productId, variant, quantity, listingId }), true),
     updateItem: (id, quantity) => mutate(() => api.put<CartPayload>(`/cart/items/${id}`, { quantity })),
     removeItem: id => mutate(() => api.delete<CartPayload>(`/cart/items/${id}`)),
     clearCart: () => mutate(() => api.delete<CartPayload>('/cart')),

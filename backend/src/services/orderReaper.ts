@@ -76,10 +76,14 @@ async function cancelAndRestock(fresh: IOrder, note: string): Promise<'cancelled
     updatedBy: null,
     note,
   } as any);
-  await fresh.save();
-
-  // Shared helper — a deleted product/variant must never abort the sweep
+  // Shared helper commits cancellation and inventory release together. A
+  // seller inventory inconsistency bubbles to the per-order guard and is
+  // retried on the next sweep.
   await restockOrderItems(fresh);
+  // Keep the explicit write for legacy/custom restock implementations that
+  // do not persist the order themselves. The marketplace helper has already
+  // committed this document transactionally, so this is an idempotent flush.
+  await fresh.save();
 
   emitOrderStatusUpdate(fresh.customer.toString(), fresh.orderId, 'cancelled');
   const pc = await Customer.findById(fresh.customer).select('name email');

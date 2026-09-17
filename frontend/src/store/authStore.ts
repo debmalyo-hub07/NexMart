@@ -120,6 +120,7 @@ export const useAuthStore = create<AuthState>()(
           let cbUrl = '/';
           if (currentRole === 'admin') cbUrl = '/admin/login';
           if (currentRole === 'agent') cbUrl = '/delivery/login';
+          if (currentRole === 'seller') cbUrl = '/seller/login';
           
           // We clear localStorage MANUALLY instead of calling set({ user: null }).
           // This ensures that when the page reloads, the user is logged out,

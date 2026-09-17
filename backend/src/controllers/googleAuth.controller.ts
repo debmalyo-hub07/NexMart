@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Customer } from '../models/Customer';
 import { Admin } from '../models/Admin';
 import { DeliveryAgent } from '../models/DeliveryAgent';
+import { Seller } from '../models/Seller';
 import { generateToken } from '../middleware/auth';
 import { env } from '../config/env';
 import { verifyGoogleIdToken } from '../services/googleToken.service';
@@ -53,6 +54,17 @@ export const googleAuthCallback = async (req: Request, res: Response) => {
     }
 
     const { googleId, email, name, picture } = identity;
+
+    // Seller accounts are a separate business identity. Google customer OAuth
+    // must never silently create or link a customer with a seller's email.
+    const sellerExists = await Seller.findOne({ email }).select('_id lifecycleStatus').lean();
+    if (sellerExists) {
+      return res.status(403).json({
+        success: false,
+        message: 'This email belongs to a seller account. Use the seller sign-in portal.',
+        data: null,
+      });
+    }
 
     // Check if an existing customer with this googleId or email exists
     const customer = await Customer.findOne({

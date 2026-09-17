@@ -32,10 +32,39 @@ export async function createRazorpayOrder(
  */
 export async function fetchOrderPayments(
   razorpayOrderId: string
-): Promise<Array<{ id: string; status: string; order_id: string }>> {
+): Promise<Array<{ id: string; status: string; order_id: string; amount?: number; currency?: string }>> {
   const response = await razorpay.orders.fetchPayments(razorpayOrderId);
-  const items = (response as { items?: Array<{ id: string; status: string; order_id: string }> }).items;
-  return Array.isArray(items) ? items : [];
+  const items = (response as {
+    items?: Array<{ id: string; status: string; order_id: string; amount?: number; currency?: string }>;
+  }).items;
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    id: item.id,
+    status: item.status,
+    order_id: item.order_id,
+    ...(typeof item.amount === 'number' ? { amount: item.amount } : {}),
+    ...(typeof item.currency === 'string' ? { currency: item.currency } : {}),
+  }));
+}
+
+/** Fetch one provider payment when a browser presents a signed callback. The
+ * signature proves the payload was formed with our secret; this lookup proves
+ * Razorpay actually captured the referenced payment for the expected order. */
+export async function fetchPayment(paymentId: string): Promise<{
+  id: string;
+  order_id?: string;
+  status: string;
+  amount?: number;
+  currency?: string;
+}> {
+  const payment = await razorpay.payments.fetch(paymentId);
+  return {
+    id: payment.id as string,
+    order_id: payment.order_id as string | undefined,
+    status: payment.status as string,
+    amount: typeof payment.amount === 'number' ? payment.amount : undefined,
+    currency: typeof payment.currency === 'string' ? payment.currency : undefined,
+  };
 }
 
 /**

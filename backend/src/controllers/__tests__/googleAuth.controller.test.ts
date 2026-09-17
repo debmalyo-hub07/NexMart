@@ -8,6 +8,9 @@ const createCustomer = vi.hoisted(() => vi.fn());
 const updateCustomer = vi.hoisted(() => vi.fn());
 const findAdmin = vi.hoisted(() => vi.fn());
 const findAgent = vi.hoisted(() => vi.fn());
+const findSeller = vi.hoisted(() => vi.fn(() => ({
+  select: () => ({ lean: async () => null }),
+})));
 const verifyToken = vi.hoisted(() => vi.fn());
 const generateToken = vi.hoisted(() => vi.fn());
 
@@ -16,6 +19,7 @@ vi.mock('../../models/Customer', () => ({
 }));
 vi.mock('../../models/Admin', () => ({ Admin: { findOne: findAdmin } }));
 vi.mock('../../models/DeliveryAgent', () => ({ DeliveryAgent: { findOne: findAgent } }));
+vi.mock('../../models/Seller', () => ({ Seller: { findOne: findSeller } }));
 vi.mock('../../services/googleToken.service', () => ({
   verifyGoogleIdToken: (t: string) => verifyToken(t),
 }));

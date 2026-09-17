@@ -18,12 +18,13 @@ interface Field {
   label: string;
   type: string;
   required?: boolean;
+  options?: { value: string; label: string }[];
 }
 
 interface AuthFormProps {
   type: 'login' | 'register';
   /** Which portal this form signs into. Not an ARIA role. */
-  portal: 'admin' | 'customer' | 'agent';
+  portal: 'admin' | 'customer' | 'agent' | 'seller';
   title: string;
   fields: Field[];
   submitText: string;
@@ -94,6 +95,8 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
         ? 'nexmart_last_admin_email'
         : portal === 'agent'
           ? 'nexmart_last_delivery_email'
+          : portal === 'seller'
+            ? 'nexmart_last_seller_email'
           : null;
       if (key) {
         const savedEmail = localStorage.getItem(key);
@@ -112,13 +115,13 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
       if (type === 'register') {
         const res = await api.post(`/${portal}/auth/register`, values);
         if (res.data.success) {
-          if (portal === 'customer') {
+          if (portal === 'customer' || portal === 'seller') {
             // The backend answers registration with a deliberately opaque 202 on
             // every existence branch, so `requiresOtp` can never honestly say
             // whether a code was sent. Always route to the code screen — its
             // copy is true whether the address was new, already pending (which
             // really did just receive a code), or already taken.
-            router.push(`/customer/verify-otp?email=${encodeURIComponent(values.email)}`);
+            router.push(`/${portal}/verify-otp?email=${encodeURIComponent(values.email)}`);
           } else {
             showToast(res.data.message);
             router.push(redirectUrl);
@@ -133,6 +136,8 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
           ? 'nexmart_last_admin_email'
           : portal === 'agent'
             ? 'nexmart_last_delivery_email'
+            : portal === 'seller'
+              ? 'nexmart_last_seller_email'
             : null;
         if (key && values.email) {
           localStorage.setItem(key, values.email);
@@ -150,7 +155,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
       if (err.response?.data?.data?.requiresOtp) {
         const email = encodeURIComponent(values.email);
         showToast('Please verify your email first', 'error');
-        router.push(`/customer/verify-otp?email=${email}`);
+        router.push(`${portal === 'seller' ? '/seller/verify-otp' : '/customer/verify-otp'}?email=${email}`);
         return;
       }
 
@@ -171,7 +176,9 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
             <span className="font-outfit font-bold text-2xl text-white tracking-tight">NexMart</span>
           </Link>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-2 font-outfit">{title}</h1>
-          <p className="text-sm text-muted font-inter">{type === 'login' ? 'Sign in to your NexMart account' : 'Create your NexMart account'}</p>
+          <p className="text-sm text-muted font-inter">{type === 'login'
+            ? portal === 'seller' ? 'Sign in to your NexMart seller account' : 'Sign in to your NexMart account'
+            : portal === 'seller' ? 'Apply to sell on NexMart' : 'Create your NexMart account'}</p>
         </div>
 
         {error && (
@@ -185,7 +192,19 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
             <div key={field.name} className="space-y-1.5">
               <label htmlFor={`auth-${field.name}`} className="block text-xs font-medium text-secondary ml-1 uppercase tracking-wider font-inter">{field.label}</label>
               <div className="relative">
-                <input
+                {field.type === 'select' ? (
+                  <select
+                    id={`auth-${field.name}`}
+                    suppressHydrationWarning
+                    {...register(field.name)}
+                    aria-invalid={errors[field.name] ? 'true' : 'false'}
+                    aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined}
+                    className="w-full min-h-12 appearance-none bg-black/40 border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus-visible:outline-none focus-visible:border-violet-500/70 focus-visible:bg-space-900 focus-visible:ring-2 focus-visible:ring-violet-500/30 transition-[background-color,border-color,box-shadow] font-inter"
+                  >
+                    <option value="">Select {field.label.toLowerCase()}</option>
+                    {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                ) : <input
                   id={`auth-${field.name}`}
                   suppressHydrationWarning
                   type={field.type === 'password' && visibleFields[field.name] ? 'text' : field.type}
@@ -195,7 +214,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
                   aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined}
                   className="w-full min-h-12 bg-black/40 border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus-visible:outline-none focus-visible:border-violet-500/70 focus-visible:bg-space-900 focus-visible:ring-2 focus-visible:ring-violet-500/30 transition-[background-color,border-color,box-shadow] font-inter pr-10"
                   placeholder={`Enter your ${field.label.toLowerCase()}…`}
-                />
+                />}
                 {field.type === 'password' && (
                   <button
                     type="button"

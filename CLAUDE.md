@@ -34,7 +34,11 @@ Frontend  : Next.js 15.3.2 App Router · React 19 · TypeScript · Tailwind 3.4
             three 0.184 + @react-three/fiber (homepage hero only) · recharts
 Backend   : Express · Mongoose · Socket.IO · Upstash Redis · Razorpay test mode
 Tests     : vitest — backend (transition graph, schemas, URL parser) + frontend (lib)
-DB        : MongoDB Atlas (collections use Mongoose-default plural names)
+DB        : MongoDB Atlas (collections: admins, customers, deliveryagents, sellers,
+            products, categories, orders, carts, deliveryassignments, wishlists,
+            sellerlistings, sellerinventories, fulfillmentgroups, shipments,
+            marketplacefeerules, marketplaceledgerentries, sellerauditlogs,
+            listingauditlogs, inventorymovements)
 Media     : Cloudinary (res.cloudinary.com, dumb origin — no URL transforms yet)
 ```
 
@@ -42,8 +46,9 @@ Media     : Cloudinary (res.cloudinary.com, dumb origin — no URL transforms ye
 
 | Role | Login | Register | Home | Panel pages |
 |---|---|---|---|---|
-| Customer | `/customer/login` | `/customer/register` → `/customer/verify-otp` | `/` (storefront) | `/orders`, `/orders/[id]`, `/profile`, `/cart`, `/checkout` |
-| Admin | `/admin/login` | `/admin/register` (requires existing admin session) | `/admin` | `/admin/{products, categories, orders, users, delivery, analytics, profile}` |
+| Customer | `/customer/login` | `/customer/register` → `/customer/verify-otp` | `/` (storefront) | `/orders`, `/orders/[id]`, `/profile`, `/cart`, `/checkout`, `/sellers/[id]` |
+| Seller | `/seller/login` | `/seller/register` → `/seller/verify-otp` | `/seller/dashboard` | `/seller/{listings, listings/new, listings/[id], orders, orders/[id], shipments, finances, onboarding}` |
+| Admin | `/admin/login` | `/admin/register` (requires existing admin session) | `/admin` | `/admin/{products, categories, orders, users, sellers, listings, fee-rules, ledger, delivery, analytics, profile}` |
 | Delivery | `/delivery/login` | `/delivery/register` | `/delivery/dashboard` | `/delivery/profile` |
 
 There is **no** `/admin/dashboard`, no `/customer/dashboard`, no `/products/[id]` (it's `/products/[slug]`).
@@ -54,6 +59,12 @@ There is **no** `/admin/dashboard`, no `/customer/dashboard`, no `/products/[id]
 - **Server-side API calls must stamp `Origin`** (`lib/serverApi.ts` → `serverApiFetch`): the backend CSRF gate rejects mutating requests whose Origin/Referer doesn't match `CORS_ORIGIN`, and Node fetch sends neither. `serverApiFetch` derives the Origin from the live request host first, then `AUTH_URL`/`NEXTAUTH_URL`/`APP_URL` env, then `headers()`. Never hand-roll another server-side `fetch` to the API.
 - Auth surfaces are anti-enumeration-hardened (2026-09-11): register/verify-otp/resend-otp answer every miss with an identical response (unified 400 for verify misses, opaque 202 elsewhere), field validation runs before existence checks, password hashing is unconditional (timing parity), and OTP rate limits are consumed before lookups. Any new auth endpoint must keep every existence-related branch byte-identical — use `sendEligibilityPending` in `roleAuth.controller.ts`; never re-introduce a divergent status/body.
 - `authStore` (Zustand, persisted key `nexmart-auth`) persists **only** `{user, isAuthenticated}` — the backend token is never persisted, which is why the socket handshake is always guest (roadmap P0-5).
+- **Password reset is OTP-based** (`POST /customer/auth/forgot-password` → `reset-password`). Codes are SHA-256 hashed at rest (`utils/resetCode.ts`), expire in 15 minutes, and die after 5 attempts. Never store a reset code in plaintext.
+- **`credentialsChangedAt` is the only session-invalidation primitive.** A successful reset and `POST /customer/sign-out-everywhere` both stamp it; `protectCustomer` rejects any token minted earlier. Use it rather than inventing a second mechanism. Tokens carry a millisecond `iatMs` claim for this comparison — the standard `iat` is whole seconds, which cannot be ordered against a sub-second event (a reset and the login that follows land in the same second). Tokens predating the claim fall back to `iat`.
+- **`authProviders` is authoritative** for "how can this account sign in?". It is written on Google link and on set-password, and the account security screen renders from it. Any new sign-in path must record itself there.
+- **Customer registration collects name, email, password, confirm.** Phone and address belong to checkout and the address book, never to signup.
+- **Registration always routes to `/customer/verify-otp`.** The 202 is deliberately opaque, so `requiresOtp` can never honestly report whether a code was sent — never re-introduce an inference from it. The code screen's copy ("if that address is eligible") is true on every branch.
+- **Integration tests live in `backend/src/test/`** and run the real app through supertest against `mongodb-memory-server`. Mutating requests must send `Origin: http://localhost:3000` or the CSRF gate rejects them. Reuse `src/test/helpers.ts` (`makeApp`, `registerAndVerify`, `sessionCookie`, Origin-stamped `post`/`put`/`get`) rather than building a second harness.
 - NextAuth session JWT matches backend cookie TTL (both 7d).
 - Role confinement: middleware bounces an authed admin off **any** non-`/admin` path and agent off any non-`/delivery` path. Storefront preview from admin panels requires changing this (roadmap P2-19).
 

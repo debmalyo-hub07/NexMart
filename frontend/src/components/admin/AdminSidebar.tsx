@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { memo, useCallback, useEffect, useState } from 'react';
 import {
-  LayoutDashboard, Package, ShoppingBag, Users, Truck,
-  BarChart3, LogOut, X, ChevronRight, FolderTree, User,
+  LayoutDashboard, Package, ShoppingBag, Users, Truck, Store,
+  BarChart3, LogOut, X, ChevronRight, FolderTree, User, ClipboardList,
+  Percent, Scale,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -19,6 +20,10 @@ const navItems = [
   { icon: FolderTree,      label: 'Categories', href: '/admin/categories' },
   { icon: ShoppingBag,     label: 'Orders',     href: '/admin/orders' },
   { icon: Users,           label: 'Customers',  href: '/admin/users' },
+  { icon: Store,           label: 'Sellers',    href: '/admin/sellers' },
+  { icon: ClipboardList,   label: 'Listings',   href: '/admin/listings' },
+  { icon: Percent,         label: 'Fee Rules',  href: '/admin/fee-rules' },
+  { icon: Scale,           label: 'Ledger',     href: '/admin/ledger' },
   { icon: Truck,           label: 'Delivery',   href: '/admin/delivery' },
   { icon: BarChart3,       label: 'Analytics',  href: '/admin/analytics' },
   { icon: User,            label: 'Profile',    href: '/admin/profile' },

@@ -1,6 +1,7 @@
 import type { Application } from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import request from 'supertest';
 import type { Response } from 'supertest';
 import { createApp } from '../app';
@@ -9,12 +10,18 @@ import { createApp } from '../app';
 // does not match CORS_ORIGIN. In the test env that defaults to localhost:3000.
 export const TEST_ORIGIN = 'http://localhost:3000';
 
-let memoryServer: MongoMemoryServer | undefined;
+let memoryServer: MongoMemoryServer | MongoMemoryReplSet | undefined;
 
 export async function startTestDb(dbName: string): Promise<void> {
   // Plain server, not a replica set: no auth path uses a transaction, and the
   // plain server starts several seconds faster.
   memoryServer = await MongoMemoryServer.create();
+  await mongoose.connect(memoryServer.getUri(), { dbName });
+}
+
+/** Replica-set database for tests that exercise Mongo transactions. */
+export async function startReplicaTestDb(dbName: string): Promise<void> {
+  memoryServer = await MongoMemoryReplSet.create({ replSet: { count: 1, ip: '127.0.0.1' } });
   await mongoose.connect(memoryServer.getUri(), { dbName });
 }
 
@@ -40,6 +47,11 @@ export function post(app: Application, path: string, body: unknown, cookie?: str
 
 export function put(app: Application, path: string, body: unknown, cookie?: string) {
   const req = request(app).put(path).set('Origin', TEST_ORIGIN).send(body as object);
+  return cookie ? req.set('Cookie', cookie) : req;
+}
+
+export function patch(app: Application, path: string, body: unknown, cookie?: string) {
+  const req = request(app).patch(path).set('Origin', TEST_ORIGIN).send(body as object);
   return cookie ? req.set('Cookie', cookie) : req;
 }
 

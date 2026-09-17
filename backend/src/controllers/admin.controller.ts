@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { Order } from '../models/Order';
 import { Customer } from '../models/Customer';
 import { Product } from '../models/Product';
@@ -13,6 +14,10 @@ import { refundPayment } from '../services/razorpay.service';
 import { upstashRedis } from '../config/redis';
 import { logger } from '../utils/logger';
 import { isTransitionAllowed } from '../utils/orderTransitions';
+import { z } from 'zod';
+import { recordFullRefundLedger } from '../services/marketplaceLedger.service';
+import { MarketplaceLedgerEntry } from '../models/MarketplaceLedgerEntry';
+import { MarketplaceFeeRule, FEE_RULE_STATUSES, type FeeRuleStatus } from '../models/MarketplaceFeeRule';
 
 // Server-side sort allow-lists. The `sort` query param uses Mongo syntax:
 // 'field' for ascending, '-field' for descending. parseSortField falls back
@@ -41,7 +46,7 @@ export async function getAllProducts(req: Request, res: Response): Promise<void>
 }
 
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
-  const cacheKey = 'nexmart:admin:dashboard:stats';
+  const cacheKey = 'nexmart:admin:dashboard:stats:v2';
   try {
     const cached = await upstashRedis.get(cacheKey);
     if (cached) {
@@ -56,17 +61,22 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const [
-    totalOrders, totalRevenue, totalUsers, totalProducts,
-    monthlyOrders, monthlyRevenue, pendingOrders, recentOrders,
+    totalOrders, totalGmv, totalPlatformRevenue, totalUsers, totalProducts,
+    monthlyOrders, monthlyGmv, monthlyPlatformRevenue, pendingOrders, recentOrders,
   ] = await Promise.all([
     Order.countDocuments(),
-    Order.aggregate([{ $group: { _id: null, total: { $sum: '$total' } } }]),
+    Order.aggregate([{ $group: { _id: null, totalPaise: { $sum: { $ifNull: ['$totalPaise', { $multiply: ['$total', 100] }] } } } }]),
+    MarketplaceLedgerEntry.aggregate([
+      { $match: { account: 'platform_revenue' } },
+      { $group: { _id: null, totalPaise: { $sum: { $cond: [{ $eq: ['$direction', 'credit'] }, '$amountPaise', { $multiply: ['$amountPaise', -1] }] } } } },
+    ]),
     Customer.countDocuments(),
     Product.countDocuments({ isPublished: true }),
     Order.countDocuments({ createdAt: { $gte: startOfMonth } }),
-    Order.aggregate([
-      { $match: { createdAt: { $gte: startOfMonth } } },
-      { $group: { _id: null, total: { $sum: '$total' } } },
+    Order.aggregate([{ $match: { createdAt: { $gte: startOfMonth } } }, { $group: { _id: null, totalPaise: { $sum: { $ifNull: ['$totalPaise', { $multiply: ['$total', 100] }] } } } }]),
+    MarketplaceLedgerEntry.aggregate([
+      { $match: { account: 'platform_revenue', effectiveAt: { $gte: startOfMonth } } },
+      { $group: { _id: null, totalPaise: { $sum: { $cond: [{ $eq: ['$direction', 'credit'] }, '$amountPaise', { $multiply: ['$amountPaise', -1] }] } } } },
     ]),
     Order.countDocuments({ orderStatus: { $in: ['placed', 'confirmed', 'processing'] } }),
     Order.find().sort('-createdAt').limit(5).populate('customer', 'name email'),
@@ -74,11 +84,18 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
 
   const stats = {
     totalOrders,
-    totalRevenue: totalRevenue[0]?.total || 0,
+    // `totalRevenue` is retained as a compatibility alias, but it now means
+    // actual platform fee revenue. Gross merchandise value is exposed
+    // separately so it cannot be mistaken for NexMart income.
+    totalRevenue: (totalPlatformRevenue[0]?.totalPaise || 0) / 100,
+    platformRevenue: (totalPlatformRevenue[0]?.totalPaise || 0) / 100,
+    totalGmv: (totalGmv[0]?.totalPaise || 0) / 100,
     totalUsers,
     totalProducts,
     monthlyOrders,
-    monthlyRevenue: monthlyRevenue[0]?.total || 0,
+    monthlyRevenue: (monthlyPlatformRevenue[0]?.totalPaise || 0) / 100,
+    monthlyPlatformRevenue: (monthlyPlatformRevenue[0]?.totalPaise || 0) / 100,
+    monthlyGmv: (monthlyGmv[0]?.totalPaise || 0) / 100,
     pendingOrders,
     recentOrders,
   };
@@ -236,6 +253,26 @@ export async function refundOrder(req: Request, res: Response): Promise<void> {
     } as any);
     await order.save();
 
+    // New money-versioned orders also receive an immutable reversal event.
+    // Legacy test/records without a total remain compatible with the existing
+    // provider-only path until their money migration is complete.
+    if (Number.isSafeInteger(order.totalPaise) || (typeof order.total === 'number' && Number.isFinite(order.total))) {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await recordFullRefundLedger(
+            order,
+            String(refund.id),
+            'admin',
+            session,
+            (req as Request & { requestId?: string }).requestId,
+          );
+        });
+      } finally {
+        await session.endSession();
+      }
+    }
+
     const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
     emitOrderStatusUpdate(customer._id.toString(), order.orderId, order.orderStatus);
     // Audit §3.6: the PAYMENT is refunded — the fulfilment status is unchanged.
@@ -256,31 +293,62 @@ export async function refundOrder(req: Request, res: Response): Promise<void> {
 }
 
 export async function getRevenueAnalytics(req: Request, res: Response): Promise<void> {
-  const days = parseInt(req.query.days as string) || 30;
+  const parsedDays = Number.parseInt(req.query.days as string, 10);
+  const days = Number.isFinite(parsedDays) ? Math.min(Math.max(parsedDays, 1), 365) : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const [dailyRevenue, topProducts, ordersByStatus] = await Promise.all([
-    Order.aggregate([
-      { $match: { createdAt: { $gte: since }, paymentStatus: 'paid' } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, revenue: { $sum: '$total' }, orders: { $sum: 1 } } },
+  const [dailyRevenue, dailyGmv, topProducts, ordersByStatus] = await Promise.all([
+    // Ledger credits are platform revenue; reversal debits subtract from it.
+    // Group by order first so a single capture with several fee components is
+    // counted once in the order column.
+    MarketplaceLedgerEntry.aggregate([
+      { $match: { account: 'platform_revenue', effectiveAt: { $gte: since } } },
+      { $group: {
+        _id: {
+          date: { $dateToString: { format: '%Y-%m-%d', date: '$effectiveAt' } },
+          order: '$order',
+        },
+        revenuePaise: { $sum: { $cond: [{ $eq: ['$direction', 'credit'] }, '$amountPaise', { $multiply: ['$amountPaise', -1] }] } },
+      } },
+      { $group: { _id: '$_id.date', revenuePaise: { $sum: '$revenuePaise' }, orders: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
     Order.aggregate([
-      { $match: { createdAt: { $gte: since } } },
+      { $match: { createdAt: { $gte: since }, paymentStatus: 'paid' } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, gmvPaise: { $sum: { $ifNull: ['$totalPaise', { $multiply: ['$total', 100] }] } }, orders: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+    Order.aggregate([
+      { $match: { createdAt: { $gte: since }, paymentStatus: 'paid' } },
       { $unwind: '$items' },
-      { $group: { _id: '$items.product', totalSold: { $sum: '$items.quantity' }, revenue: { $sum: '$items.totalPrice' } } },
-      { $sort: { revenue: -1 } },
+      { $group: { _id: '$items.product', totalSold: { $sum: '$items.quantity' }, gmvPaise: { $sum: { $ifNull: ['$items.totalPricePaise', { $multiply: ['$items.totalPrice', 100] }] } } } },
+      { $sort: { gmvPaise: -1 } },
       { $limit: 10 },
       { $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'product' } },
       { $unwind: '$product' },
-      { $project: { name: '$product.name', slug: '$product.slug', totalSold: 1, revenue: 1 } },
+      { $project: { name: '$product.name', slug: '$product.slug', totalSold: 1, gmv: { $divide: ['$gmvPaise', 100] } } },
     ]),
     Order.aggregate([
+      { $match: { createdAt: { $gte: since } } },
       { $group: { _id: '$orderStatus', count: { $sum: 1 } } },
     ]),
   ]);
 
-  sendSuccess(res, { dailyRevenue, topProducts, ordersByStatus });
+  const gmvByDate = new Map(dailyGmv.map((row) => [row._id, row]));
+  const normalizedRevenue = dailyRevenue.map((row) => ({
+    _id: row._id,
+    revenue: (row.revenuePaise || 0) / 100,
+    platformRevenue: (row.revenuePaise || 0) / 100,
+    gmv: (gmvByDate.get(row._id)?.gmvPaise || 0) / 100,
+    orders: row.orders,
+  }));
+  const normalizedProducts = topProducts.map((product) => ({
+    ...product,
+    // Keep the old property for clients that have not upgraded yet; all new
+    // UI labels use `gmv`, never `revenue`, for item value.
+    revenue: product.gmv,
+  }));
+  sendSuccess(res, { dailyRevenue: normalizedRevenue, dailyPlatformRevenue: normalizedRevenue, topProducts: normalizedProducts, ordersByStatus });
 }
 
 export async function updateAdminProfile(req: Request, res: Response): Promise<void> {
@@ -303,4 +371,123 @@ export async function updateAdminProfile(req: Request, res: Response): Promise<v
   ).select('-password');
 
   sendSuccess(res, updatedAdmin, 'Profile updated successfully');
+}
+
+export async function getFeeRules(req: Request, res: Response): Promise<void> {
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter: Record<string, unknown> = {};
+  if (typeof req.query.status === 'string' && FEE_RULE_STATUSES.includes(req.query.status as FeeRuleStatus)) {
+    filter.status = req.query.status;
+  }
+  if (req.query.category && mongoose.isValidObjectId(req.query.category)) {
+    filter.category = req.query.category;
+  }
+  const [rules, total] = await Promise.all([
+    MarketplaceFeeRule.find(filter)
+      .sort('-effectiveFrom -version')
+      .skip(skip)
+      .limit(limit)
+      .populate('category', 'name slug')
+      .lean(),
+    MarketplaceFeeRule.countDocuments(filter),
+  ]);
+  sendPaginated(res, rules, total, page, limit);
+}
+
+export async function createFeeRule(req: Request, res: Response): Promise<void> {
+  const adminId = (req as any).user?.id || (req as any).user?.userId;
+  const schema = z.object({
+    ruleKey: z.string().trim().min(2).max(80),
+    category: z.string().optional().refine((val) => !val || mongoose.isValidObjectId(val), 'Invalid category ID'),
+    fulfillmentMode: z.enum(['seller', 'nexmart']).optional(),
+    commissionBps: z.number().int().min(0).max(10000),
+    fixedFeePaise: z.number().int().min(0).default(0),
+    shippingCostPaise: z.number().int().min(0).default(0),
+    otherFeePaise: z.number().int().min(0).default(0),
+    reserveBps: z.number().int().min(0).max(10000).default(0),
+    paymentCollection: z.object({
+      onlineBps: z.number().int().min(0).max(10000).default(200),
+      onlineFixedPaise: z.number().int().min(0).default(0),
+      codBps: z.number().int().min(0).max(10000).default(200),
+      codFixedPaise: z.number().int().min(0).default(0),
+    }).default({ onlineBps: 200, onlineFixedPaise: 0, codBps: 200, codFixedPaise: 0 }),
+    returnFeePaise: z.number().int().min(0).default(0),
+    requiresProfessionalReview: z.boolean().default(false),
+    status: z.enum(['draft', 'active']).default('active'),
+    effectiveFrom: z.string().datetime().optional(),
+  });
+
+  const parsed = schema.parse(req.body);
+  const latestVersion = await MarketplaceFeeRule.findOne({ ruleKey: parsed.ruleKey }).sort('-version').select('version').lean();
+  const version = (latestVersion?.version ?? 0) + 1;
+  const ruleId = `${parsed.ruleKey}:v${version}`;
+
+  const rule = await MarketplaceFeeRule.create({
+    ...parsed,
+    ruleId,
+    version,
+    category: parsed.category ? new mongoose.Types.ObjectId(parsed.category) : undefined,
+    effectiveFrom: parsed.effectiveFrom ? new Date(parsed.effectiveFrom) : new Date(),
+    createdBy: adminId ? new mongoose.Types.ObjectId(adminId) : undefined,
+  });
+
+  sendSuccess(res, rule, 'Fee rule created', 201);
+}
+
+export async function updateFeeRuleStatus(req: Request, res: Response): Promise<void> {
+  const { status } = z.object({ status: z.enum(FEE_RULE_STATUSES) }).parse(req.body);
+  if (!mongoose.isValidObjectId(req.params.id)) { sendNotFound(res, 'Fee rule not found'); return; }
+  const rule = await MarketplaceFeeRule.findByIdAndUpdate(req.params.id, { $set: { status } }, { new: true });
+  if (!rule) { sendNotFound(res, 'Fee rule not found'); return; }
+  sendSuccess(res, rule, 'Fee rule status updated');
+}
+
+export async function getLedgerEntries(req: Request, res: Response): Promise<void> {
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter: Record<string, unknown> = {};
+  if (typeof req.query.account === 'string') filter.account = req.query.account;
+  if (typeof req.query.eventType === 'string') filter.eventType = req.query.eventType;
+  if (req.query.seller && mongoose.isValidObjectId(req.query.seller as string)) filter.seller = req.query.seller;
+  if (req.query.order && mongoose.isValidObjectId(req.query.order as string)) filter.order = req.query.order;
+
+  const [entries, total] = await Promise.all([
+    MarketplaceLedgerEntry.find(filter)
+      .sort('-effectiveAt -createdAt')
+      .skip(skip)
+      .limit(limit)
+      .populate('seller', 'storefrontName')
+      .populate('order', 'orderId total')
+      .lean(),
+    MarketplaceLedgerEntry.countDocuments(filter),
+  ]);
+  sendPaginated(res, entries, total, page, limit);
+}
+
+export async function getLedgerSummary(req: Request, res: Response): Promise<void> {
+  const summary = await MarketplaceLedgerEntry.aggregate([
+    {
+      $group: {
+        _id: '$account',
+        totalCreditPaise: {
+          $sum: { $cond: [{ $eq: ['$direction', 'credit'] }, '$amountPaise', 0] },
+        },
+        totalDebitPaise: {
+          $sum: { $cond: [{ $eq: ['$direction', 'debit'] }, '$amountPaise', 0] },
+        },
+      },
+    },
+  ]);
+
+  const formatted: Record<string, { balancePaise: number; balanceRupees: number; creditRupees: number; debitRupees: number }> = {};
+  for (const row of summary) {
+    const netPaise = row.totalCreditPaise - row.totalDebitPaise;
+    formatted[row._id] = {
+      balancePaise: netPaise,
+      balanceRupees: netPaise / 100,
+      creditRupees: row.totalCreditPaise / 100,
+      debitRupees: row.totalDebitPaise / 100,
+    };
+  }
+
+  sendSuccess(res, formatted);
 }

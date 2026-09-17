@@ -14,13 +14,22 @@ const AddressSchema = new Schema({
 });
 
 const OrderItemSchema = new Schema({
+  // `_id` is retained for immutable references from fulfillment groups.
   name: String,
   image: String,
   product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  listing: { type: Schema.Types.ObjectId, ref: 'SellerListing' },
+  seller: { type: Schema.Types.ObjectId, ref: 'Seller' },
+  inventory: { type: Schema.Types.ObjectId, ref: 'SellerInventory' },
+  sellerSku: String,
   variant: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
   unitPrice: { type: Number, required: true },
   totalPrice: { type: Number, required: true },
+  unitPricePaise: { type: Number, min: 0, validate: Number.isInteger },
+  totalPricePaise: { type: Number, min: 0, validate: Number.isInteger },
+  discountPaise: { type: Number, min: 0, default: 0, validate: Number.isInteger },
+  inventoryState: { type: String, enum: ['reserved', 'committed', 'released', 'returned'] },
 });
 
 const StatusHistorySchema = new Schema({
@@ -67,6 +76,13 @@ const OrderSchema = new Schema<IOrder>(
     total: { type: Number, required: true },
     invoiceUrl: String,
     notes: String,
+    moneyVersion: { type: Number, default: 1, index: true },
+    subtotalPaise: { type: Number, min: 0, validate: Number.isInteger },
+    shippingFeePaise: { type: Number, min: 0, validate: Number.isInteger },
+    taxPaise: { type: Number, min: 0, validate: Number.isInteger },
+    discountPaise: { type: Number, min: 0, validate: Number.isInteger },
+    totalPaise: { type: Number, min: 0, validate: Number.isInteger },
+    fulfillmentGroups: [{ type: Schema.Types.ObjectId, ref: 'FulfillmentGroup' }],
   },
   { timestamps: true, optimisticConcurrency: true, toJSON: { virtuals: true } }
 );
@@ -75,6 +91,7 @@ OrderSchema.index({ customer: 1, createdAt: -1 });
 OrderSchema.index({ customer: 1, checkoutId: 1 }, { unique: true, partialFilterExpression: { checkoutId: { $type: 'string' } } });
 OrderSchema.index({ orderStatus: 1, createdAt: -1 });
 OrderSchema.index({ paymentStatus: 1, createdAt: -1 });
+OrderSchema.index({ fulfillmentGroups: 1 });
 OrderSchema.index({ razorpayOrderId: 1 }, { unique: true, sparse: true });
 
 export const Order = mongoose.model<IOrder>('Order', OrderSchema);

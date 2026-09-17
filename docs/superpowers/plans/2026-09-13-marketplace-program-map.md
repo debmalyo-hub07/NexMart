@@ -143,7 +143,7 @@ acceptance criteria are demonstrably true and every gate is green.
 
 | # | Piece | Status | Plan document |
 |---|-------|--------|---------------|
-| 0 | Customer auth repair + account UX | IN DESIGN | — |
+| 0 | Customer auth repair + account UX | CODE DONE 2026-09-13 — live smoke + backfill pending | [2026-09-13-piece-0-auth-account.md](2026-09-13-piece-0-auth-account.md) |
 | 1 | Seller identity + seller auth | QUEUED | — |
 | 2 | Seller onboarding + KYC + admin review | QUEUED | — |
 | 3 | Catalog: canonical product ↔ seller listing | QUEUED | — |
@@ -162,6 +162,17 @@ acceptance criteria are demonstrably true and every gate is green.
 
 ## Open questions carried into later pieces
 
+- **Piece 0 live verification (outstanding).** The code is complete with all six
+  gates green, but two steps send real effects and were left for the user: a
+  smoke walk of the reset flow against a real inbox, and running
+  `src/scripts/backfillAuthProviders.ts` against Atlas to repair `authProviders`
+  on existing Google-linked accounts. Until the backfill runs, those customers
+  see "Add a password" instead of "Change password" on the security tab.
+- **Password change and session invalidation (deferred, Piece 0 scope call).**
+  `PUT /customer/password` deliberately does *not* stamp `credentialsChangedAt`.
+  Doing so would sign the customer out of the session they just used to change
+  their password, and `PasswordModal` has no re-authentication flow. Worth
+  revisiting alongside any session-management work.
 - **Route capability probe (Piece 6).** The account is reported Route-enabled in
   test mode. Confirm linked-account creation and a test transfer against the
   live API before designing settlement. The razorpay SDK is pinned at 2.9.2;

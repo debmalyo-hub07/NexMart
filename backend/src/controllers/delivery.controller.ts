@@ -102,13 +102,9 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
         order.paymentStatus = 'paid';
       }
 
-      // Audit §3.3: a returned order releases its reserved stock back to
-      // sellable inventory (the agent physically has the goods).
-      if (orderStatus === 'returned') {
-        await restockOrderItems(order);
-      }
-
-      await order.save();
+      // A returned shipment and its inventory transition commit together.
+      if (orderStatus === 'returned') await restockOrderItems(order);
+      else await order.save();
 
       const customer = order.customer as unknown as { name?: string; email?: string; _id: { toString(): string } };
       // Fire-and-forget — SMTP latency never sits in the agent's request path

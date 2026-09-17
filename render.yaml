@@ -46,6 +46,8 @@ services:
         sync: false
       - key: JWT_SECRET_AGENT
         sync: false
+      - key: JWT_SECRET_SELLER
+        sync: false
       - key: ADMIN_SECRET_KEY
         sync: false
       - key: ADMIN_SEED_EMAIL

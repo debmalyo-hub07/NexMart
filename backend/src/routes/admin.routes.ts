@@ -10,6 +10,11 @@ import {
   getRevenueAnalytics,
   getAllProducts,
   updateAdminProfile,
+  getFeeRules,
+  createFeeRule,
+  updateFeeRuleStatus,
+  getLedgerEntries,
+  getLedgerSummary,
 } from '../controllers/admin.controller';
 import { protectAdmin } from '../middleware/auth';
 import { checkIP } from '../middleware/ipWhitelist';
@@ -19,6 +24,8 @@ import { DeliveryAgent } from '../models/DeliveryAgent';
 import { Customer } from '../models/Customer';
 import { registerAdmin, loginAdmin } from '../controllers/roleAuth.controller';
 import { sendAgentStatusEmail } from '../services/email.service';
+import { getSellerAudit, getSellerById, getSellers, updateSellerStatus } from '../controllers/seller.controller';
+import { getAllListings, getListingAudit, updateListingStatus } from '../controllers/listing.controller';
 
 const router = Router();
 
@@ -100,6 +107,27 @@ router.delete('/agents/:id', async (req, res) => {
   await DeliveryAgent.findByIdAndDelete(req.params.id);
   res.json({ success: true, message: 'Agent removed from system' });
 });
+
+// --- Seller governance ---------------------------------------------------
+// Seller status changes are server-side state transitions. The seller portal
+// never receives an endpoint that can approve or activate itself.
+router.get('/sellers', getSellers);
+router.get('/sellers/:id', getSellerById);
+router.get('/sellers/:id/audit', getSellerAudit);
+router.patch('/sellers/:id/status', updateSellerStatus);
+
+// --- Listing moderation --------------------------------------------------
+router.get('/listings', getAllListings);
+router.get('/listings/:id/audit', getListingAudit);
+router.patch('/listings/:id/status', updateListingStatus);
+
+// --- Marketplace Fee Rules & Ledger --------------------------------------
+router.get('/fee-rules', getFeeRules);
+router.post('/fee-rules', createFeeRule);
+router.patch('/fee-rules/:id/status', updateFeeRuleStatus);
+
+router.get('/ledger', getLedgerEntries);
+router.get('/ledger/summary', getLedgerSummary);
 
 // ── Orders / Products ─────────────────────────────────────────────────────────
 router.get('/products', getAllProducts);

@@ -15,6 +15,12 @@ import {
   forgotPassword,
   resetPassword
 } from '../controllers/roleAuth.controller';
+import {
+  loginSeller,
+  registerSeller,
+  resendSellerVerification,
+  verifySellerEmail,
+} from '../controllers/sellerAuth.controller';
 
 const router = Router();
 
@@ -38,6 +44,11 @@ router.post('/customer/reset-password', otpLimit, resetPassword);
 router.post('/delivery/login', authLimit, loginAgent);
 router.post('/delivery/register', registerLimit, registerAgent);
 
+router.post('/seller/login', authLimit, loginSeller);
+router.post('/seller/register', registerLimit, registerSeller);
+router.post('/seller/verify-otp', otpLimit, verifySellerEmail);
+router.post('/seller/resend-otp', otpLimit, resendSellerVerification);
+
 /**
  * POST /api/v1/auth/logout
  * Called by authStore.logout() — server-side session cleanup.
@@ -55,7 +66,7 @@ function readCookie(req: Request, name: string): string | null {
 }
 
 router.post('/logout', async (req, res) => {
-  const cookieNames = ['nexmart_admin_session', 'nexmart_customer_session', 'nexmart_delivery_session'];
+  const cookieNames = ['nexmart_admin_session', 'nexmart_customer_session', 'nexmart_delivery_session', 'nexmart_seller_session'];
   await Promise.all(cookieNames.map(async (name) => {
     const token = readCookie(req, name);
     if (!token) return;

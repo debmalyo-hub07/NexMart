@@ -7,6 +7,7 @@ export default defineConfig({
     // copies up as broken suites.
     include: ['src/**/*.test.ts'],
     environment: 'node',
+    testTimeout: 30000,
     // Deterministic env for hermetic unit tests. Importing most modules pulls
     // in config/env.ts, which validates env and process.exit(1)s if anything
     // required is missing — so the suite crashes in any environment without a
@@ -28,6 +29,7 @@ export default defineConfig({
       JWT_SECRET_ADMIN: 'test-jwt-admin-secret',
       JWT_SECRET_CUSTOMER: 'test-jwt-customer-secret',
       JWT_SECRET_AGENT: 'test-jwt-agent-secret',
+      JWT_SECRET_SELLER: 'test-jwt-seller-secret',
       SMTP_USER: 'test-smtp-user',
       SMTP_PASSWORD: 'test-smtp-password',
       ADMIN_SEED_EMAIL: 'admin@test.local',

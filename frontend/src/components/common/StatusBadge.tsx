@@ -43,6 +43,10 @@ const STATUS_ICONS: Record<string, LucideIcon> = {
   suspended: XCircle,
   published: CheckCircle,
   draft: ClipboardList,
+  submitted: ClipboardList,
+  under_review: Loader2,
+  blocked: XCircle,
+  closed: XCircle,
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {

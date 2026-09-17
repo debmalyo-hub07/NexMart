@@ -1,5 +1,5 @@
 // ── User types ────────────────────────────────────────────────
-export type UserRole = 'customer' | 'admin' | 'delivery' | 'agent';
+export type UserRole = 'customer' | 'admin' | 'delivery' | 'agent' | 'seller';
 export type AuthProvider = 'email' | 'google' | 'phone';
 
 export interface Address {
@@ -31,6 +31,9 @@ export interface User {
   addresses: Address[];
   authProviders: AuthProvider[];
   isActive: boolean;
+  storefrontName?: string;
+  lifecycleStatus?: string;
+  legalBusinessName?: string;
   createdAt: string;
 }
 
@@ -85,6 +88,8 @@ export interface Product {
 export interface CartItem {
   _id: string;
   product: Product | null;
+  listing?: string;
+  seller?: { id?: string; _id?: string; storefrontName: string };
   variant: string;
   quantity: number;
   price: number;
@@ -137,6 +142,15 @@ export interface Order {
   deliveryId?: string;
   deliveryAgent?: { _id: string; name: string; phone?: string } | null;
   notes?: string;
+  fulfillmentGroups?: Array<{
+    _id: string;
+    groupId: string;
+    status: string;
+    totalPaise?: number;
+    seller?: { _id: string; storefrontName: string };
+    shipment?: { _id: string; shipmentId: string; status: string; trackingId?: string; updatedAt?: string };
+    items: Array<{ name: string; quantity: number; variant?: string }>;
+  }>;
   createdAt: string;
 }
 
@@ -174,6 +188,7 @@ export interface ApiResponse<T> {
  */
 export interface AnalyticsSummary {
   dailyRevenue: { _id: string; revenue: number; orders: number }[];
+  dailyPlatformRevenue?: { _id: string; revenue: number; orders: number }[];
   topProducts: { name: string; slug?: string; totalSold: number; revenue: number }[];
   ordersByStatus: { _id: string; count: number }[];
 }
@@ -181,10 +196,14 @@ export interface AnalyticsSummary {
 export interface DashboardStats {
   totalOrders: number;
   totalRevenue: number;
+  platformRevenue?: number;
+  totalGmv?: number;
   totalUsers: number;
   totalProducts: number;
   monthlyOrders: number;
   monthlyRevenue: number;
+  monthlyPlatformRevenue?: number;
+  monthlyGmv?: number;
   pendingOrders: number;
   recentOrders: Order[];
 }

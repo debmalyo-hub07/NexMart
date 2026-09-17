@@ -43,6 +43,7 @@ const envSchema = z.object({
   JWT_SECRET_ADMIN: z.string().min(1),
   JWT_SECRET_CUSTOMER: z.string().min(1),
   JWT_SECRET_AGENT: z.string().min(1),
+  JWT_SECRET_SELLER: z.string().min(1),
   JWT_EXPIRES_IN: z.string().default('7d'),
   SESSION_MAXAGE: z.string().default('2592000'),
 

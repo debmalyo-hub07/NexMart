@@ -2,7 +2,7 @@ import { Request } from 'express';
 import { Document, Types } from 'mongoose';
 
 // ── Auth types ────────────────────────────────────────────────
-export type UserRole = 'customer' | 'admin' | 'delivery';
+export type UserRole = 'customer' | 'admin' | 'delivery' | 'agent' | 'seller';
 export type OrderStatus =
   | 'placed' | 'confirmed' | 'processing' | 'shipped'
   | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
@@ -14,6 +14,8 @@ export interface JwtPayload {
   email?: string;
   iat?: number;
   exp?: number;
+  iatMs?: number;
+  sellerLifecycleStatus?: string;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -78,10 +80,14 @@ export interface IProduct extends Document {
   updatedAt: Date;
 }
 
+export type InventoryState = 'reserved' | 'committed' | 'released' | 'returned';
+
 // ── Cart ──────────────────────────────────────────────────────
 export interface ICartItem {
   _id?: Types.ObjectId;
   product: Types.ObjectId;
+  listing?: Types.ObjectId;
+  seller?: Types.ObjectId;
   variant: string;
   quantity: number;
   price: number;
@@ -98,13 +104,22 @@ export interface IOrder extends Document {
   deliveryId?: string;
   customer: Types.ObjectId;
   items: {
+    _id?: Types.ObjectId;
     name?: string;
     image?: string;
     product: Types.ObjectId | { name: string; images?: string[] };
+    listing?: Types.ObjectId;
+    seller?: Types.ObjectId;
+    inventory?: Types.ObjectId;
+    sellerSku?: string;
     variant: string;
     quantity: number;
     unitPrice: number;
     totalPrice: number;
+    unitPricePaise?: number;
+    totalPricePaise?: number;
+    discountPaise?: number;
+    inventoryState?: InventoryState;
   }[];
   shippingAddress: IAddress;
   paymentMethod: PaymentMethod;
@@ -124,6 +139,13 @@ export interface IOrder extends Document {
   tax: number;
   discount: number;
   total: number;
+  moneyVersion?: number;
+  subtotalPaise?: number;
+  shippingFeePaise?: number;
+  taxPaise?: number;
+  discountPaise?: number;
+  totalPaise?: number;
+  fulfillmentGroups?: Types.ObjectId[];
   invoiceUrl?: string;
   deliveryAgent?: Types.ObjectId;
   notes?: string;

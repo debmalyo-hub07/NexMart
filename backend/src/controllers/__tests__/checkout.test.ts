@@ -4,8 +4,8 @@ import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import type { Request, Response } from 'express';
 
-const effects = vi.hoisted(() => ({ createPayment: vi.fn(), payments: vi.fn(), invoice: vi.fn(), emit: vi.fn() }));
-vi.mock('../../services/razorpay.service', () => ({ createRazorpayOrder: effects.createPayment, fetchOrderPayments: effects.payments }));
+const effects = vi.hoisted(() => ({ createPayment: vi.fn(), payments: vi.fn(), fetchPayment: vi.fn(), invoice: vi.fn(), emit: vi.fn() }));
+vi.mock('../../services/razorpay.service', () => ({ createRazorpayOrder: effects.createPayment, fetchOrderPayments: effects.payments, fetchPayment: effects.fetchPayment }));
 vi.mock('../../queues/invoiceQueue', () => ({ queueInvoiceGeneration: effects.invoice }));
 vi.mock('../../config/socket', () => ({ emitNewOrder: vi.fn(), emitOrderStatusUpdate: effects.emit }));
 vi.mock('../../services/email.service', () => ({ sendOrderStatusEmail: vi.fn() }));
@@ -14,9 +14,15 @@ vi.mock('../../models/Customer', () => ({ Customer: { findById: () => ({ select:
 import { Order } from '../../models/Order';
 import { Product } from '../../models/Product';
 import { Cart } from '../../models/Cart';
+import { Seller } from '../../models/Seller';
+import { SellerListing } from '../../models/SellerListing';
+import { SellerInventory } from '../../models/SellerInventory';
+import { FulfillmentGroup } from '../../models/FulfillmentGroup';
+import { InventoryMovement } from '../../models/InventoryMovement';
 import { createOrder, verifyPayment } from '../order.controller';
 import { resumePayment, getCheckoutOrder, checkoutSchema } from '../checkout.controller';
 import { addToCart, updateCartItem, mergeGuestCart } from '../cart.controller';
+import { restockOrderItems } from '../../utils/orderRestock';
 
 let database: MongoMemoryReplSet;
 const customer = new mongoose.Types.ObjectId();
@@ -38,6 +44,44 @@ async function place(body = checkout()) {
   await createOrder(request(body), result.res);
   return result;
 }
+
+async function offerFixture(input: {
+  suffix: string;
+  variant: string;
+  pricePaise: number;
+  stock: number;
+  fulfillmentMode?: 'seller' | 'nexmart';
+}) {
+  const seller = await Seller.create({
+    name: `Seller ${input.suffix}`,
+    email: `seller-${input.suffix}@example.test`,
+    phone: `98${input.suffix.padStart(8, '0').slice(-8)}`,
+    role: 'seller',
+    emailVerified: true,
+    isActive: true,
+    lifecycleStatus: 'active',
+    legalBusinessName: `Seller ${input.suffix} Private Limited`,
+    storefrontName: `Store ${input.suffix}`,
+    businessType: 'private_limited',
+  });
+  const listing = await SellerListing.create({
+    seller: seller._id,
+    canonicalProduct: productId,
+    canonicalVariantSku: input.variant,
+    sellerSku: `SKU-${input.suffix}`,
+    pricePaise: input.pricePaise,
+    fulfillmentMode: input.fulfillmentMode || 'seller',
+    status: 'published',
+  });
+  const inventory = await SellerInventory.create({
+    listing: listing._id,
+    seller: seller._id,
+    available: input.stock,
+  });
+  listing.inventory = inventory._id;
+  await listing.save();
+  return { seller, listing, inventory };
+}
 function proof(razorpayOrderId: string, razorpayPaymentId = 'pay_test') {
   return { razorpayOrderId, razorpayPaymentId, razorpaySignature: createHmac('sha256', 'test-razorpay-secret').update(`${razorpayOrderId}|${razorpayPaymentId}`).digest('hex') };
 }
@@ -45,14 +89,28 @@ function proof(razorpayOrderId: string, razorpayPaymentId = 'pay_test') {
 beforeAll(async () => {
   database = await MongoMemoryReplSet.create({ replSet: { count: 1, ip: '127.0.0.1' } });
   await mongoose.connect(database.getUri(), { dbName: 'nexmart_checkout_tests' });
-  await Promise.all([Order.init(), Product.init(), Cart.init()]);
+  await Promise.all([Order.init(), Product.init(), Cart.init(), Seller.init(), SellerListing.init(), SellerInventory.init(), FulfillmentGroup.init(), InventoryMovement.init()]);
 }, 120_000);
 afterAll(async () => { await mongoose.disconnect(); await database?.stop(); });
 beforeEach(async () => {
   vi.clearAllMocks();
-  await Promise.all([Order.deleteMany({}), Product.deleteMany({}), Cart.deleteMany({})]);
+  await Promise.all([
+    Order.deleteMany({}),
+    Product.deleteMany({}),
+    Cart.deleteMany({}),
+    Seller.deleteMany({}),
+    SellerListing.deleteMany({}),
+    SellerInventory.deleteMany({}),
+    FulfillmentGroup.deleteMany({}),
+    InventoryMovement.deleteMany({}),
+  ]);
   effects.createPayment.mockImplementation(async () => ({ id: `order_${randomUUID()}`, amount: 7259, currency: 'INR' }));
   effects.payments.mockResolvedValue([]);
+  effects.fetchPayment.mockImplementation(async (paymentId: string) => ({
+    id: paymentId,
+    status: 'captured',
+    currency: 'INR',
+  }));
   const product = await Product.create({ name: 'Test phone', slug: 'test-phone', description: 'Isolated test fixture', category: new mongoose.Types.ObjectId(), createdBy: new mongoose.Types.ObjectId(), isPublished: true, variants: [{ sku: 'phone', price: 19.99, stock: 5 }, { sku: 'other', price: 200, stock: 100 }] });
   productId = String(product._id);
 });
@@ -99,6 +157,152 @@ describe('checkout identity, reviewed amounts and inventory', () => {
     const result = await place({ ...body, paymentMethod: 'cod' });
     expect(result.status).toHaveBeenCalledWith(409);
     expect(await Order.countDocuments()).toBe(1);
+  });
+});
+
+describe('marketplace checkout allocation', () => {
+  it('creates one parent order with isolated seller groups and inventory reservations', async () => {
+    const sellerA = await offerFixture({ suffix: 'a', variant: 'phone', pricePaise: 5_000_000, stock: 1 });
+    const sellerB = await offerFixture({ suffix: 'b', variant: 'other', pricePaise: 200_000, stock: 2, fulfillmentMode: 'nexmart' });
+    const body = checkout({
+      paymentMethod: 'cod',
+      expectedTotal: 61_360,
+      items: [
+        { product: productId, listing: String(sellerA.listing._id), variant: 'phone', quantity: 1, expectedPrice: 50_000 },
+        { product: productId, listing: String(sellerB.listing._id), variant: 'other', quantity: 1, expectedPrice: 2_000 },
+      ],
+    });
+
+    const result = await place(body);
+    expect(result.status).toHaveBeenCalledWith(201);
+    expect(effects.createPayment).not.toHaveBeenCalled();
+
+    const order = await Order.findById(result.payload().data.orderId);
+    expect(order?.items).toHaveLength(2);
+    expect(order?.subtotalPaise).toBe(5_200_000);
+    expect(order?.taxPaise).toBe(936_000);
+    expect(order?.totalPaise).toBe(6_136_000);
+    expect(order?.items.map((item) => String(item.seller))).toEqual([String(sellerA.seller._id), String(sellerB.seller._id)]);
+    expect(order?.items.map((item) => item.sellerSku)).toEqual(['SKU-A', 'SKU-B']);
+    expect(order?.items.every((item) => item.inventoryState === 'reserved')).toBe(true);
+
+    const groups = await FulfillmentGroup.find({ order: order?._id }).sort('seller');
+    expect(groups).toHaveLength(2);
+    expect(groups.reduce((sum, group) => sum + group.totalPaise, 0)).toBe(order?.totalPaise);
+    expect(new Set(groups.map((group) => String(group.seller)))).toEqual(new Set([String(sellerA.seller._id), String(sellerB.seller._id)]));
+    expect(groups.find((group) => String(group.seller) === String(sellerB.seller._id))?.fulfillmentMode).toBe('nexmart');
+
+    const [inventoryA, inventoryB] = await Promise.all([
+      SellerInventory.findById(sellerA.inventory._id),
+      SellerInventory.findById(sellerB.inventory._id),
+    ]);
+    expect({ available: inventoryA?.available, reserved: inventoryA?.reserved }).toEqual({ available: 0, reserved: 1 });
+    expect({ available: inventoryB?.available, reserved: inventoryB?.reserved }).toEqual({ available: 1, reserved: 1 });
+    expect(await InventoryMovement.countDocuments({ reason: 'order_reservation' })).toBe(2);
+    expect((await Product.findById(productId))?.variants.map((variant) => variant.stock)).toEqual([5, 100]);
+  });
+
+  it('rejects seller-offer price tampering and an inactive seller without reserving stock', async () => {
+    const fixture = await offerFixture({ suffix: 'price', variant: 'phone', pricePaise: 10_000, stock: 2 });
+    const tampered = await place(checkout({
+      paymentMethod: 'cod',
+      expectedTotal: 167,
+      items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 99 }],
+    }));
+    expect(tampered.status).toHaveBeenCalledWith(409);
+    expect(tampered.payload().code).toBe('PRICE_CHANGED');
+
+    await Seller.updateOne({ _id: fixture.seller._id }, { isActive: false });
+    const unavailable = await place(checkout({
+      paymentMethod: 'cod',
+      expectedTotal: 167,
+      items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
+    }));
+    expect(unavailable.status).toHaveBeenCalledWith(409);
+    expect(unavailable.payload().code).toBe('SELLER_UNAVAILABLE');
+    expect(await Order.countDocuments()).toBe(0);
+    expect((await SellerInventory.findById(fixture.inventory._id))?.available).toBe(2);
+  });
+
+  it('allows only one distinct checkout to reserve the final seller unit', async () => {
+    const fixture = await offerFixture({ suffix: 'race', variant: 'phone', pricePaise: 10_000, stock: 1 });
+    const item = { product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 };
+    const attempts = await Promise.all([
+      place(checkout({ paymentMethod: 'cod', expectedTotal: 167, items: [item] })),
+      place(checkout({ paymentMethod: 'cod', expectedTotal: 167, items: [item] })),
+    ]);
+    expect(attempts.filter((attempt) => attempt.status.mock.calls.some((call) => call[0] === 201))).toHaveLength(1);
+    expect(await Order.countDocuments()).toBe(1);
+    expect(await FulfillmentGroup.countDocuments()).toBe(1);
+    expect((await SellerInventory.findById(fixture.inventory._id))?.toObject()).toMatchObject({ available: 0, reserved: 1 });
+    expect(await InventoryMovement.countDocuments({ reason: 'order_reservation' })).toBe(1);
+  });
+
+  it('commits seller inventory once when an online payment is captured', async () => {
+    const fixture = await offerFixture({ suffix: 'capture', variant: 'phone', pricePaise: 10_000, stock: 2 });
+    const placed = await place(checkout({
+      expectedTotal: 167,
+      items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
+    }));
+    const receipt = placed.payload().data;
+
+    await verifyPayment(request(proof(receipt.razorpayOrderId), receipt.orderId), response().res);
+    await verifyPayment(request(proof(receipt.razorpayOrderId), receipt.orderId), response().res);
+
+    const [order, inventory] = await Promise.all([
+      Order.findById(receipt.orderId),
+      SellerInventory.findById(fixture.inventory._id),
+    ]);
+    expect(order?.paymentStatus).toBe('paid');
+    expect(order?.items[0].inventory).toEqual(fixture.inventory._id);
+    expect(order?.items[0].inventoryState).toBe('committed');
+    expect(inventory?.toObject()).toMatchObject({ available: 1, reserved: 0, committed: 1 });
+    expect(await InventoryMovement.countDocuments({ reason: 'shipment_commit' })).toBe(1);
+  });
+
+  it('releases a cancelled seller reservation exactly once', async () => {
+    const fixture = await offerFixture({ suffix: 'cancel', variant: 'phone', pricePaise: 10_000, stock: 1 });
+    const placed = await place(checkout({
+      paymentMethod: 'cod',
+      expectedTotal: 167,
+      items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
+    }));
+    const order = await Order.findById(placed.payload().data.orderId);
+    expect(order).not.toBeNull();
+    order!.orderStatus = 'cancelled';
+    await order!.save();
+
+    await restockOrderItems(order!);
+    await restockOrderItems(order!);
+
+    const inventory = await SellerInventory.findById(fixture.inventory._id);
+    const savedOrder = await Order.findById(order!._id);
+    expect(inventory?.toObject()).toMatchObject({ available: 1, reserved: 0, committed: 0 });
+    expect(savedOrder?.items[0].inventoryState).toBe('released');
+    expect(await InventoryMovement.countDocuments({ reason: 'reservation_release' })).toBe(1);
+  });
+
+  it('moves a delivered seller return into inspection stock exactly once', async () => {
+    const fixture = await offerFixture({ suffix: 'return', variant: 'phone', pricePaise: 10_000, stock: 1 });
+    const placed = await place(checkout({
+      expectedTotal: 167,
+      items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
+    }));
+    const receipt = placed.payload().data;
+    await verifyPayment(request(proof(receipt.razorpayOrderId), receipt.orderId), response().res);
+    const order = await Order.findById(receipt.orderId);
+    expect(order).not.toBeNull();
+    order!.orderStatus = 'returned';
+    await order!.save();
+
+    await restockOrderItems(order!);
+    await restockOrderItems(order!);
+
+    const inventory = await SellerInventory.findById(fixture.inventory._id);
+    const savedOrder = await Order.findById(order!._id);
+    expect(inventory?.toObject()).toMatchObject({ available: 0, reserved: 0, committed: 0, returned: 1 });
+    expect(savedOrder?.items[0].inventoryState).toBe('returned');
+    expect(await InventoryMovement.countDocuments({ reason: 'return_received' })).toBe(1);
   });
 });
 

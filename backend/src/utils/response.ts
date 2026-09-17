@@ -32,6 +32,10 @@ export function sendBadRequest(res: Response, message = 'Bad request') {
   return res.status(400).json({ success: false, message, code: 'BAD_REQUEST', ...(res.locals?.requestId ? { requestId: res.locals.requestId } : {}) });
 }
 
+export function sendConflict(res: Response, message = 'The request conflicts with existing data') {
+  return res.status(409).json({ success: false, message, code: 'CONFLICT', ...(res.locals?.requestId ? { requestId: res.locals.requestId } : {}) });
+}
+
 export function sendUnauthorized(res: Response, message = 'Unauthorized') {
   return res.status(401).json({ success: false, message, code: 'UNAUTHENTICATED', ...(res.locals?.requestId ? { requestId: res.locals.requestId } : {}) });
 }

@@ -5,6 +5,80 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-17 — Multi-Vendor Marketplace Transformation (Full Stack)
+
+Transformed NexMart from an admin-controlled catalog into a production-grade multi-vendor marketplace with 4 distinct role portals (Customer, Seller, Admin, Delivery).
+Baseline: 119 backend / 31 frontend tests → **142 backend tests (25 suites, 100% pass), 54 Next.js routes generated (100% pass), 0 TypeScript/lint errors**.
+
+### 1. Seller Domain & Operational Hub (`/seller/*`)
+- **Seller Identity & Isolation**: Dedicated `Seller` model (`sellerKind: 'first_party' | 'third_party'`) with lifecycle states (`draft`, `submitted`, `under_review`, `approved`, `active`, `rejected`, `suspended`, `blocked`). Isolated auth cookie (`nexmart_seller_session`), `JWT_SECRET_SELLER`, and cross-role boundary enforcement.
+- **Onboarding & Verification**: Multi-step business profile onboarding with GSTIN, PAN, business/pickup/return addresses, and audit logging (`SellerAuditLog`).
+- **Listings & Inventory**: Decoupled canonical `Product` identity from commercial `SellerListing` offers. Lifecycle states (`draft → submitted → moderation → approved → published`). Idempotent stock adjustments with UUID `Idempotency-Key` tracking and immutable `InventoryMovement` audits.
+- **Fulfillment & Shipments**: Orders split into per-seller `FulfillmentGroup`s. Forward-only progression (`placed → confirmed → processing → ready_for_pickup`). Carrier dispatch generation (`Shipment`) with tracking IDs and handoff event histories.
+- **Finances & Settlements**: Real-time financial dashboard (`/seller/finances`) aggregating net payable balance, escrow reserve withholdings (held during return window), gross sales, and transaction ledger journal.
+
+### 2. Admin Marketplace Governance & Financial Control (`/admin/*`)
+- **Seller Application Reviews**: Admin governance for seller approvals, rejection, suspensions, and unblocking with mandatory audit reason logging.
+- **Listing Moderation**: Admin moderation queue (`/admin/listings`) controlling `moderation → approved → published` transitions with rejection overlays.
+- **Fee Rules Engine**: Configurable, time-bounded, category-specific fee rules (`MarketplaceFeeRule`) governing commission BPS, fixed fees, and reserve withholdings. Admin management UI at `/admin/fee-rules`.
+- **Double-Entry Ledger Explorer**: Complete accounting transparency UI at `/admin/ledger` with account balance cards (`platform_revenue`, `seller_payable`, `seller_reserve`, `payment_cost`, `shipping_cost`, `payment_clearing`) and detailed debit/credit journal audit logs.
+- **Platform Analytics**: Net platform fee revenue separated from Gross Merchandise Value (GMV).
+
+### 3. Customer Marketplace Experience
+- **Multi-Seller Offers**: Component `SellerOffers` on Product Detail Pages (`/products/[slug]`) fetching active vendor listings, highlighting lowest prices, ratings, verified seller badges, and dispatch speeds.
+- **Cart Grouping**: `CartContents` automatically partitions cart items into distinct vendor packages with seller storefront branding.
+- **Attributed Checkout**: Line-item vendor attribution and transparent multi-seller order summary.
+- **Packages & Dispatch Tracking**: Customer Order Detail page (`/orders/[id]`) visualizes individual seller fulfillment groups, item allotments, and live shipment tracking statuses.
+- **Public Seller Storefront**: Customer-facing `/sellers/[id]` showcases merchant performance, return policies, and active catalog.
+
+### 4. Verification & Hardening
+- 25/25 backend test suites passing (142/142 tests) including race-condition reservation tests, double-entry balance verification, and seller isolation checks.
+- 54/54 frontend routes statically compiled and validated with zero type errors.
+
+---
+
+## 2026-09-13 — Piece 0: customer auth repair + account extension
+
+First piece of the multi-vendor marketplace transformation (map: `docs/superpowers/plans/2026-09-13-marketplace-program-map.md`; design: `docs/superpowers/specs/2026-09-13-piece-0-auth-account-design.md`). Baseline 91 backend / 31 frontend tests → **119 backend / 31 frontend, 0 lint errors, clean typecheck and build**.
+
+### Password reset (did not exist)
+- `POST /customer/auth/forgot-password` → always 202, whatever the truth is. Rate limit consumed before the lookup, so even a 429 cannot prove an address exists. Unknown address, cross-role address and Google-only account are indistinguishable.
+- `POST /customer/auth/reset-password` → one uniform 400 for unknown address, wrong code, expired code and burnt code alike.
+- Codes are SHA-256 hashed at rest (`utils/resetCode.ts`), expire in 15 minutes, and die after 5 attempts. A reset code is more sensitive than a verification code — plaintext persistence was the P7 defect this avoids repeating.
+- A Google-only account receives a "sign in with Google" email rather than a code. The owner gets an actionable message; the HTTP response is unchanged.
+- **A successful reset invalidates every session that predates it** via the new `credentialsChangedAt` stamp on `Customer`, checked in `protectCustomer`. Without this, an attacker holding a live session would keep it through the victim's reset.
+
+### Session invalidation primitive
+- Tokens now carry a millisecond `iatMs` claim. The standard `iat` is whole seconds, which cannot be ordered against a sub-second event: a reset and the login that follows it land in the same second, so a second-resolution comparison either keeps the session it was meant to kill or kills the one it just issued. Tokens predating the claim fall back to `iat`, which is correct for them.
+- `POST /customer/sign-out-everywhere` uses the same primitive.
+
+### Registration
+- Nine fields → four (name, email, password, confirm). Checkout already collects the delivery address with validation and a saved-address selector; signup was duplicating it.
+- Password strength now matches the backend policy — but on **register only**. Applying it to login would have locked out any account whose password predates the policy.
+
+### Defects fixed
+- **Registration routing**: `AuthForm` inferred OTP state from `requiresOtp`, which the deliberately-opaque 202 can never honestly carry. A customer re-registering an unverified email got a success toast and a bounce to login while their freshly-sent code sat unread. Registration now always routes to the code screen, whose copy is true on every branch.
+- **`authProviders` never recorded Google linking** — the array the account security screen renders from said "email" only for every linked account, so the screen told those customers they had no Google sign-in. Recorded on link and on set-password; `src/scripts/backfillAuthProviders.ts` repairs existing accounts (idempotent).
+- **Google-only customers dead-ended**: the security tab said "manage security through your linked provider" and offered no way to. They can now add a password via an emailed code, reusing the reset machinery rather than a second code path.
+- **`refreshUser` logged users out on any failure** — a timeout or 5xx cleared the session. Now only 401/403 does.
+- **Unverified login fed the IP lockout counter**: a legitimate customer's correct password counted toward a 5-strike lockout because they had not clicked the OTP yet. Same class as P1-15 for pending agents.
+- **`PUT /customer/profile` had no validation** — `req.body` spread straight into `$set`. Mongoose happened to make that safe; the zod schema now states the contract rather than relying on the accident.
+- **One `showPassword` state** revealed password and confirm-password together. Now per-field.
+- **"Welcome back to your workspace"** on customer sign-in → "Sign in to your NexMart account".
+
+### Integration test harness (reused by Pieces 1–13)
+- `supertest` added; `backend/src/test/helpers.ts` mounts the real `createApp()` against `mongodb-memory-server` with Redis and SMTP mocked at the module boundary.
+- Covers the full lifecycle (register → verify → login → protected route → reset → old session dies, new login works), anti-enumeration byte-equality, reset attempt-capping and reuse, lockout-counter behaviour, Google-only handling, and CSRF Origin rejection.
+- 28 new tests across four files. This is the harness Piece 9's seller-isolation and IDOR tests build on.
+
+### Frontend
+- New `/customer/forgot-password` and `/customer/reset-password` routes; middleware keeps both reachable when signed out.
+- `components/auth/OtpInput.tsx` extracted from the verify-otp page so verification and reset share one six-box implementation (§5.5) instead of duplicating it.
+
+**Not yet done:** live smoke against a real inbox, and the `authProviders` backfill against Atlas. Both send real effects and are queued for the user.
+
+---
+
 ## 2026-09-13 — product experience polish (audit-driven consolidation)
 
 Full-platform audit covering documentation, frontend architecture (50+ components, 25+ routes), backend architecture (11 route modules, 91 tests), design tokens, accessibility, trust integrity, and responsive behavior. Baseline: 31 frontend tests passing, 91 backend tests passing, 0 lint errors, zero fabricated data.

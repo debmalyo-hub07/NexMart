@@ -11,8 +11,9 @@ export function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const isAuth = pathname?.includes('/login') || pathname?.includes('/register') || pathname?.includes('/verify-otp');
   const isAdmin = pathname?.startsWith('/admin');
   const isDelivery = pathname?.startsWith('/delivery');
+  const isSeller = pathname?.startsWith('/seller');
 
-  const showNavAndFooter = !isAuth && !isAdmin && !isDelivery;
+  const showNavAndFooter = !isAuth && !isAdmin && !isDelivery && !isSeller;
 
   return (
     <>

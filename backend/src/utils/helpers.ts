@@ -62,6 +62,18 @@ export function generateDeliveryId(): string {
   return `DEL-${ts}-${rand}`;
 }
 
+export function generateFulfillmentGroupId(): string {
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `FG-${ts}-${rand}`;
+}
+
+export function generateShipmentId(): string {
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `SHP-${ts}-${rand}`;
+}
+
 export function verifyRazorpaySignature(
   razorpayOrderId: string,
   razorpayPaymentId: string,

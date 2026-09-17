@@ -84,7 +84,15 @@ export function emitOrderStatusUpdate(
 }
 
 export function emitNewOrder(orderId: string, data: object = {}): void {
-  getIO().to('role:admin').emit('order:new', { orderId, ...data });
+  // Order creation is durable even when the optional realtime channel is not
+  // available (for example during startup, in a worker, or in tests). A
+  // notification failure must never turn a committed checkout into a retry
+  // response or cause a second order attempt.
+  try {
+    getIO().to('role:admin').emit('order:new', { orderId, ...data });
+  } catch (err) {
+    logger.warn('Socket emitNewOrder skipped:', err instanceof Error ? err.message : err);
+  }
 }
 
 export function emitStockUpdate(productId: string, variantSku: string, stock: number): void {

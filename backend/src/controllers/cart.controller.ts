@@ -19,7 +19,7 @@ function getCartFilter(req: Request): Record<string, unknown> {
 
 export async function getCart(req: Request, res: Response): Promise<void> {
   const filter = getCartFilter(req);
-  const cart = await Cart.findOne(filter).populate('items.product', 'name images slug variants isPublished');
+  const cart = await Cart.findOne(filter).populate([{ path: 'items.product', select: 'name images slug variants isPublished' }, { path: 'items.seller', select: 'storefrontName' }]);
   // No subtotal field is promised here: the Cart model has none, and populated
   // carts never carried one — the empty-cart default used to advertise a
   // phantom `subtotal: 0` (B10).
@@ -27,10 +27,11 @@ export async function getCart(req: Request, res: Response): Promise<void> {
 }
 
 export async function addToCart(req: Request, res: Response): Promise<void> {
-  const { productId, variant, quantity = 1 } = z.object({
+  const { productId, variant, quantity = 1, listingId } = z.object({
     productId: z.string(),
     variant: z.string(),
     quantity: z.number().int().positive().max(10).default(1),
+    listingId: z.string().optional(),
   }).parse(req.body);
 
   const product = await Product.findById(productId);
@@ -38,7 +39,19 @@ export async function addToCart(req: Request, res: Response): Promise<void> {
 
   const variantData = product.variants.find((v) => v.sku === variant);
   if (!variantData) { sendBadRequest(res, 'Invalid variant SKU'); return; }
-  if (variantData.stock < quantity) { sendBadRequest(res, 'Insufficient stock'); return; }
+
+  let resolvedPrice = variantData.price;
+  let resolvedSeller = undefined;
+  if (listingId) {
+    const { SellerListing } = await import('../models/SellerListing');
+    const { SellerInventory } = await import('../models/SellerInventory');
+    const listing = await SellerListing.findById(listingId);
+    if (!listing || listing.status !== 'published') { sendBadRequest(res, 'Offer is no longer available'); return; }
+    const inventory = await SellerInventory.findOne({ listing: listing._id });
+    if (!inventory || inventory.available < quantity) { sendBadRequest(res, 'Insufficient stock for this offer'); return; }
+    resolvedPrice = listing.pricePaise / 100;
+    resolvedSeller = listing.seller;
+  } else if (variantData.stock < quantity) { sendBadRequest(res, 'Insufficient stock'); return; }
 
   const user = (req as AuthenticatedRequest).user;
   const sessionId = req.headers['x-session-id'] as string;
@@ -58,18 +71,22 @@ export async function addToCart(req: Request, res: Response): Promise<void> {
   }
 
   const existingItem = cart.items.find(
-    (item) => item.product.toString() === productId && item.variant === variant
+    (item) => item.product.toString() === productId && item.variant === variant && String(item.listing || '') === String(listingId || '')
   );
 
   if (existingItem) {
-    if (existingItem.quantity + quantity > Math.min(10, variantData.stock)) { sendBadRequest(res, `Only ${Math.min(10, variantData.stock)} of this option can be added to your cart.`); return; }
+    const maxStock = listingId ? 10 : Math.min(10, variantData.stock);
+    if (existingItem.quantity + quantity > maxStock) { sendBadRequest(res, `Only ${maxStock} of this option can be added to your cart.`); return; }
     existingItem.quantity += quantity;
   } else {
-    cart.items.push({ product: product._id, variant, quantity, price: variantData.price });
+    cart.items.push({ product: product._id, variant, quantity, price: resolvedPrice, listing: listingId as any, seller: resolvedSeller as any });
   }
 
   await cart.save();
-  const populated = await cart.populate('items.product', 'name images slug variants isPublished');
+  const populated = await cart.populate([
+    { path: 'items.product', select: 'name images slug variants isPublished' },
+    { path: 'items.seller', select: 'storefrontName' }
+  ]);
   sendSuccess(res, populated, 'Added to cart');
 }
 
@@ -86,7 +103,7 @@ export async function updateCartItem(req: Request, res: Response): Promise<void>
   if (quantity > variant.stock) { sendBadRequest(res, `Only ${variant.stock} of this option are available.`); return; }
   item.quantity = quantity;
   await cart.save();
-  sendSuccess(res, await cart.populate('items.product', 'name images slug variants isPublished'), 'Cart updated');
+  sendSuccess(res, await cart.populate([{ path: 'items.product', select: 'name images slug variants isPublished' }, { path: 'items.seller', select: 'storefrontName' }]), 'Cart updated');
 }
 
 export async function removeCartItem(req: Request, res: Response): Promise<void> {
@@ -95,7 +112,7 @@ export async function removeCartItem(req: Request, res: Response): Promise<void>
     filter,
     { $pull: { items: { _id: req.params.itemId } }, $inc: { __v: 1 } },
     { new: true }
-  ).populate('items.product', 'name images slug variants isPublished');
+  ).populate([{ path: 'items.product', select: 'name images slug variants isPublished' }, { path: 'items.seller', select: 'storefrontName' }]);
   if (!cart) { sendNotFound(res, 'Cart item not found'); return; }
   sendSuccess(res, cart, 'Item removed');
 }

@@ -66,6 +66,10 @@ export function getStatusColor(status: string): string {
     suspended: 'badge-red',
     published: 'badge-acid',
     draft: 'badge-neutral',
+    submitted: 'badge-amber',
+    under_review: 'badge-amber',
+    blocked: 'badge-red',
+    closed: 'badge-neutral',
   };
   return colors[status] || 'badge-neutral';
 }

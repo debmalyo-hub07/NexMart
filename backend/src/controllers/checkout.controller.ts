@@ -5,20 +5,35 @@ import { z } from 'zod';
 import { Order } from '../models/Order';
 import { Product } from '../models/Product';
 import { Cart } from '../models/Cart';
+import { SellerListing } from '../models/SellerListing';
+import { SellerInventory } from '../models/SellerInventory';
+import { Seller } from '../models/Seller';
+import { FulfillmentGroup } from '../models/FulfillmentGroup';
+import { InventoryMovement } from '../models/InventoryMovement';
 import type { AuthenticatedRequest, IOrder } from '../types';
-import { createRazorpayOrder, fetchOrderPayments } from '../services/razorpay.service';
+import { createRazorpayOrder, fetchOrderPayments, fetchPayment } from '../services/razorpay.service';
 import { recordCapturedPayment } from '../services/orderPayment.service';
-import { generateOrderId, verifyRazorpaySignature } from '../utils/helpers';
+import { calculateMarketplaceFees, feeSnapshotFromCalculation, resolveMarketplaceFeeRule, type FeeRuleSnapshot } from '../services/marketplaceFee.service';
+import { generateFulfillmentGroupId, generateOrderId, verifyRazorpaySignature } from '../utils/helpers';
 import { sendSuccess, sendCreated, sendError, sendNotFound } from '../utils/response';
 import { emitNewOrder } from '../config/socket';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
-const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid product');
+const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
+const checkoutItemSchema = z.object({
+  product: objectId.optional(),
+  listing: objectId.optional(),
+  variant: z.string().min(1).max(120),
+  quantity: z.number().int().min(1).max(10),
+  expectedPrice: z.number().finite().nonnegative().optional(),
+}).superRefine((item, context) => {
+  if (!item.product && !item.listing) context.addIssue({ code: z.ZodIssueCode.custom, path: ['product'], message: 'A product or seller listing is required' });
+});
 export const checkoutSchema = z.object({
   checkoutId: z.string().uuid().optional(),
-  items: z.array(z.object({ product: objectId, variant: z.string().min(1).max(120), quantity: z.number().int().min(1).max(10), expectedPrice: z.number().finite().nonnegative().optional() })).min(1, 'Your cart is empty').max(50)
-    .refine(items => new Set(items.map(item => `${item.product.toLowerCase()}:${item.variant}`)).size === items.length, 'Combine duplicate product options in your cart'),
+  items: z.array(checkoutItemSchema).min(1, 'Your cart is empty').max(50)
+    .refine(items => new Set(items.map(item => `${(item.listing || item.product || '').toLowerCase()}:${item.variant}`)).size === items.length, 'Combine duplicate product options in your cart'),
   shippingAddress: z.object({
     fullName: z.string().trim().min(2, 'Enter the recipient’s full name').max(100),
     phone: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
@@ -36,8 +51,59 @@ class CheckoutError extends Error {
   constructor(message: string, readonly code: string, readonly status = 409) { super(message); }
 }
 const paise = (amount: number) => Math.round((amount + Number.EPSILON) * 100);
+
+type ValidatedCheckoutItem = {
+  product: mongoose.Types.ObjectId;
+  category?: mongoose.Types.ObjectId;
+  listing?: mongoose.Types.ObjectId;
+  seller?: mongoose.Types.ObjectId;
+  sellerSku?: string;
+  fulfillmentMode?: 'seller' | 'nexmart';
+  inventory?: mongoose.Types.ObjectId;
+  name: string;
+  image?: string;
+  variant: string;
+  quantity: number;
+  unitPricePaise: number;
+  totalPricePaise: number;
+  discountPaise: number;
+  inventoryState?: 'reserved' | 'committed' | 'released';
+};
+
+/** Allocate a minor-unit amount without losing a paise to rounding. */
+function allocateMinorUnits(total: number, bases: number[]): number[] {
+  if (bases.length === 0) return [];
+  const baseTotal = bases.reduce((sum, value) => sum + value, 0);
+  if (baseTotal <= 0 || total <= 0) return bases.map(() => 0);
+  const allocations: number[] = [];
+  let remaining = total;
+  let remainingBase = baseTotal;
+  for (let index = 0; index < bases.length; index += 1) {
+    if (index === bases.length - 1) {
+      allocations.push(remaining);
+      break;
+    }
+    const allocation = Math.floor((remaining * bases[index]) / remainingBase);
+    allocations.push(allocation);
+    remaining -= allocation;
+    remainingBase -= bases[index];
+  }
+  return allocations;
+}
+
 function checkoutData(order: IOrder) {
-  return { orderId: String(order._id), humanOrderId: order.orderId, razorpayOrderId: order.razorpayOrderId, total: order.total, currency: 'INR', keyId: order.paymentMethod === 'online' ? env.RAZORPAY_KEY_ID : undefined, paymentStatus: order.paymentStatus, orderStatus: order.orderStatus };
+  return {
+    orderId: String(order._id),
+    humanOrderId: order.orderId,
+    razorpayOrderId: order.razorpayOrderId,
+    total: order.total,
+    totalPaise: order.totalPaise,
+    fulfillmentGroups: order.fulfillmentGroups?.map((id) => String(id)),
+    currency: 'INR',
+    keyId: order.paymentMethod === 'online' ? env.RAZORPAY_KEY_ID : undefined,
+    paymentStatus: order.paymentStatus,
+    orderStatus: order.orderStatus,
+  };
 }
 
 export async function createOrder(req: Request, res: Response): Promise<void> {
@@ -65,16 +131,85 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         if (existing) { assertSame(existing); result = existing; created = false; return; }
       }
       let subtotalPaise = 0;
-      const validatedItems = [];
+      const validatedItems: ValidatedCheckoutItem[] = [];
+
+      // Resolve every line against server state. A listing line uses the
+      // seller's inventory and price; a legacy line keeps the original
+      // canonical-product stock behavior until the catalog migration runs.
       for (const item of input.items) {
-        const product = await Product.findById(item.product).session(session!);
-        const variant = product?.variants.find(option => option.sku === item.variant);
-        if (!product?.isPublished || !variant) throw new CheckoutError('An item or option is no longer available. Review your cart before ordering.', 'ITEM_UNAVAILABLE');
+        if (item.listing) {
+          const listing = await SellerListing.findOne({ _id: item.listing, status: 'published' }).session(session!);
+          if (!listing) throw new CheckoutError('An item or offer is no longer available. Review your cart before ordering.', 'ITEM_UNAVAILABLE');
+
+          const seller = await Seller.findOne({ _id: listing.seller, isActive: true, lifecycleStatus: 'active' }).select('_id').session(session!);
+          if (!seller) throw new CheckoutError('This seller is temporarily unavailable. Review your cart before ordering.', 'SELLER_UNAVAILABLE');
+
+          if (item.product && String(item.product) !== String(listing.canonicalProduct)) {
+            throw new CheckoutError('The selected offer does not belong to this product.', 'ITEM_UNAVAILABLE');
+          }
+          if (listing.canonicalVariantSku && listing.canonicalVariantSku !== item.variant) {
+            throw new CheckoutError('The selected option is no longer available from this seller.', 'ITEM_UNAVAILABLE');
+          }
+
+          const product = await Product.findOne({ _id: listing.canonicalProduct, isPublished: true }).session(session!);
+          const variant = product?.variants.find((option) => option.sku === item.variant);
+          if (!product || !variant) throw new CheckoutError('An item or option is no longer available. Review your cart before ordering.', 'ITEM_UNAVAILABLE');
+
+          const unitPricePaise = listing.pricePaise;
+          if (item.expectedPrice !== undefined && paise(item.expectedPrice) !== unitPricePaise) {
+            throw new CheckoutError('A product price changed. Review the updated cart before ordering.', 'PRICE_CHANGED');
+          }
+          const inventory = await SellerInventory.findOne({ listing: listing._id, seller: seller._id }).select('_id available').session(session!);
+          if (!inventory || inventory.available < item.quantity) {
+            throw new CheckoutError(`Stock changed for ${product.name}. Review your cart before ordering.`, 'STOCK_CHANGED');
+          }
+
+          const totalPricePaise = unitPricePaise * item.quantity;
+          subtotalPaise += totalPricePaise;
+          validatedItems.push({
+            product: product._id,
+            category: product.category,
+            listing: listing._id,
+            seller: seller._id,
+            sellerSku: listing.sellerSku,
+            fulfillmentMode: listing.fulfillmentMode,
+            inventory: inventory._id,
+            name: product.name,
+            image: variant.images?.[0] || product.images?.[0],
+            variant: item.variant,
+            quantity: item.quantity,
+            unitPricePaise,
+            totalPricePaise,
+            discountPaise: 0,
+            inventoryState: 'reserved',
+          });
+          continue;
+        }
+
+        // Legacy/admin catalog line. `product` is guaranteed by the schema
+        // refinement, but keep the guard explicit for type and safety.
+        if (!item.product) throw new CheckoutError('A product or seller listing is required.', 'ITEM_UNAVAILABLE');
+        const product = await Product.findOne({ _id: item.product, isPublished: true }).session(session!);
+        const variant = product?.variants.find((option) => option.sku === item.variant);
+        if (!product || !variant) throw new CheckoutError('An item or option is no longer available. Review your cart before ordering.', 'ITEM_UNAVAILABLE');
         if (variant.stock < item.quantity) throw new CheckoutError(`Stock changed for ${product.name}. Review your cart before ordering.`, 'STOCK_CHANGED');
-        if (item.expectedPrice !== undefined && paise(item.expectedPrice) !== paise(variant.price)) throw new CheckoutError('A product price changed. Review the updated cart before ordering.', 'PRICE_CHANGED');
-        const totalPrice = paise(variant.price) * item.quantity;
-        subtotalPaise += totalPrice;
-        validatedItems.push({ product: product._id, name: product.name, image: variant.images?.[0] || product.images?.[0], variant: item.variant, quantity: item.quantity, unitPrice: paise(variant.price) / 100, totalPrice: totalPrice / 100 });
+        const unitPricePaise = paise(variant.price);
+        if (item.expectedPrice !== undefined && paise(item.expectedPrice) !== unitPricePaise) {
+          throw new CheckoutError('A product price changed. Review the updated cart before ordering.', 'PRICE_CHANGED');
+        }
+        const totalPricePaise = unitPricePaise * item.quantity;
+        subtotalPaise += totalPricePaise;
+        validatedItems.push({
+          product: product._id,
+          category: product.category,
+          name: product.name,
+          image: variant.images?.[0] || product.images?.[0],
+          variant: item.variant,
+          quantity: item.quantity,
+          unitPricePaise,
+          totalPricePaise,
+          discountPaise: 0,
+        });
       }
       const shippingPaise = subtotalPaise > 99900 ? 0 : 4900;
       const taxPaise = Math.round(subtotalPaise * 0.18);
@@ -86,17 +221,155 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       }
       const [order] = await Order.create([{
         orderId: humanOrderId, checkoutId: input.checkoutId, checkoutFingerprint: fingerprint, customer: userId,
-        items: validatedItems, shippingAddress: input.shippingAddress, paymentMethod: input.paymentMethod,
+        items: validatedItems.map((item) => ({
+          product: item.product,
+          listing: item.listing,
+          seller: item.seller,
+          inventory: item.inventory,
+          sellerSku: item.sellerSku,
+          name: item.name,
+          image: item.image,
+          variant: item.variant,
+          quantity: item.quantity,
+          unitPrice: item.unitPricePaise / 100,
+          totalPrice: item.totalPricePaise / 100,
+          unitPricePaise: item.unitPricePaise,
+          totalPricePaise: item.totalPricePaise,
+          discountPaise: item.discountPaise,
+          inventoryState: item.inventoryState || 'reserved',
+        })), shippingAddress: input.shippingAddress, paymentMethod: input.paymentMethod,
         paymentStatus: 'pending', razorpayOrderId, orderStatus: 'placed',
         statusHistory: [{ status: 'placed', timestamp: new Date(), updatedBy: userId }],
-        subtotal: subtotalPaise / 100, shippingFee: shippingPaise / 100, tax: taxPaise / 100, total: totalPaise / 100, discount: 0, notes: input.notes,
+        subtotal: subtotalPaise / 100, shippingFee: shippingPaise / 100, tax: taxPaise / 100, total: totalPaise / 100, discount: 0,
+        subtotalPaise, shippingFeePaise: shippingPaise, taxPaise, discountPaise: 0, totalPaise, moneyVersion: 1,
+        notes: input.notes,
       }], { session });
-      for (const item of validatedItems) {
-        const update = await Product.updateOne(
-          { _id: item.product, variants: { $elemMatch: { sku: item.variant, stock: { $gte: item.quantity } } } },
-          { $inc: { 'variants.$.stock': -item.quantity } }, { session },
-        );
-        if (update.modifiedCount !== 1) throw new CheckoutError('Stock changed. Review your cart before ordering.', 'STOCK_CHANGED');
+
+      // Reserve each seller's inventory with a conditional atomic update. The
+      // order and movement are in the same transaction, so a failed line
+      // rolls back every prior reservation.
+      for (let index = 0; index < validatedItems.length; index += 1) {
+        const item = validatedItems[index];
+        if (item.listing && item.seller && item.inventory) {
+          const inventory = await SellerInventory.findOneAndUpdate(
+            { _id: item.inventory, listing: item.listing, seller: item.seller, available: { $gte: item.quantity } },
+            {
+              $inc: { available: -item.quantity, reserved: item.quantity },
+              $set: { lastAdjustmentReason: 'order_reservation', lastAdjustmentNote: `Reserved for ${humanOrderId}`, lastAdjustedAt: new Date() },
+            },
+            { new: true, session: session! },
+          );
+          if (!inventory) throw new CheckoutError('Stock changed. Review your cart before ordering.', 'STOCK_CHANGED');
+          await InventoryMovement.create([{
+            movementId: `IM-${humanOrderId}-${index}`,
+            idempotencyKey: `order-reservation:${humanOrderId}:${index}`,
+            seller: item.seller,
+            listing: item.listing,
+            inventory: inventory._id,
+            reason: 'order_reservation',
+            availableDelta: -item.quantity,
+            returnedDelta: 0,
+            damagedDelta: 0,
+            availableAfter: inventory.available,
+            reservedAfter: inventory.reserved,
+            committedAfter: inventory.committed,
+            returnedAfter: inventory.returned,
+            damagedAfter: inventory.damaged,
+            actorId: item.seller,
+            actorRole: 'system',
+            note: `Checkout ${humanOrderId}`,
+            requestId: (req as Request & { requestId?: string }).requestId,
+          }], { session: session! });
+        } else {
+          const update = await Product.updateOne(
+            { _id: item.product, variants: { $elemMatch: { sku: item.variant, stock: { $gte: item.quantity } } } },
+            { $inc: { 'variants.$.stock': -item.quantity } }, { session: session! },
+          );
+          if (update.modifiedCount !== 1) throw new CheckoutError('Stock changed. Review your cart before ordering.', 'STOCK_CHANGED');
+        }
+      }
+
+      // A single customer order can contain several seller groups. Shipping
+      // and tax are allocated in minor units so group totals add up exactly.
+      const groupsBySeller = new Map<string, { seller: mongoose.Types.ObjectId; fulfillmentMode: 'seller' | 'nexmart'; items: Array<{ item: ValidatedCheckoutItem; orderItemId: mongoose.Types.ObjectId }>; }>();
+      validatedItems.forEach((item, index) => {
+        if (!item.seller || !item.listing) return;
+        const fulfillmentMode = item.fulfillmentMode || 'seller';
+        const key = `${String(item.seller)}:${fulfillmentMode}`;
+        const group = groupsBySeller.get(key) || { seller: item.seller, fulfillmentMode, items: [] };
+        group.items.push({ item, orderItemId: order.items[index]._id! });
+        groupsBySeller.set(key, group);
+      });
+      const groups = Array.from(groupsBySeller.values());
+      if (groups.length > 0) {
+        const groupBases = groups.map((group) => group.items.reduce((sum, line) => sum + line.item.totalPricePaise - line.item.discountPaise, 0));
+        const groupShipping = allocateMinorUnits(shippingPaise, groupBases);
+        const groupTax = allocateMinorUnits(taxPaise, groupBases);
+        const feeRuleCache = new Map<string, FeeRuleSnapshot>();
+        const getFeeRule = async (item: ValidatedCheckoutItem, fulfillmentMode: 'seller' | 'nexmart'): Promise<FeeRuleSnapshot> => {
+          const key = `${String(item.category || '')}:${fulfillmentMode}`;
+          const cached = feeRuleCache.get(key);
+          if (cached) return cached;
+          const resolved = await resolveMarketplaceFeeRule({ category: item.category, fulfillmentMode, session: session! });
+          feeRuleCache.set(key, resolved);
+          return resolved;
+        };
+        const groupDocs = await Promise.all(groups.map(async (group, groupIndex) => {
+          const subtotal = group.items.reduce((sum, line) => sum + line.item.totalPricePaise, 0);
+          const discount = group.items.reduce((sum, line) => sum + line.item.discountPaise, 0);
+          const shipping = groupShipping[groupIndex] || 0;
+          const tax = groupTax[groupIndex] || 0;
+          const itemBases = group.items.map((line) => line.item.totalPricePaise - line.item.discountPaise);
+          const itemShipping = allocateMinorUnits(shipping, itemBases);
+          const itemTax = allocateMinorUnits(tax, itemBases);
+          const items = await Promise.all(group.items.map(async (line, itemIndex) => {
+            const rule = await getFeeRule(line.item, group.fulfillmentMode);
+            const calculation = calculateMarketplaceFees({
+              merchandisePaise: line.item.totalPricePaise,
+              discountPaise: line.item.discountPaise,
+              shippingPaise: itemShipping[itemIndex] || 0,
+              taxPaise: itemTax[itemIndex] || 0,
+              paymentMethod: input.paymentMethod,
+              rule,
+            });
+            return {
+              orderItemId: line.orderItemId,
+              listing: line.item.listing,
+              sellerSku: line.item.sellerSku,
+              product: line.item.product,
+              variant: line.item.variant,
+              name: line.item.name,
+              image: line.item.image,
+              quantity: line.item.quantity,
+              unitPricePaise: line.item.unitPricePaise,
+              merchandisePaise: line.item.totalPricePaise,
+              discountPaise: line.item.discountPaise,
+              shippingPaise: itemShipping[itemIndex] || 0,
+              taxPaise: itemTax[itemIndex] || 0,
+              sellerPayableBasisPaise: calculation.adjustedMerchandisePaise,
+              feeSnapshot: feeSnapshotFromCalculation(rule, calculation),
+            };
+          }));
+          return {
+            groupId: generateFulfillmentGroupId(),
+            order: order._id,
+            customer: userId,
+            seller: group.seller,
+            fulfillmentMode: group.fulfillmentMode,
+            items,
+            shippingAddress: input.shippingAddress,
+            status: 'placed',
+            statusHistory: [{ status: 'placed', timestamp: new Date(), updatedBy: userId }],
+            subtotalPaise: subtotal,
+            discountPaise: discount,
+            shippingPaise: shipping,
+            taxPaise: tax,
+            totalPaise: subtotal - discount + shipping + tax,
+          };
+        }));
+        const createdGroups = await FulfillmentGroup.create(groupDocs, { session: session!, ordered: true });
+        order.fulfillmentGroups = createdGroups.map((group) => group._id);
+        await order.save({ session: session! });
       }
       await Cart.updateOne({ user: userId }, { $set: { items: [] } }, { session });
       result = order;
@@ -106,11 +379,13 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     if (created) emitNewOrder(result.orderId, { total: result.total, paymentMethod: result.paymentMethod });
     (created ? sendCreated : sendSuccess)(res, checkoutData(result), created ? 'Order placed' : 'Existing order recovered');
   } catch (error) {
-    // A concurrent copy may have won the unique-key race. Return only its
-    // customer-owned result, never create a fresh checkout identity here.
-    if (input.checkoutId && !(error instanceof CheckoutError)) {
+    // A concurrent copy may have won either the checkout-key race or the
+    // inventory reservation race. Recover only a matching customer-owned
+    // checkout; a reused identity with different contents remains a conflict.
+    if (input.checkoutId) {
       const existing = await saved();
       if (existing && existing.checkoutFingerprint === fingerprint) { sendSuccess(res, checkoutData(existing), 'Existing order recovered'); return; }
+      if (existing) { sendError(res, 'This checkout was already saved with different details. Open your orders to review it.', 409, 'CHECKOUT_CONFLICT'); return; }
     }
     if (error instanceof CheckoutError) sendError(res, error.message, error.status, error.code);
     else { logger.error('Checkout failed', error); sendError(res, 'We could not confirm whether your order was saved. Check your orders or retry this same checkout.', 503, 'ORDER_UNCERTAIN'); }
@@ -133,6 +408,24 @@ export async function verifyPayment(req: Request, res: Response): Promise<void> 
   if (!order) { sendNotFound(res, 'Order not found'); return; }
   if (!verifyRazorpaySignature(input.razorpayOrderId, input.razorpayPaymentId, input.razorpaySignature, env.RAZORPAY_KEY_SECRET)) {
     sendError(res, 'We could not verify that payment. Refresh the order to check its current payment status.', 400, 'PAYMENT_VERIFICATION_FAILED'); return;
+  }
+  let providerPayment: Awaited<ReturnType<typeof fetchPayment>>;
+  try {
+    providerPayment = await fetchPayment(input.razorpayPaymentId);
+  } catch {
+    sendError(res, 'We could not confirm the payment with the payment provider. Please check the order again shortly.', 503, 'PAYMENT_UNCERTAIN'); return;
+  }
+  if (providerPayment.status !== 'captured') {
+    sendError(res, 'The payment has not been captured yet. Refresh the order before trying again.', 400, 'PAYMENT_NOT_CAPTURED'); return;
+  }
+  if (providerPayment.order_id && providerPayment.order_id !== order.razorpayOrderId) {
+    sendError(res, 'The payment does not belong to this order.', 400, 'PAYMENT_ORDER_MISMATCH'); return;
+  }
+  if (providerPayment.amount !== undefined && providerPayment.amount !== order.totalPaise) {
+    sendError(res, 'The captured payment amount does not match this order.', 400, 'PAYMENT_AMOUNT_MISMATCH'); return;
+  }
+  if (providerPayment.currency !== undefined && providerPayment.currency !== 'INR') {
+    sendError(res, 'The captured payment currency is not supported for this order.', 400, 'PAYMENT_CURRENCY_MISMATCH'); return;
   }
   const result = await recordCapturedPayment(String(order._id), input.razorpayOrderId, input.razorpayPaymentId);
   sendSuccess(res, result.order && checkoutData(result.order), 'Payment status verified');

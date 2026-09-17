@@ -1,6 +1,6 @@
 # NexMart 🛒
 
-> **Full-stack e-commerce platform** — Next.js 15 + Express + MongoDB + Upstash Redis + Razorpay — with three role portals (customer storefront, admin panel, delivery agent app) and the **Deep-Space Kinetic Editorial** design system.
+> **Production-grade multi-vendor marketplace platform** — Next.js 15 + Express + MongoDB + Upstash Redis + Razorpay — featuring four distinct role portals (customer storefront, seller operations desk, admin governance panel, and delivery agent app), pure marketplace fee engine, double-entry balanced accounting ledger, and the **Deep-Space Kinetic Editorial** design system.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
@@ -89,35 +89,38 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 
 ## 🌟 Features (as built)
 
-### 🛍️ Customer storefront (`/`, `/products`, `/categories`, `/search`)
+### 🛍️ Customer storefront (`/`, `/products`, `/categories`, `/search`, `/sellers/[id]`)
 - Deep-Space Kinetic Editorial design: char-reveal headlines, magnetic CTAs, WebGL particle hero (desktop only, reduced-motion safe)
-- Debounced typo-tolerant search with recent-history
-- Variant selector with stock awareness, gallery lightbox, reviews with verified-purchase badges
-- Wishlist (account-bound, optimistic UI) + `navigator.share`
-- Guest cart → account cart merge on login; GST + free-shipping threshold
-- Checkout: address form (pincode/phone validated) → Razorpay online or COD → confirmation
-- Order history + live status updates (Socket.IO) + PDF invoice download
-- Auth: email+password with OTP email verification, or Google Sign-In
+- **Multi-seller offers** (`SellerOffers`) on product detail pages comparing merchant prices, verified ratings, dispatch speed, and fulfillment badges
+- **Seller-grouped cart** (`CartContents`) cleanly partitioning items by merchant storefront
+- **Attributed checkout** and multi-package tracking (`/orders/[id]`) showing per-seller fulfillment status and carrier tracking
+- **Public Seller Storefronts** (`/sellers/[id]`) highlighting merchant profile, verified status, and published catalog
+- Wishlist (account-bound, optimistic UI), guest-to-account cart merge, and live Socket.IO status updates
 
-### 🏪 Admin panel (`/admin`)
-- KPI dashboard with real data, revenue chart, auto-sync backstop + socket push
-- Products CRUD (variants, MRP, images via Cloudinary), categories tree (incl. inactive), orders with inline status + row-detail expansion
-- Customer directory with suspend/activate, delivery agent approve/reject + assignment
-- Analytics with skeletons and empty states; storefront read-preview for product pages
+### 🏬 Seller Operations Hub (`/seller/*`)
+- **Isolated Seller Domain**: Separate auth cookies (`nexmart_seller_session`), `JWT_SECRET_SELLER`, and strict cross-role isolation
+- **Business Onboarding**: Multi-step verification collecting legal entity data, PAN, GSTIN, business/pickup/return addresses, with immutable `SellerAuditLog`
+- **Catalog & Inventory Desk**: Canonical catalog decoupled from commercial `SellerListing` offers with full state lifecycle (`draft → submitted → moderation → approved → published`); idempotent inventory adjustments with UUID `Idempotency-Key` and `InventoryMovement` audits
+- **Order Fulfillment**: Dedicated workflow progressing orders through `placed → confirmed → processing → ready_for_pickup`; carrier dispatch generation (`Shipment`) with tracking IDs
+- **Finances & Settlements**: Real-time balance dashboard tracking available payouts, return-window escrow reserves, gross sales, and detailed transaction ledger journal
+
+### 🏪 Admin Governance & Operations (`/admin/*`)
+- KPI dashboard with real-time GMV vs platform revenue charts, live sync backstop + socket push
+- **Seller Governance**: Merchant application review queue (`submitted → under_review → approved / rejected / suspended / blocked`) with mandatory audit reasons
+- **Listing Moderation**: Commercial offer moderation queue (`/admin/listings`) controlling catalog quality
+- **Marketplace Fee Rules Engine** (`/admin/fee-rules`): Time-bounded, category-specific fee waterfall configuration (commission BPS, fixed fees, escrow reserves)
+- **Double-Entry Ledger Explorer** (`/admin/ledger`): Immutable accounting transparency with balanced debit/credit journal entries across platform, seller payable, escrow reserve, and payment clearing accounts
 
 ### 🚚 Delivery app (`/delivery/dashboard`)
-- Assignment list with tap-to-call customer phone and Google Maps deep link
-- Inline status updates (picked → out for delivery → delivered) — forward-only, never regresses the order
-- Honest approval-status badge; per-row spinners
+- Shipment assignment list with customer contact, address navigation, and forward-only status updates (`picked_up → out_for_delivery → delivered`)
 
-### ⚡ Backend
-- Role-isolated auth: three JWT secrets, three httpOnly cookies (`nexmart_{admin|customer|delivery}_session`); suspension enforced per-request
-- Upstash Redis: sliding-window rate limits (global + auth + OTP + payment + registration), JWT blacklist, login lockouts, caches
-- Razorpay order creation with server-authoritative amounts + HMAC signature verification + idempotent webhook; stale-order reaper reconciles pending payments every 15 min
-- Forward-only order state machine shared by admin and delivery paths (`utils/orderTransitions.ts`)
-- Cloudinary uploads (destroyed with the records that own them), in-process invoice queue (PDFKit) — invoices on payment-verify, webhook, and both delivery paths — Brevo transactional emails
-- Helmet, CORS, CSRF origin check, mongo-sanitize, hpp, Winston logging
-- E2E-audited live 2026-09-07 across all three roles (see `docs/CHANGELOG.md`)
+### ⚡ Backend Architecture
+- **Role-isolated auth**: Four distinct JWT secrets, four httpOnly session cookies (`nexmart_{admin|customer|seller|delivery}_session`); suspension enforced per-request
+- **Pure Fee Engine**: Deterministic calculation using basis points (BPS) and integer paise to eliminate floating-point drift
+- **Balanced Double-Entry Ledger**: Every payment capture, commission split, reserve hold, and refund creates balanced credit/debit entries (`assertBalanced`)
+- **Upstash Redis**: Sliding-window rate limiters, JWT blacklist, login lockouts, and response caches
+- **Razorpay Integration**: Multi-seller capture reconciliation, HMAC signature verification, and automated stale-order reaper
+- **Integration Test Suite**: 25 test suites, 142 hermetic tests covering lifecycle, race conditions, fee snapshots, and ledger consistency
 
 ---
 

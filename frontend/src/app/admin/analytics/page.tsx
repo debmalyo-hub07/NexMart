@@ -24,7 +24,7 @@ export default function AdminAnalyticsPage() {
   // Only treat the query as failed when there is no cached data to fall back on.
   const analyticsFailed = isError && !data;
 
-  const chartData = (data?.dailyRevenue || []).map((d) => ({
+  const chartData = (data?.dailyPlatformRevenue || data?.dailyRevenue || []).map((d) => ({
     date: d._id?.slice(5),
     revenue: d.revenue,
     orders: d.orders,
@@ -42,7 +42,7 @@ export default function AdminAnalyticsPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="font-outfit text-2xl font-bold text-white">Analytics</h1>
-          <p className="text-secondary text-sm mt-1">Paid revenue, order mix and best sellers over the selected window.</p>
+          <p className="text-secondary text-sm mt-1">Platform fee revenue, GMV and order mix over the selected window.</p>
         </div>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Reporting window">
           {[7, 14, 30, 90].map((d) => (
@@ -61,8 +61,8 @@ export default function AdminAnalyticsPage() {
 
       {/* Revenue Chart */}
       <RevenueChart
-        title={`Paid revenue, last ${days} days`}
-        description="Counts orders whose payment has been received. Unpaid and cancelled orders are excluded."
+        title={`Platform fee revenue, last ${days} days`}
+        description="Net configured marketplace fees from captured payments and ledger reversals."
         data={chartData}
         isLoading={isLoading}
         isError={analyticsFailed}
@@ -125,13 +125,13 @@ export default function AdminAnalyticsPage() {
               <p className="text-sm text-muted text-center py-8">Failed to load product data</p>
             ) : (
               <>
-                {topProducts.slice(0, 7).map((p: { name: string; totalSold: number; revenue: number }, i: number) => (
+                {topProducts.slice(0, 7).map((p: { name: string; totalSold: number; gmv?: number; revenue?: number }, i: number) => (
                   <div key={i} className="flex items-center gap-3">
                     <span className="text-xs text-muted w-4 shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between mb-1">
                         <p className="text-xs text-white truncate">{p.name}</p>
-                        <p className="text-xs text-acid-400 font-medium shrink-0 ml-2">{formatPrice(p.revenue)}</p>
+                        <p className="text-xs text-acid-400 font-medium shrink-0 ml-2">{formatPrice(p.gmv ?? p.revenue ?? 0)}</p>
                       </div>
                       <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                         <div

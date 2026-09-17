@@ -16,6 +16,7 @@ export default auth((req) => {
       // Bounce each role back to their dedicated home
       if (role === 'admin')  return NextResponse.redirect(new URL('/admin', req.url));
       if (role === 'agent')  return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+      if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
       // Authenticated customer → storefront
       return NextResponse.redirect(new URL('/', req.url));
     }
@@ -30,6 +31,7 @@ export default auth((req) => {
       if (isAuthenticated) {
         if (role === 'admin') return NextResponse.redirect(new URL('/admin', req.url));
         if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+        if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
         return NextResponse.redirect(new URL('/', req.url));
       }
       return NextResponse.next();
@@ -41,6 +43,7 @@ export default auth((req) => {
       }
       if (role !== 'admin') {
         if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+        if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
         return NextResponse.redirect(new URL('/', req.url));
       }
       return NextResponse.next();
@@ -50,6 +53,29 @@ export default auth((req) => {
       return NextResponse.redirect(new URL('/admin/login', req.url));
     }
     if (role !== 'admin') {
+      if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+      if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
+      return NextResponse.redirect(new URL('/', req.url));
+    }
+    return NextResponse.next();
+  }
+
+  // Seller routes. Authentication and onboarding are intentionally separate
+  // from customer surfaces; approval is enforced by the backend middleware.
+  if (pathname.startsWith('/seller')) {
+    const isSellerAuth = pathname === '/seller/login' || pathname === '/seller/register' || pathname.startsWith('/seller/verify-otp');
+    if (isSellerAuth) {
+      if (isAuthenticated) {
+        if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
+        if (role === 'admin') return NextResponse.redirect(new URL('/admin', req.url));
+        if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+        return NextResponse.redirect(new URL('/', req.url));
+      }
+      return NextResponse.next();
+    }
+    if (!isAuthenticated) return NextResponse.redirect(new URL('/seller/login', req.url));
+    if (role !== 'seller') {
+      if (role === 'admin') return NextResponse.redirect(new URL('/admin', req.url));
       if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
       return NextResponse.redirect(new URL('/', req.url));
     }
@@ -63,6 +89,7 @@ export default auth((req) => {
       if (isAuthenticated) {
         if (role === 'admin') return NextResponse.redirect(new URL('/admin', req.url));
         if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+        if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
         return NextResponse.redirect(new URL('/', req.url));
       }
       return NextResponse.next();
@@ -73,6 +100,7 @@ export default auth((req) => {
       if (!isAuthenticated) return NextResponse.redirect(new URL('/delivery/login', req.url));
       if (role === 'agent') return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
       if (role === 'admin') return NextResponse.redirect(new URL('/admin', req.url));
+      if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
       return NextResponse.redirect(new URL('/', req.url));
     }
 
@@ -81,6 +109,7 @@ export default auth((req) => {
     }
     if (role !== 'agent') {
       if (role === 'admin') return NextResponse.redirect(new URL('/admin', req.url));
+      if (role === 'seller') return NextResponse.redirect(new URL('/seller/dashboard', req.url));
       return NextResponse.redirect(new URL('/', req.url));
     }
     return NextResponse.next();
@@ -99,6 +128,12 @@ export default auth((req) => {
   }
   if (isAuthenticated && role === 'agent' && !pathname.startsWith('/delivery')) {
     return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
+  }
+
+  if (isAuthenticated && role === 'seller' && !pathname.startsWith('/seller')) {
+    // Sellers can inspect the public storefront in a future preview flow, but
+    // operational routes remain confined until that capability is explicit.
+    return NextResponse.redirect(new URL('/seller/dashboard', req.url));
   }
 
   // Root /customer — act as an entry-point redirect, matching /admin and /delivery behavior
@@ -141,6 +176,7 @@ export default auth((req) => {
   if (pathname === '/' && !isAuthenticated) {
     if (lastRole === 'admin') return NextResponse.redirect(new URL('/admin/login', req.url));
     if (lastRole === 'agent') return NextResponse.redirect(new URL('/delivery/login', req.url));
+    if (lastRole === 'seller') return NextResponse.redirect(new URL('/seller/login', req.url));
   }
 
   return NextResponse.next();

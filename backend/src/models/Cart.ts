@@ -10,6 +10,8 @@ export interface ICartDoc extends Document {
 
 const CartItemSchema = new Schema({
   product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  listing: { type: Schema.Types.ObjectId, ref: 'SellerListing' },
+  seller: { type: Schema.Types.ObjectId, ref: 'Seller' },
   variant: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1, default: 1 },
   price: { type: Number, required: true },
