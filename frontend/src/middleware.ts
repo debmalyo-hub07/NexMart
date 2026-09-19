@@ -1,9 +1,9 @@
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+  const isSellerPortal = pathname === '/seller' || pathname.startsWith('/seller/');
   const session = req.auth;
   const role = (session?.user as { role?: string })?.role;
   const isAuthenticated = !!session;
@@ -62,7 +62,7 @@ export default auth((req) => {
 
   // Seller routes. Authentication and onboarding are intentionally separate
   // from customer surfaces; approval is enforced by the backend middleware.
-  if (pathname.startsWith('/seller')) {
+  if (isSellerPortal) {
     const isSellerAuth = pathname === '/seller/login' || pathname === '/seller/register' || pathname.startsWith('/seller/verify-otp');
     if (isSellerAuth) {
       if (isAuthenticated) {
@@ -130,7 +130,7 @@ export default auth((req) => {
     return NextResponse.redirect(new URL('/delivery/dashboard', req.url));
   }
 
-  if (isAuthenticated && role === 'seller' && !pathname.startsWith('/seller')) {
+  if (isAuthenticated && role === 'seller' && !isSellerPortal) {
     // Sellers can inspect the public storefront in a future preview flow, but
     // operational routes remain confined until that capability is explicit.
     return NextResponse.redirect(new URL('/seller/dashboard', req.url));

@@ -7,9 +7,9 @@ export default function CustomerRegister() {
     <AuthForm
       type="register"
       portal="customer"
-      title="Create Account"
-      submitText="Create Customer Account"
-      linkText="Already a customer? Login here"
+      title="Make yourself at home."
+      submitText="Create your account"
+      linkText="Already have an account? Sign in"
       linkHref="/customer/login"
       redirectUrl="/customer/login"
       showGoogle

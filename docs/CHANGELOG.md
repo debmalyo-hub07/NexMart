@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-19 — Storefront discovery, catalog reliability & policy foundation
+
+- Rebuilt public catalog/search around one aggregate-backed service with normalized Unicode/unit matching, bounded typo fallback, descendant-category filters, disjunctive facets, same-option price/stock matching, stable sorting, compact list payloads, and explicit approximate-result metadata.
+- Added additive, idempotent starter catalog seeding: 60 labelled, zero-stock samples across 9 departments, with provenance and cart/checkout/offer guards. Existing catalog, category IDs, inventory, accounts, orders, and carts were preserved.
+- Added visual department directory, richer homepage merchandising, URL-backed multi-select filters, removable chips, quick view, comparison, seller offers, option-preserving links, and policy/help/contact destinations.
+- Hardened cart offer identity and seller inventory checks, public product visibility, public seller storefront visibility, and seller-profile routing. Public seller responses no longer expose contacts, moderation metadata, seller SKUs, or fabricated return/verification claims.
+- Added draft Terms, Privacy, Shipping, Returns, and Contact pages backed by a single business-details configuration. Missing legal/operator facts remain explicit launch blockers.
+- Homepage "curated edit" spotlight now autoplays (5s interval) with a synced progress bar on the active dot. It pauses on hover and keyboard focus, in hidden tabs, and entirely for `prefers-reduced-motion` users (whose reduced-motion CSS also neutralises the progress animation); a manual pick restarts the full countdown. The stage image gets a subtle hover zoom, gated to fine pointers like the other hover reveals.
+- Verification: 49 frontend tests (11 suites), 190 backend tests (29 suites), frontend lint/build clean, backend build/typecheck clean. Isolated browser QA (Playwright, desktop 1440px + mobile 375px): 14/14 scenarios passed.
+- Late QA fixes surfaced by the browser pass that static gates missed:
+  - `globals.css` and 12 other files carried a UTF-8 BOM; Turbopack's dev CSS parser rejects it, so every dev-mode page 500'd until the BOM was stripped (production webpack builds tolerated it, which is why `next build` passed).
+  - Cart API lines lost the chosen-option label: mongoose `toObject()` on a populated product leaves `Map` fields as Map instances, which serialize to `{}` — cart lines showed "Standard option" instead of "512 GB". `cartSnapshot` now serialises with `toJSON()`.
+  - Variant selector radios were `sr-only`, so the styled label intercepted pointer events; the transparent input now covers the whole option chip.
+  - Cart drawer now opens optimistically on add-to-cart: previously the open was gated on the store's generation guard, so a concurrent owner transition (initial `unknown → guest` sync) silently swallowed it and the drawer never appeared despite a successful add.
+  - A preview dev-server run without `NEXT_DIST_DIR` shared the `.next` Turbopack cache with the developer's own dev server and baked the preview's `NEXT_PUBLIC_API_URL` (port 4100) into client chunks — the storefront then fetched a dead port and showed query error states once the preview stopped. Rule: every isolated preview/dev run must set `NEXT_DIST_DIR=.next-preview` (the override already exists in `next.config.ts`). The poisoned cache was cleared and the dev server restarted cleanly.
+
+Research and launch notes: `docs/STOREFRONT-AUDIT-2026-09-19.md`.
+
 ## 2026-09-17 — Multi-Vendor Marketplace Transformation (Full Stack)
 
 Transformed NexMart from an admin-controlled catalog into a production-grade multi-vendor marketplace with 4 distinct role portals (Customer, Seller, Admin, Delivery).

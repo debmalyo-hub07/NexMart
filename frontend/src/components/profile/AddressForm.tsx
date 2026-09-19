@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { FormProvider, useForm } from 'react-hook-form';
 import { z } from 'zod';

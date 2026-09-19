@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getProducts, getProductBySlug, createProduct, updateProduct, deleteProduct, uploadProductImages, getProductReviews, addProductReview } from '../controllers/product.controller';
+import { getProducts, getProductBySlug, getProductForAdmin, createProduct, updateProduct, deleteProduct, uploadProductImages, getProductReviews, addProductReview } from '../controllers/product.controller';
 import { getProductOffers } from '../controllers/listing.controller';
 import { protectAdmin, protectCustomer } from '../middleware/auth';
 import { imageUpload } from '../middleware/upload';
@@ -7,6 +7,7 @@ import { imageUpload } from '../middleware/upload';
 const router = Router();
 
 router.get('/', getProducts);
+router.get('/:id/manage', protectAdmin, getProductForAdmin);
 router.get('/:id/offers', getProductOffers);
 router.get('/:slug', getProductBySlug);
 

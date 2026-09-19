@@ -10,7 +10,8 @@ import { Logo } from '@/components/common/Logo';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ArrowUpRight, Bookmark, GitCompareArrows, Package } from 'lucide-react';
+import { businessDetails } from '@/lib/businessDetails';
 import { signIn } from 'next-auth/react';
 
 interface Field {
@@ -166,10 +167,11 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
   };
 
   return (
-    <div className="min-h-[100svh] bg-space-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <main id="main-content" className="relative flex min-h-[100svh] items-center justify-center gap-16 overflow-hidden bg-space-950 p-4 py-8 lg:px-12">
       <div className="absolute inset-0 z-0 pointer-events-none bg-hero-gradient opacity-50" aria-hidden="true" />
 
-      <div className="w-full max-w-[440px] bg-space-800/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-glow-violet border border-white/[0.08] relative z-10">
+      {portal === 'customer' && <aside className="relative z-10 hidden w-full max-w-md lg:block"><Link href="/" className="mb-14 inline-flex min-h-11 items-center gap-3"><Logo size={36} /><span className="font-outfit text-2xl font-semibold">NexMart</span></Link><p className="eyebrow mb-5 text-violet-200">A little more your kind of everyday</p><h2 className="text-5xl font-medium leading-[1.08]">Good finds.<br />All in one place.</h2><p className="mt-6 max-w-sm text-sm leading-relaxed text-secondary">Your account brings the things you love a little closer. Pick up where you left off.</p><ul className="mt-9 space-y-5">{[{ Icon: Bookmark, copy: 'Keep your favourite finds for later.' }, { Icon: GitCompareArrows, copy: 'Compare the details that matter.' }, { Icon: Package, copy: 'Follow every order, from one place.' }].map(({ Icon, copy }) => <li key={copy} className="flex items-center gap-3 text-sm text-secondary"><Icon size={20} className="text-violet-200" aria-hidden />{copy}</li>)}</ul><Link href="/products" className="mt-10 inline-flex min-h-11 items-center gap-2 text-sm text-muted">Just browsing? Explore the collection <ArrowUpRight size={16} aria-hidden /></Link></aside>}
+      <div className="relative z-10 w-full max-w-[440px] rounded-2xl border border-white/20 bg-space-800 p-6 sm:p-8">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3 mb-8 group">
             <Logo size={38} className="transition-transform group-hover:scale-105" />
@@ -199,7 +201,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
                     {...register(field.name)}
                     aria-invalid={errors[field.name] ? 'true' : 'false'}
                     aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined}
-                    className="w-full min-h-12 appearance-none bg-black/40 border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus-visible:outline-none focus-visible:border-violet-500/70 focus-visible:bg-space-900 focus-visible:ring-2 focus-visible:ring-violet-500/30 transition-[background-color,border-color,box-shadow] font-inter"
+                    className="input min-h-12 appearance-none"
                   >
                     <option value="">Select {field.label.toLowerCase()}</option>
                     {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -212,7 +214,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
                   autoComplete={autocompleteForField(field, type)}
                   aria-invalid={errors[field.name] ? 'true' : 'false'}
                   aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined}
-                  className="w-full min-h-12 bg-black/40 border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus-visible:outline-none focus-visible:border-violet-500/70 focus-visible:bg-space-900 focus-visible:ring-2 focus-visible:ring-violet-500/30 transition-[background-color,border-color,box-shadow] font-inter pr-10"
+                  className="input min-h-12 pr-14"
                   placeholder={`Enter your ${field.label.toLowerCase()}…`}
                 />}
                 {field.type === 'password' && (
@@ -277,6 +279,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
           </>
         )}
 
+        {portal === 'customer' && <p className="mt-5 text-center text-xs leading-relaxed text-muted"><Link href="/terms" className="inline-flex min-h-11 items-center underline underline-offset-4">Terms & conditions</Link><span aria-hidden> · </span><Link href="/privacy" className="inline-flex min-h-11 items-center underline underline-offset-4">Privacy notice</Link>{!businessDetails.policiesApproved && <span className="block">Policies are drafts pending business approval.</span>}</p>}
         {note && (
           <p className="mt-5 text-xs text-amber-400/80 text-center bg-amber-400/10 p-3 rounded-xl border border-amber-400/20 font-inter">
             {note}
@@ -293,6 +296,6 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }

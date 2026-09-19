@@ -14,6 +14,20 @@ export const featuredQueryOptions = queryOptions({
   staleTime: 60_000,
 });
 
+export const arrivalsQueryOptions = queryOptions({
+  queryKey: ['storefront', 'arrivals'],
+  queryFn: ({ signal }) => api.get<ApiResponse<Product[]>>('/products?limit=12', { signal }).then(r => r.data),
+  staleTime: 60_000,
+});
+
+export function productQueryOptions(slug: string) {
+  return queryOptions({
+    queryKey: ['storefront', 'product', slug],
+    queryFn: ({ signal }) => api.get<ApiResponse<Product>>(`/products/${encodeURIComponent(slug)}`, { signal }).then(r => r.data.data),
+    staleTime: 60_000,
+  });
+}
+
 export function parentId(category: Category): string | undefined {
   return typeof category.parent === 'string' ? category.parent : category.parent?._id;
 }

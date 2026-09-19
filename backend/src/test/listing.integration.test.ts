@@ -25,6 +25,7 @@ import { SellerListing } from '../models/SellerListing';
 import { SellerInventory } from '../models/SellerInventory';
 import { InventoryMovement } from '../models/InventoryMovement';
 import { Product } from '../models/Product';
+import { Category } from '../models/Category';
 import { Admin } from '../models/Admin';
 import { migrateLegacyCatalog, rollbackLegacyCatalogMigration, FIRST_PARTY_SELLER_EMAIL } from '../services/marketplaceCatalogMigration.service';
 
@@ -68,7 +69,8 @@ beforeEach(async () => {
   ]);
   sellerOneId = String(one._id);
   await Admin.create({ name: 'Listing Admin', email: 'listing-admin@test.local', password: await bcrypt.hash('AdminPass1', 12), role: 'admin' });
-  const product = await Product.create({ name: 'Canonical phone', slug: 'canonical-phone', description: 'A canonical product used by listing tests.', category: new mongoose.Types.ObjectId(), createdBy: new mongoose.Types.ObjectId(), isPublished: true, variants: [{ sku: 'base', price: 100, stock: 0 }] });
+  const category = await Category.create({ name: 'Phones', slug: 'phones', isActive: true });
+  const product = await Product.create({ name: 'Canonical phone', slug: 'canonical-phone', description: 'A canonical product used by listing tests.', category: category._id, createdBy: new mongoose.Types.ObjectId(), isPublished: true, variants: [{ sku: 'base', price: 100, stock: 0 }] });
   productId = String(product._id);
 });
 
@@ -99,7 +101,9 @@ describe('seller listings and inventory', () => {
     const admin = await loginAdmin();
     const created = await post(app, '/api/v1/seller/listings', { canonicalProduct: productId, canonicalVariantSku: 'base', sellerSku: 'ONE-PUBLISH', pricePaise: 12500, openingStock: 3 }, seller);
     const listingId = String(created.body.data.id);
-    expect((await get(app, `/api/v1/products/${productId}/offers`)).body.data).toHaveLength(0);
+    const unpublished = await get(app, `/api/v1/products/${productId}/offers`);
+    expect(unpublished.status).toBe(200);
+    expect(unpublished.body.data).toHaveLength(0);
 
     expect((await post(app, `/api/v1/seller/listings/${listingId}/submit`, {}, seller)).status).toBe(200);
     expect((await patch(app, `/api/v1/admin/listings/${listingId}/status`, { status: 'moderation' }, admin)).status).toBe(200);

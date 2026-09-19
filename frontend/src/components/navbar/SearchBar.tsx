@@ -7,7 +7,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ApiResponse, Product } from '@/types';
 import api from '@/lib/api';
-import { categoryQueryOptions } from '@/lib/catalog';
+import { categoryQueryOptions, rootCategories } from '@/lib/catalog';
+import { displayVariant, productHref, productName } from '@/lib/productPresentation';
 import { formatPrice } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { ProductImage } from '@/components/product/ProductImage';
@@ -29,18 +30,21 @@ export function SearchBar({ id, onClose }: SearchBarProps) {
   const categories = useQuery(categoryQueryOptions);
   const query = useQuery({
     queryKey: ['storefront', 'suggestions', debounced],
-    queryFn: ({ signal }) => api.get<ApiResponse<Product[]>>('/search', { params: { q: debounced, limit: 5 }, signal }).then(r => r.data.data ?? []),
+    queryFn: ({ signal }) => api.get<ApiResponse<Product[]>>('/products', { params: { q: debounced, limit: 5 }, signal }).then(r => r.data),
     enabled: open && debounced.length >= 2 && debounced === trimmed,
     staleTime: 30_000,
   });
   const waiting = trimmed.length >= 2 && (debounced !== trimmed || query.isPending);
-  const products = !waiting && !query.isError ? query.data ?? [] : [];
+  const products = !waiting && !query.isError ? query.data?.data ?? [] : [];
   const matchingCategories = trimmed.length >= 2 ? (categories.data ?? []).filter(category => category.name.toLowerCase().includes(trimmed.toLowerCase())).slice(0, 3) : [];
   const options = trimmed.length < 2
-    ? recent.map(text => ({ label: text, href: `/search?q=${encodeURIComponent(text)}`, kind: 'recent' as const, product: undefined as Product | undefined }))
+    ? [
+      ...recent.map(text => ({ label: text, href: `/search?q=${encodeURIComponent(text)}`, kind: 'recent' as const, product: undefined as Product | undefined })),
+      ...rootCategories(categories.data ?? []).slice(0, recent.length ? 3 : 6).map(category => ({ label: category.name, href: `/categories/${category.slug}`, kind: 'category' as const, product: undefined as Product | undefined })),
+    ]
     : [
       ...matchingCategories.map(category => ({ label: category.name, href: `/categories/${category.slug}`, kind: 'category' as const, product: undefined as Product | undefined })),
-      ...products.map(product => ({ label: product.name, href: `/products/${product.slug}`, kind: 'product' as const, product })),
+      ...products.map(product => ({ label: productName(product), href: productHref(product), kind: 'product' as const, product })),
       { label: `Search for “${trimmed}”`, href: `/search?q=${encodeURIComponent(trimmed)}`, kind: 'all' as const, product: undefined as Product | undefined },
     ];
 
@@ -80,7 +84,7 @@ export function SearchBar({ id, onClose }: SearchBarProps) {
     <form role="search" onSubmit={event => { event.preventDefault(); submit(); }} className="flex min-h-12 items-center rounded-xl border border-white/25 bg-space-800 focus-within:border-violet-300">
       <Search size={18} className="ml-3 shrink-0 text-muted" aria-hidden />
       <input ref={input} id={id || `${uid}-search`} type="search" name="q" value={value} maxLength={200}
-        placeholder="Search products or brands…" autoComplete="off" enterKeyHint="search" aria-label="Search products or brands"
+        placeholder="Search products, brands, and more…" autoComplete="off" enterKeyHint="search" aria-label="Search products or brands"
         role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={open ? `${uid}-results` : undefined} aria-activedescendant={open && active >= 0 ? `${uid}-option-${active}` : undefined}
         className="min-w-0 flex-1 bg-transparent px-3 py-3 text-base text-white placeholder:text-muted focus-visible:outline-none sm:text-sm"
         onChange={event => { setValue(event.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
@@ -95,15 +99,16 @@ export function SearchBar({ id, onClose }: SearchBarProps) {
       <button type="submit" aria-label="Submit search" className="icon-button mr-1 text-violet-200"><ArrowUpRight size={19} aria-hidden /></button>
     </form>
     {open && <div className="search-panel absolute inset-x-0 top-full z-50 mt-2 max-h-[min(65dvh,480px)] overflow-y-auto overscroll-contain rounded-xl border border-white/20 bg-space-800 shadow-lg">
-      {trimmed.length < 2 && <div className="flex items-center justify-between gap-2 px-3 py-2"><p className="text-xs text-muted">{recent.length ? 'Recent searches' : 'Type at least 2 characters for suggestions'}</p>{recent.length > 0 && <button type="button" className="min-h-11 px-2 text-xs text-secondary" onClick={() => { setRecent([]); try { localStorage.removeItem('nexmart_recent_searches'); } catch { /* optional */ } }}>Clear recent</button>}</div>}
+      {trimmed.length < 2 && <div className="flex items-center justify-between gap-2 border-b border-white/15 px-3 py-2"><p className="text-xs text-muted">{recent.length ? 'Recent searches & departments' : 'A few places to begin'}</p>{recent.length > 0 && <button type="button" className="min-h-11 px-2 text-xs text-secondary" onClick={() => { setRecent([]); try { localStorage.removeItem('nexmart_recent_searches'); } catch { /* optional */ } }}>Clear recent</button>}</div>}
+      {!waiting && query.data?.search?.mode === 'approximate' && trimmed.length >= 2 && <p className="border-b border-white/15 p-3 text-xs text-muted">No exact matches. Here are some close suggestions.</p>}
       {waiting && <p role="status" className="flex items-center gap-2 p-4 text-sm text-secondary"><Loader2 size={16} className="animate-spin" aria-hidden />Searching…</p>}
       {!waiting && trimmed.length >= 2 && query.isError && <div className="p-3 text-sm text-red-300" role="status">Suggestions are unavailable. <button type="button" className="min-h-11 underline" onClick={() => void query.refetch()}>Try again</button></div>}
       {!waiting && trimmed.length >= 2 && !query.isError && !products.length && !matchingCategories.length && <p role="status" className="p-4 text-sm text-secondary">No suggestions. Try a product name or another spelling.</p>}
       <ul id={`${uid}-results`} role="listbox" aria-label="Search suggestions">
         {options.map((option, index) => <li key={`${option.kind}-${option.href}`} role="presentation"><Link id={`${uid}-option-${index}`} role="option" aria-selected={active === index} tabIndex={-1} href={option.href} onMouseDown={event => event.preventDefault()} onClick={close} className={`flex min-h-12 items-center gap-3 p-3 text-sm hover:bg-white/5 ${active === index ? 'bg-violet-500/15' : ''}`}>
-          {option.product ? <span className="product-stage relative h-11 w-11 shrink-0 overflow-hidden rounded-md"><ProductImage src={option.product.images?.[0]} alt="" sizes="44px" className="p-1" /></span> : option.kind === 'category' ? <CategoryIcon name={option.label} size={18} /> : option.kind === 'recent' ? <Clock size={17} className="shrink-0 text-muted" aria-hidden /> : <Search size={17} className="shrink-0 text-violet-200" aria-hidden />}
-          <span className="min-w-0 flex-1 break-words"><span className="line-clamp-2">{option.label}</span>{option.kind === 'category' && <span className="text-xs text-muted">Category</span>}</span>
-          {option.product?.variants?.[0] && <span className="shrink-0 font-mono text-xs">{formatPrice(option.product.variants[0].price)}</span>}
+          {option.product ? <span className="product-stage relative h-12 w-12 shrink-0 overflow-hidden rounded-md"><ProductImage src={displayVariant(option.product)?.images?.[0] || option.product.images?.[0]} alt="" sizes="48px" className="p-1" /></span> : option.kind === 'category' ? <CategoryIcon name={option.label} size={18} /> : option.kind === 'recent' ? <Clock size={17} className="shrink-0 text-muted" aria-hidden /> : <Search size={17} className="shrink-0 text-violet-200" aria-hidden />}
+          <span className="min-w-0 flex-1 break-words"><span className="line-clamp-2">{option.label}</span>{option.kind === 'category' && <span className="text-xs text-muted">Explore category</span>}{option.product && <span className="text-xs text-muted">{option.product.brand}{option.product.isDemo ? ' · Sample' : ''}</span>}</span>
+          {option.product && displayVariant(option.product) && <span className="shrink-0 font-mono text-xs">{formatPrice(displayVariant(option.product)!.price)}</span>}
         </Link></li>)}
       </ul>
     </div>}

@@ -518,6 +518,16 @@ Full-platform audit (documentation, frontend arch, backend arch, UI quality, com
 
 **Known-open after P9:** same as P8 — no live E2E for newest admin/delivery flows; Chromium-only QA; no field LCP/INP data; agent-register "already exists" oracle.
 
+### P10 — storefront discovery, catalog reliability & policy foundation — ✅ DONE 2026-09-19
+
+The storefront rebuild is now grounded in one catalog query service (`backend/src/services/catalog.service.ts`) shared by products and search. It normalizes query input, traverses visible category descendants, matches price and stock on the same variant, returns disjunctive facets and a selected-option summary, keeps legacy price-sort URLs compatible, and marks bounded typo fallbacks as approximate. Public detail, seller offers, seller storefronts, cart, and checkout share publication/category/demo visibility rules.
+
+The sample catalog is additive and idempotent (`backend/src/services/catalogSeed.service.ts`): 60 explicitly labelled `isDemo` products across 9 departments, zero saleable stock, source markers, no fabricated reviews, and guards at cart/checkout/offer boundaries. The live seed was applied only after a database-name confirmation guard and rerun verification; existing product/category/account/order/cart records were preserved.
+
+Storefront surfaces now include URL-backed filters and history, visual categories, richer merchandising, quick view, comparison, seller offers, policy/help/contact pages, and option-preserving product links. Public seller pages are `/sellers/:id`; private seller portal matching is exact `/seller` or `/seller/*`.
+
+**Known-open after P10:** Playwright runtime QA executed and verified (14/14 scenarios passed across desktop 1440px and mobile 375px); no field LCP/INP/CLS measurements; legal identity/support/grievance details and third-party image rights require approval; existing flat 18% GST behavior remains unvalidated. Full evidence and sources: `docs/STOREFRONT-AUDIT-2026-09-19.md`.
+
 ### Done-definitions (apply per item)
 - Build passes (`npm run build` in `frontend/`).
 - The acceptance criterion in the row is demonstrably true in the running app.
@@ -533,7 +543,7 @@ Full-platform audit (documentation, frontend arch, backend arch, UI quality, com
 
 1. **Read the file before editing it.** This doc's citations age; the code is ground truth. If code contradicts this doc, fix the doc alongside the code.
 2. **`.env` values are final.** Never regenerate secrets. Never expose server-side env to the client bundle.
-3. **Three JWT secrets, three cookies** — `JWT_SECRET_ADMIN` / `JWT_SECRET_CUSTOMER` / `JWT_SECRET_AGENT`, cookies `nexmart_{admin|customer|delivery}_session`. Role value in payloads is `'agent'` for delivery (not `'delivery'`).
+3. **Four JWT secrets, four cookies** — `JWT_SECRET_ADMIN` / `JWT_SECRET_CUSTOMER` / `JWT_SECRET_AGENT` / `JWT_SECRET_SELLER`, cookies `nexmart_{admin|customer|seller|delivery}_session`. Role value in payloads is `'agent'` for delivery (not `'delivery'`).
 4. **No mock data.** Ever. For any demo, wire the real endpoint.
 5. **Mobile-first 375px; a11y floor §7 is not optional; reduced-motion is a hard gate.**
 6. **Money is `Intl.NumberFormat('en-IN')`. Phone is 10-digit Indian mobile.**
@@ -544,6 +554,6 @@ Full-platform audit (documentation, frontend arch, backend arch, UI quality, com
 
 ---
 
-*NexMart CLAUDE.md v3.1 — "Deep-Space Kinetic Editorial"*
-*Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09. P9 audit-verified 2026-09-13.*
+*NexMart CLAUDE.md v3.2 — "Deep-Space Kinetic Editorial"*
+*Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09. P10 storefront audit-verified 2026-09-19.*
 *Seed admin: admin@nexmart.in (configured via ADMIN_SEED_EMAIL) · Admin secret: ADMIN_SECRET_KEY in .env*

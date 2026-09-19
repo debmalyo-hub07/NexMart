@@ -43,22 +43,32 @@ export const useCartStore = create<CartState>()(persist((set, get) => {
     return task;
   };
   const accept = (payload: CartPayload) => set({ items: payload.data?.items ?? [], ready: true, notice: payload.data?.adjustments?.join(' ') || null });
-  const mutate = (request: () => Promise<{ data: CartPayload }>, open = false) => enqueue(async current => {
-    set({ error: null });
-    try {
-      const response = await request();
-      if (current()) { accept(response.data); if (open) set({ isOpen: true }); }
-    } catch (error) {
-      if (current()) {
-        set({ error: getApiError(error), ready: false });
-        try {
-          const response = await api.get<CartPayload>('/cart');
-          if (current()) accept(response.data);
-        } catch { /* Keep the visible error and last known cart until a retry. */ }
+  const mutate = (request: () => Promise<{ data: CartPayload }>, open = false) => {
+    // Opening the drawer is a user-facing action, not data: do it optimistically
+    // and epoch-independently. A CartSync owner transition (e.g. the first
+    // 'unknown' → 'guest' synchronize) can bump the generation while a write is
+    // in flight; gating the open on `current()` would then swallow it and leave
+    // the customer staring at a silently unopened cart.
+    if (open) set({ isOpen: true });
+    return enqueue(async current => {
+      set({ error: null });
+      try {
+        const response = await request();
+        if (current()) accept(response.data);
+      } catch (error) {
+        if (current()) {
+          set({ error: getApiError(error), ready: false });
+          try {
+            const response = await api.get<CartPayload>('/cart');
+            if (current()) accept(response.data);
+          } catch { /* Keep the visible error and last known cart until a retry. */ }
+        }
+        // Always rethrow to the initiating control so its toast fires even if a
+        // generation bump made this epoch stale.
+        if (open) throw error;
       }
-      if (open && current()) throw error;
-    }
-  });
+    });
+  };
   return {
     items: [], owner: 'unknown', ready: false, error: null, notice: null, isOpen: false, isLoading: false,
     setOpen: open => set({ isOpen: open }),

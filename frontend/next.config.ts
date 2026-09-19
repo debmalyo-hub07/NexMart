@@ -35,6 +35,8 @@ const nextConfig: NextConfig = {
   // Optimized image handling
   images: {
     remotePatterns: [
+      { protocol: 'https', hostname: 'cdn.dummyjson.com', pathname: '/product-images/**' },
+      { protocol: 'https', hostname: 'covers.openlibrary.org', pathname: '/b/isbn/**' },
       {
         protocol: 'https',
         hostname: 'res.cloudinary.com',

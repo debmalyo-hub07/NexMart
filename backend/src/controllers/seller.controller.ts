@@ -5,10 +5,14 @@ import { Seller, SELLER_LIFECYCLE_STATES, type SellerLifecycleState } from '../m
 import { SellerAuditLog } from '../models/SellerAuditLog';
 import { MarketplaceLedgerEntry } from '../models/MarketplaceLedgerEntry';
 import { SellerListing } from '../models/SellerListing';
+import { SellerInventory } from '../models/SellerInventory';
+import { Product } from '../models/Product';
+import { Category } from '../models/Category';
 import { AuthenticatedRequest } from '../types';
 import { sendBadRequest, sendForbidden, sendNotFound, sendPaginated, sendSuccess } from '../utils/response';
 import { parsePagination } from '../utils/helpers';
 import { isSellerTransitionAllowed, recordSellerAudit } from '../utils/sellerLifecycle';
+import { publicProductVisibility, visibleCategories } from '../utils/categoryVisibility';
 
 const addressSchema = z.object({
   fullName: z.string().trim().min(2).max(100),
@@ -257,16 +261,64 @@ export async function getSellerFinances(req: Request, res: Response): Promise<vo
 
 export async function getPublicSellerStorefront(req: Request, res: Response): Promise<void> {
   if (!mongoose.isValidObjectId(req.params.id)) { sendNotFound(res, 'Seller not found'); return; }
-  const [seller, listings] = await Promise.all([
+  const { page, limit, skip } = parsePagination(req.query);
+  const [seller, categories] = await Promise.all([
     Seller.findOne({ _id: req.params.id, isActive: true, lifecycleStatus: 'active' })
-      .select('name storefrontName legalBusinessName businessType performance returnPolicy verification createdAt businessAddress.city businessAddress.state')
+      .select('storefrontName legalBusinessName businessType performance.ratingAverage performance.ratingCount kycState complianceState createdAt businessAddress.city businessAddress.state')
       .lean(),
-    SellerListing.find({ seller: req.params.id, status: 'published' })
-      .populate('canonicalProduct', 'name slug images description')
-      .populate('inventory', 'available')
-      .lean(),
+    Category.find({ isActive: true }).select('_id parent').lean(),
   ]);
   if (!seller) { sendNotFound(res, 'Seller store not found or is currently inactive'); return; }
-  sendSuccess(res, { seller, listings });
+
+  // Apply canonical publication and option checks before pagination/counting.
+  // Never serialize seller-only fields (moderation, metadata, reserved stock).
+  const [result] = await SellerListing.aggregate<{ listings: Record<string, unknown>[]; totals: { count: number }[] }>([
+    { $match: { seller: seller._id, status: 'published' } },
+    { $lookup: {
+      from: Product.collection.name,
+      localField: 'canonicalProduct', foreignField: '_id', as: 'canonicalProduct',
+      pipeline: [
+        { $match: { ...publicProductVisibility(visibleCategories(categories)), isDemo: { $ne: true } } },
+        { $project: { name: 1, slug: 1, images: 1, 'variants.sku': 1 } },
+      ],
+    } },
+    { $unwind: '$canonicalProduct' },
+    { $match: { $expr: { $and: [
+      { $gt: [{ $size: '$canonicalProduct.variants' }, 0] },
+      { $or: [
+        { $eq: [{ $ifNull: ['$canonicalVariantSku', ''] }, ''] },
+        { $in: ['$canonicalVariantSku', '$canonicalProduct.variants.sku'] },
+      ] },
+    ] } } },
+    { $sort: { pricePaise: 1, _id: 1 } },
+    { $facet: {
+      totals: [{ $count: 'count' }],
+      listings: [
+        { $skip: skip }, { $limit: limit },
+        { $lookup: {
+          from: SellerInventory.collection.name,
+          let: { listingId: '$_id', sellerId: '$seller' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$listing', '$$listingId'] }, { $eq: ['$seller', '$$sellerId'] }] } } },
+            { $project: { _id: 0, available: 1 } },
+          ],
+          as: 'publicInventory',
+        } },
+        { $project: {
+          _id: 1, canonicalVariantSku: 1, pricePaise: 1, compareAtPricePaise: 1,
+          condition: 1, handlingTimeDays: 1, fulfillmentMode: 1, returnWindowDays: 1, warrantyText: 1,
+          'canonicalProduct._id': 1, 'canonicalProduct.name': 1, 'canonicalProduct.slug': 1, 'canonicalProduct.images': 1,
+          inventory: { $ifNull: [{ $first: '$publicInventory' }, { available: 0 }] },
+        } },
+      ],
+    } },
+  ]);
+  const { kycState, complianceState, ...details } = seller;
+  const total = result?.totals[0]?.count ?? 0;
+  sendSuccess(res, {
+    seller: { ...details, verification: kycState === 'verified' && complianceState === 'verified' ? 'verified' : 'standard' },
+    listings: result?.listings ?? [],
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
 }
 

@@ -8,6 +8,7 @@ export const cartMergeSchema = z.object({
   items: z.array(z.object({
     product: z.string(),
     variant: z.string(),
+    listing: z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid seller offer').optional(),
     quantity: z.number().int().positive().max(10),
   })).max(50),
 });

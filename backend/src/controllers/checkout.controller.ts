@@ -152,6 +152,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
           }
 
           const product = await Product.findOne({ _id: listing.canonicalProduct, isPublished: true }).session(session!);
+          if (product?.isDemo) throw new CheckoutError('Sample products cannot be purchased.', 'ITEM_UNAVAILABLE');
           const variant = product?.variants.find((option) => option.sku === item.variant);
           if (!product || !variant) throw new CheckoutError('An item or option is no longer available. Review your cart before ordering.', 'ITEM_UNAVAILABLE');
 
@@ -190,6 +191,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         // refinement, but keep the guard explicit for type and safety.
         if (!item.product) throw new CheckoutError('A product or seller listing is required.', 'ITEM_UNAVAILABLE');
         const product = await Product.findOne({ _id: item.product, isPublished: true }).session(session!);
+        if (product?.isDemo) throw new CheckoutError('Sample products cannot be purchased.', 'ITEM_UNAVAILABLE');
         const variant = product?.variants.find((option) => option.sku === item.variant);
         if (!product || !variant) throw new CheckoutError('An item or option is no longer available. Review your cart before ordering.', 'ITEM_UNAVAILABLE');
         if (variant.stock < item.quantity) throw new CheckoutError(`Stock changed for ${product.name}. Review your cart before ordering.`, 'STOCK_CHANGED');

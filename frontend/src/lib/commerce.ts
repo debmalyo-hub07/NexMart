@@ -11,19 +11,25 @@ export function calculateTotals(items: { price: number; quantity: number }[]) {
 }
 
 export function selectVariant(variants: ProductVariant[] = [], sku?: string) {
-  return variants.find(variant => variant.sku === sku) ?? variants.find(variant => variant.stock > 0) ?? variants[0];
+  const selected = variants.find(variant => variant.sku === sku);
+  if (selected) return selected;
+  const available = variants.filter(variant => variant.stock > 0);
+  return [...(available.length ? available : variants)].sort((a, b) => a.price - b.price)[0];
 }
 
 export function variantLabel(variant: ProductVariant) {
-  return Object.entries(variant.attributes ?? {}).map(([key, value]) => `${key}: ${value}`).join(' · ') || variant.sku;
+  return Object.values(variant.attributes ?? {}).join(' · ') || 'Standard option';
 }
 
 export function getCartItemState(item: CartItem) {
   const variant = item.product?.variants?.find(option => option.sku === item.variant);
-  const price = variant?.price ?? item.price;
+  const price = item.listing ? item.offer?.price ?? item.price : variant?.price ?? item.price;
+  const stock = item.listing ? item.offer?.stock ?? 0 : variant?.stock ?? 0;
   const reason = !item.product || item.product.isPublished === false ? 'This product is no longer available.'
+    : item.product.isDemo ? 'Sample products cannot be purchased. Remove this item to continue.'
     : !variant ? 'This option is no longer available.'
-    : variant.stock < 1 ? 'This option is out of stock.'
-    : item.quantity > variant.stock ? `Only ${variant.stock} available. Reduce the quantity to continue.` : undefined;
-  return { variant, price, priceChanged: money(price) !== money(item.price), available: !reason, reason };
+    : item.listing && !item.offer?.available ? 'This seller offer is no longer available. Refresh or remove it.'
+    : stock < 1 ? 'This option is out of stock.'
+    : item.quantity > stock ? `Only ${stock} available. Reduce the quantity to continue.` : undefined;
+  return { variant, price, stock, priceChanged: money(price) !== money(item.price), available: !reason, reason };
 }

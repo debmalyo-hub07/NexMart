@@ -81,6 +81,9 @@ export interface Product {
   reviews: ProductReview[];
   isPublished: boolean;
   isFeatured: boolean;
+  isDemo?: boolean;
+  demoSource?: string;
+  catalog?: { price: number; maxPrice: number; variantSku: string; inStock: boolean };
   createdAt: string;
 }
 
@@ -89,6 +92,7 @@ export interface CartItem {
   _id: string;
   product: Product | null;
   listing?: string;
+  offer?: { price: number; stock: number; available: boolean };
   seller?: { id?: string; _id?: string; storefrontName: string };
   variant: string;
   quantity: number;
@@ -172,12 +176,20 @@ export interface ApiResponse<T> {
   message: string;
   data?: T;
   errors?: Record<string, string[]>;
+  facets?: CatalogFacets;
+  search?: { query: string; mode: 'exact' | 'approximate' };
   meta?: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
   };
+}
+
+export interface CatalogFacets {
+  brands: Array<{ value: string; count: number }>;
+  categories: Array<{ value: string; count: number }>;
+  price: { min: number; max: number } | null;
 }
 
 // ── Dashboard types ───────────────────────────────────────────
@@ -218,6 +230,8 @@ export interface Category {
   description?: string;
   displayOrder: number;
   isActive: boolean;
+  productCount?: number;
+  fromPrice?: number;
 }
 
 export type DeliveryStatus = 'assigned' | 'picked' | 'out_for_delivery' | 'delivered' | 'attempted' | 'returned';

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Overlay } from './Overlay';

@@ -7,9 +7,9 @@ export default function CustomerLogin() {
     <AuthForm
       type="login"
       portal="customer"
-      title="Sign In"
-      submitText="Customer Login"
-      linkText="New here? Register"
+      title="Welcome back."
+      submitText="Sign in"
+      linkText="New to NexMart? Create an account"
       linkHref="/customer/register"
       redirectUrl="/"
       showGoogle

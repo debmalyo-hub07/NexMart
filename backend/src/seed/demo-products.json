@@ -1,0 +1,1896 @@
+[
+  {
+    "key": "dummyjson-123",
+    "name": "iPhone 13 Pro",
+    "root": "mobiles",
+    "sub": "Smartphones",
+    "description": "The iPhone 13 Pro is a cutting-edge smartphone with a powerful camera system, high-performance chip, and stunning display. It offers advanced features for users who demand top-notch technology.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Smartphones",
+      "Brand": "Apple",
+      "Collection": "Everyday collection",
+      "Storage": "128 GB",
+      "Display": "6.1-inch",
+      "Colour": "Graphite"
+    },
+    "price": 59900,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/1.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/2.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/3.webp"
+    ],
+    "tags": [
+      "smartphones",
+      "apple",
+      "mobiles",
+      "Smartphones"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/123"
+  },
+  {
+    "key": "dummyjson-125",
+    "name": "Oppo A57",
+    "root": "mobiles",
+    "sub": "Smartphones",
+    "description": "The Oppo A57 is a mid-range smartphone known for its sleek design and capable features. It offers a balance of performance and affordability, making it a popular choice.",
+    "brand": "Oppo",
+    "specifications": {
+      "Product type": "Smartphones",
+      "Brand": "Oppo",
+      "Collection": "Everyday collection",
+      "Storage": "64 GB",
+      "Connectivity": "4G"
+    },
+    "price": 12999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/1.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/2.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/3.webp"
+    ],
+    "tags": [
+      "smartphones",
+      "oppo",
+      "mobiles",
+      "Smartphones"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/125"
+  },
+  {
+    "key": "dummyjson-128",
+    "name": "Realme C35",
+    "root": "mobiles",
+    "sub": "Smartphones",
+    "description": "The Realme C35 is a budget-friendly smartphone with a focus on providing essential features for everyday use. It offers a reliable performance and user-friendly experience.",
+    "brand": "Realme",
+    "specifications": {
+      "Product type": "Smartphones",
+      "Brand": "Realme",
+      "Collection": "Everyday collection",
+      "Storage": "64 GB",
+      "Connectivity": "4G"
+    },
+    "price": 11999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/smartphones/realme-c35/1.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/realme-c35/2.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/realme-c35/3.webp"
+    ],
+    "tags": [
+      "smartphones",
+      "realme",
+      "mobiles",
+      "Smartphones"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/128"
+  },
+  {
+    "key": "dummyjson-133",
+    "name": "Samsung Galaxy S10",
+    "root": "mobiles",
+    "sub": "Smartphones",
+    "description": "The Samsung Galaxy S10 is a flagship device featuring a dynamic AMOLED display, versatile camera system, and powerful performance. It represents innovation and excellence in smartphone technology.",
+    "brand": "Samsung",
+    "specifications": {
+      "Product type": "Smartphones",
+      "Brand": "Samsung",
+      "Collection": "Everyday collection",
+      "Storage": "128 GB",
+      "Display": "6.1-inch"
+    },
+    "price": 24999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/1.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/2.webp",
+      "https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/3.webp"
+    ],
+    "tags": [
+      "smartphones",
+      "samsung galaxy",
+      "mobiles",
+      "Smartphones"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/133"
+  },
+  {
+    "key": "dummyjson-159",
+    "name": "iPad Mini 2021 Starlight",
+    "root": "mobiles",
+    "sub": "Tablets",
+    "description": "The iPad Mini 2021 in Starlight is a compact and powerful tablet from Apple. Featuring a stunning Retina display, powerful A-series chip, and a sleek design, it offers a premium tablet experience.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Tablets",
+      "Brand": "Apple",
+      "Collection": "Everyday collection",
+      "Display": "8.3-inch",
+      "Storage": "64 GB"
+    },
+    "price": 42900,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/1.webp",
+      "https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/2.webp",
+      "https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/3.webp"
+    ],
+    "tags": [
+      "electronics",
+      "tablets",
+      "mobiles",
+      "Tablets"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/159"
+  },
+  {
+    "key": "dummyjson-160",
+    "name": "Samsung Galaxy Tab S8 Plus Grey",
+    "root": "mobiles",
+    "sub": "Tablets",
+    "description": "The Samsung Galaxy Tab S8 Plus in Grey is a high-performance Android tablet by Samsung. With a large AMOLED display, powerful processor, and S Pen support, it's ideal for productivity and entertainment.",
+    "brand": "Samsung",
+    "specifications": {
+      "Product type": "Tablets",
+      "Brand": "Samsung",
+      "Collection": "Everyday collection",
+      "Display": "12.4-inch",
+      "Storage": "128 GB"
+    },
+    "price": 65999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/1.webp",
+      "https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/2.webp",
+      "https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/3.webp"
+    ],
+    "tags": [
+      "electronics",
+      "tablets",
+      "mobiles",
+      "Tablets"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/160"
+  },
+  {
+    "key": "dummyjson-104",
+    "name": "Apple iPhone Charger",
+    "root": "mobiles",
+    "sub": "Chargers",
+    "description": "The Apple iPhone Charger is a high-quality charger designed for fast and efficient charging of your iPhone. Ensure your device stays powered up and ready to go.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Chargers",
+      "Brand": "Apple",
+      "Collection": "Everyday collection"
+    },
+    "price": 1599,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-iphone-charger/1.webp",
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-iphone-charger/2.webp"
+    ],
+    "tags": [
+      "electronics",
+      "chargers",
+      "mobiles",
+      "Chargers"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/104"
+  },
+  {
+    "key": "dummyjson-105",
+    "name": "Apple MagSafe Battery Pack",
+    "root": "mobiles",
+    "sub": "Power Banks",
+    "description": "The Apple MagSafe Battery Pack is a portable and convenient way to add extra battery life to your MagSafe-compatible iPhone. Attach it magnetically for a secure connection.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Power Banks",
+      "Brand": "Apple",
+      "Collection": "Everyday collection"
+    },
+    "price": 7499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-magsafe-battery-pack/1.webp",
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-magsafe-battery-pack/2.webp"
+    ],
+    "tags": [
+      "electronics",
+      "power banks",
+      "mobiles",
+      "Power Banks"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/105"
+  },
+  {
+    "key": "dummyjson-78",
+    "name": "Apple MacBook Pro 14 Inch Space Grey",
+    "root": "electronics",
+    "sub": "Laptops",
+    "description": "The MacBook Pro 14 Inch in Space Grey is a powerful and sleek laptop, featuring Apple's M1 Pro chip for exceptional performance and a stunning Retina display.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Laptop",
+      "Brand": "Apple",
+      "Collection": "Everyday collection",
+      "Display": "14-inch"
+    },
+    "price": 149900,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/1.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/2.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/3.webp"
+    ],
+    "tags": [
+      "laptops",
+      "apple",
+      "electronics",
+      "Laptops"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/78"
+  },
+  {
+    "key": "dummyjson-79",
+    "name": "Asus Zenbook Pro Dual Screen Laptop",
+    "root": "electronics",
+    "sub": "Laptops",
+    "description": "The Asus Zenbook Pro Dual Screen Laptop is a high-performance device with dual screens, providing productivity and versatility for creative professionals.",
+    "brand": "Asus",
+    "specifications": {
+      "Product type": "Dual-screen laptop",
+      "Brand": "Asus",
+      "Collection": "Everyday collection"
+    },
+    "price": 129990,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/1.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/2.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/3.webp"
+    ],
+    "tags": [
+      "laptops",
+      "electronics",
+      "Laptops"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/79"
+  },
+  {
+    "key": "dummyjson-81",
+    "name": "Lenovo Yoga 920",
+    "root": "electronics",
+    "sub": "Laptops",
+    "description": "The Lenovo Yoga 920 is a 2-in-1 convertible laptop with a flexible hinge, allowing you to use it as a laptop or tablet, offering versatility and portability.",
+    "brand": "Lenovo",
+    "specifications": {
+      "Product type": "Convertible laptop",
+      "Brand": "Lenovo",
+      "Collection": "Everyday collection"
+    },
+    "price": 79990,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/1.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/2.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/3.webp"
+    ],
+    "tags": [
+      "laptops",
+      "electronics",
+      "Laptops"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/81"
+  },
+  {
+    "key": "dummyjson-82",
+    "name": "New DELL XPS 13 9300 Laptop",
+    "root": "electronics",
+    "sub": "Laptops",
+    "description": "The New DELL XPS 13 9300 Laptop is a compact and powerful device, featuring a virtually borderless InfinityEdge display and high-end performance for various tasks.",
+    "brand": "Dell",
+    "specifications": {
+      "Product type": "Laptops",
+      "Brand": "Dell",
+      "Collection": "Everyday collection",
+      "Display": "13-inch"
+    },
+    "price": 109990,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/1.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/2.webp",
+      "https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/3.webp"
+    ],
+    "tags": [
+      "laptops",
+      "electronics",
+      "Laptops"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/82"
+  },
+  {
+    "key": "dummyjson-100",
+    "name": "Apple Airpods",
+    "root": "electronics",
+    "sub": "Audio & Headphones",
+    "description": "The Apple Airpods offer a seamless wireless audio experience. With easy pairing, high-quality sound, and Siri integration, they are perfect for on-the-go listening.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Wireless earbuds",
+      "Brand": "Apple",
+      "Collection": "Everyday collection"
+    },
+    "price": 12900,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/1.webp",
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/2.webp",
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/3.webp"
+    ],
+    "tags": [
+      "electronics",
+      "wireless earphones",
+      "electronics",
+      "Audio & Headphones"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/100"
+  },
+  {
+    "key": "dummyjson-101",
+    "name": "Apple AirPods Max Silver",
+    "root": "electronics",
+    "sub": "Audio & Headphones",
+    "description": "The Apple AirPods Max in Silver are premium over-ear headphones with high-fidelity audio, adaptive EQ, and active noise cancellation. Experience immersive sound in style.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Over-ear headphones",
+      "Brand": "Apple",
+      "Collection": "Everyday collection",
+      "Colour": "Silver"
+    },
+    "price": 59900,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods-max-silver/1.webp"
+    ],
+    "tags": [
+      "electronics",
+      "over-ear headphones",
+      "electronics",
+      "Audio & Headphones"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/101"
+  },
+  {
+    "key": "dummyjson-103",
+    "name": "Apple HomePod Mini Cosmic Grey",
+    "root": "electronics",
+    "sub": "Audio & Headphones",
+    "description": "The Apple HomePod Mini in Cosmic Grey is a compact smart speaker that delivers impressive audio and integrates seamlessly with the Apple ecosystem for a smart home experience.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Smart speaker",
+      "Brand": "Apple",
+      "Collection": "Everyday collection",
+      "Colour": "Cosmic Grey"
+    },
+    "price": 10900,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-homepod-mini-cosmic-grey/1.webp"
+    ],
+    "tags": [
+      "electronics",
+      "smart speakers",
+      "electronics",
+      "Audio & Headphones"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/103"
+  },
+  {
+    "key": "dummyjson-106",
+    "name": "Apple Watch Series 4 Gold",
+    "root": "electronics",
+    "sub": "Smart Watches",
+    "description": "The Apple Watch Series 4 in Gold is a stylish and advanced smartwatch with features like heart rate monitoring, fitness tracking, and a beautiful Retina display.",
+    "brand": "Apple",
+    "specifications": {
+      "Product type": "Smart watch",
+      "Brand": "Apple",
+      "Collection": "Everyday collection",
+      "Colour": "Gold"
+    },
+    "price": 29900,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/1.webp",
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/2.webp",
+      "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/3.webp"
+    ],
+    "tags": [
+      "electronics",
+      "smartwatches",
+      "electronics",
+      "Smart Watches"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/106"
+  },
+  {
+    "key": "dummyjson-51",
+    "name": "Boxed Blender",
+    "root": "appliances",
+    "sub": "Kitchen Appliances",
+    "description": "The Boxed Blender is a powerful and compact blender perfect for smoothies, shakes, and more. Its convenient design and multiple functions make it a versatile kitchen appliance.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Countertop blender",
+      "Brand": "Unbranded",
+      "Collection": "Everyday collection"
+    },
+    "price": 2499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/1.webp",
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/2.webp",
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/3.webp"
+    ],
+    "tags": [
+      "kitchen appliances",
+      "blenders",
+      "appliances",
+      "Kitchen Appliances"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/51"
+  },
+  {
+    "key": "dummyjson-56",
+    "name": "Electric Stove",
+    "root": "appliances",
+    "sub": "Kitchen Appliances",
+    "description": "The Electric Stove provides a portable and efficient cooking solution. Ideal for small kitchens or as an additional cooking surface for various culinary needs.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Electric stove",
+      "Brand": "Unbranded",
+      "Collection": "Everyday collection"
+    },
+    "price": 3999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/1.webp",
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/2.webp",
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/3.webp"
+    ],
+    "tags": [
+      "kitchen appliances",
+      "cooktops",
+      "appliances",
+      "Kitchen Appliances"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/56"
+  },
+  {
+    "key": "dummyjson-61",
+    "name": "Hand Blender",
+    "root": "appliances",
+    "sub": "Kitchen Appliances",
+    "description": "The Hand Blender is a versatile kitchen appliance for blending, pureeing, and mixing. Its compact design and powerful motor make it a convenient tool for various recipes.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Hand blender",
+      "Brand": "Unbranded",
+      "Collection": "Everyday collection"
+    },
+    "price": 1799,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/hand-blender/1.webp"
+    ],
+    "tags": [
+      "kitchen appliances",
+      "blenders",
+      "appliances",
+      "Kitchen Appliances"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/61"
+  },
+  {
+    "key": "dummyjson-66",
+    "name": "Microwave Oven",
+    "root": "appliances",
+    "sub": "Kitchen Appliances",
+    "description": "The Microwave Oven is a versatile kitchen appliance for quick and efficient cooking, reheating, and defrosting. Its compact size makes it suitable for various kitchen setups.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Microwave oven",
+      "Brand": "Unbranded",
+      "Collection": "Everyday collection"
+    },
+    "price": 8999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/1.webp",
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/2.webp",
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/3.webp"
+    ],
+    "tags": [
+      "kitchen appliances",
+      "microwaves",
+      "appliances",
+      "Kitchen Appliances"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/66"
+  },
+  {
+    "key": "dummyjson-83",
+    "name": "Blue & Black Check Shirt",
+    "root": "fashion",
+    "sub": "Men's Clothing",
+    "description": "The Blue & Black Check Shirt is a stylish and comfortable men's shirt featuring a classic check pattern. Made from high-quality fabric, it's suitable for both casual and semi-formal occasions.",
+    "brand": "Fashion Trends",
+    "specifications": {
+      "Product type": "Men's Clothing",
+      "Brand": "Fashion Trends",
+      "Collection": "Everyday collection",
+      "Pattern": "Checked",
+      "Colour": "Blue & black"
+    },
+    "price": 1299,
+    "attributes": [
+      {
+        "Size": "M"
+      },
+      {
+        "Size": "L"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mens-shirts/blue-&-black-check-shirt/1.webp",
+      "https://cdn.dummyjson.com/product-images/mens-shirts/blue-&-black-check-shirt/2.webp",
+      "https://cdn.dummyjson.com/product-images/mens-shirts/blue-&-black-check-shirt/3.webp"
+    ],
+    "tags": [
+      "clothing",
+      "men's shirts",
+      "fashion",
+      "Men's Clothing"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/83"
+  },
+  {
+    "key": "dummyjson-88",
+    "name": "Nike Air Jordan 1 Red And Black",
+    "root": "fashion",
+    "sub": "Shoes",
+    "description": "The Nike Air Jordan 1 in Red and Black is an iconic basketball sneaker known for its stylish design and high-performance features, making it a favorite among sneaker enthusiasts and athletes.",
+    "brand": "Nike",
+    "specifications": {
+      "Product type": "High-top sneakers",
+      "Brand": "Nike",
+      "Collection": "Everyday collection",
+      "Colour": "Red & black"
+    },
+    "price": 8995,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/1.webp",
+      "https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/2.webp",
+      "https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/3.webp"
+    ],
+    "tags": [
+      "footwear",
+      "athletic shoes",
+      "fashion",
+      "Shoes"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/88"
+  },
+  {
+    "key": "dummyjson-90",
+    "name": "Puma Future Rider Trainers",
+    "root": "fashion",
+    "sub": "Shoes",
+    "description": "The Puma Future Rider Trainers offer a blend of retro style and modern comfort. Perfect for casual wear, these trainers provide a fashionable and comfortable option for everyday use.",
+    "brand": "Puma",
+    "specifications": {
+      "Product type": "Trainers",
+      "Brand": "Puma",
+      "Collection": "Everyday collection"
+    },
+    "price": 6499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/1.webp",
+      "https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/2.webp",
+      "https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/3.webp"
+    ],
+    "tags": [
+      "footwear",
+      "casual shoes",
+      "fashion",
+      "Shoes"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/90"
+  },
+  {
+    "key": "dummyjson-94",
+    "name": "Longines Master Collection",
+    "root": "fashion",
+    "sub": "Watches",
+    "description": "The Longines Master Collection is an elegant and refined watch known for its precision and craftsmanship. With a timeless design, it's a symbol of luxury and sophistication.",
+    "brand": "Longines",
+    "specifications": {
+      "Product type": "Analogue watch",
+      "Brand": "Longines",
+      "Collection": "Everyday collection"
+    },
+    "price": 19990,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/mens-watches/longines-master-collection/1.webp",
+      "https://cdn.dummyjson.com/product-images/mens-watches/longines-master-collection/2.webp",
+      "https://cdn.dummyjson.com/product-images/mens-watches/longines-master-collection/3.webp"
+    ],
+    "tags": [
+      "watches",
+      "luxury watches",
+      "fashion",
+      "Watches"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/94"
+  },
+  {
+    "key": "dummyjson-172",
+    "name": "Blue Women's Handbag",
+    "root": "fashion",
+    "sub": "Accessories",
+    "description": "The Blue Women's Handbag is a stylish and spacious accessory for everyday use. With a vibrant blue color and multiple compartments, it combines fashion and functionality.",
+    "brand": "Fashionista",
+    "specifications": {
+      "Product type": "Handbag",
+      "Brand": "Fashionista",
+      "Collection": "Everyday collection",
+      "Colour": "Blue"
+    },
+    "price": 1799,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/womens-bags/blue-women's-handbag/1.webp",
+      "https://cdn.dummyjson.com/product-images/womens-bags/blue-women's-handbag/2.webp",
+      "https://cdn.dummyjson.com/product-images/womens-bags/blue-women's-handbag/3.webp"
+    ],
+    "tags": [
+      "fashion accessories",
+      "handbags",
+      "fashion",
+      "Accessories"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/172"
+  },
+  {
+    "key": "dummyjson-177",
+    "name": "Black Women's Gown",
+    "root": "fashion",
+    "sub": "Women's Clothing",
+    "description": "The Black Women's Gown is an elegant and timeless evening gown. With a sleek black design, it's perfect for formal events and special occasions, exuding sophistication and style.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Gown",
+      "Brand": "Unbranded",
+      "Collection": "Everyday collection",
+      "Colour": "Black"
+    },
+    "price": 3499,
+    "attributes": [
+      {
+        "Size": "M"
+      },
+      {
+        "Size": "L"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/womens-dresses/black-women's-gown/1.webp",
+      "https://cdn.dummyjson.com/product-images/womens-dresses/black-women's-gown/2.webp",
+      "https://cdn.dummyjson.com/product-images/womens-dresses/black-women's-gown/3.webp"
+    ],
+    "tags": [
+      "clothing",
+      "gowns",
+      "fashion",
+      "Women's Clothing"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/177"
+  },
+  {
+    "key": "dummyjson-182",
+    "name": "Green Crystal Earring",
+    "root": "fashion",
+    "sub": "Accessories",
+    "description": "The Green Crystal Earring is a dazzling accessory that features a vibrant green crystal. With a classic design, it adds a touch of elegance to your ensemble, perfect for formal or special occasions.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Earrings",
+      "Brand": "Unbranded",
+      "Collection": "Everyday collection",
+      "Colour": "Green"
+    },
+    "price": 799,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/1.webp",
+      "https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/2.webp",
+      "https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/3.webp"
+    ],
+    "tags": [
+      "fashion accessories",
+      "earrings",
+      "fashion",
+      "Accessories"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/182"
+  },
+  {
+    "key": "dummyjson-194",
+    "name": "Women's Wrist Watch",
+    "root": "fashion",
+    "sub": "Watches",
+    "description": "The Women's Wrist Watch is a versatile and fashionable timepiece for everyday wear. With a comfortable strap and a simple yet elegant design, it complements various styles.",
+    "brand": "Fashion Co.",
+    "specifications": {
+      "Product type": "Wrist watch",
+      "Brand": "Fashion Co.",
+      "Collection": "Everyday collection"
+    },
+    "price": 2499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/womens-watches/women's-wrist-watch/1.webp",
+      "https://cdn.dummyjson.com/product-images/womens-watches/women's-wrist-watch/2.webp",
+      "https://cdn.dummyjson.com/product-images/womens-watches/women's-wrist-watch/3.webp"
+    ],
+    "tags": [
+      "watches",
+      "women's watches",
+      "fashion",
+      "Watches"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/194"
+  },
+  {
+    "key": "dummyjson-1",
+    "name": "Essence Mascara Lash Princess",
+    "root": "beauty",
+    "sub": "Makeup",
+    "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing and lengthening effects. Achieve dramatic lashes with this long-lasting and cruelty-free formula.",
+    "brand": "Essence",
+    "specifications": {
+      "Product type": "Mascara",
+      "Brand": "Essence",
+      "Collection": "Everyday collection"
+    },
+    "price": 399,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/1.webp"
+    ],
+    "tags": [
+      "beauty",
+      "mascara",
+      "beauty",
+      "Makeup"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/1"
+  },
+  {
+    "key": "dummyjson-2",
+    "name": "Eyeshadow Palette with Mirror",
+    "root": "beauty",
+    "sub": "Makeup",
+    "description": "The Eyeshadow Palette with Mirror offers a versatile range of eyeshadow shades for creating stunning eye looks. With a built-in mirror, it's convenient for on-the-go makeup application.",
+    "brand": "Glamour Beauty",
+    "specifications": {
+      "Product type": "Eyeshadow palette",
+      "Brand": "Glamour Beauty",
+      "Collection": "Everyday collection"
+    },
+    "price": 899,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/1.webp"
+    ],
+    "tags": [
+      "beauty",
+      "eyeshadow",
+      "beauty",
+      "Makeup"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/2"
+  },
+  {
+    "key": "dummyjson-4",
+    "name": "Red Lipstick",
+    "root": "beauty",
+    "sub": "Makeup",
+    "description": "The Red Lipstick is a classic and bold choice for adding a pop of color to your lips. With a creamy and pigmented formula, it provides a vibrant and long-lasting finish.",
+    "brand": "Chic Cosmetics",
+    "specifications": {
+      "Product type": "Lipstick",
+      "Brand": "Chic Cosmetics",
+      "Collection": "Everyday collection",
+      "Colour": "Red"
+    },
+    "price": 349,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/beauty/red-lipstick/1.webp"
+    ],
+    "tags": [
+      "beauty",
+      "lipstick",
+      "beauty",
+      "Makeup"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/4"
+  },
+  {
+    "key": "dummyjson-6",
+    "name": "Calvin Klein CK One",
+    "root": "beauty",
+    "sub": "Fragrances",
+    "description": "CK One by Calvin Klein is a classic unisex fragrance, known for its fresh and clean scent. It's a versatile fragrance suitable for everyday wear.",
+    "brand": "Calvin Klein",
+    "specifications": {
+      "Product type": "Fragrance",
+      "Brand": "Calvin Klein",
+      "Collection": "Everyday collection"
+    },
+    "price": 3999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/1.webp",
+      "https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/2.webp",
+      "https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/3.webp"
+    ],
+    "tags": [
+      "fragrances",
+      "perfumes",
+      "beauty",
+      "Fragrances"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/6"
+  },
+  {
+    "key": "dummyjson-118",
+    "name": "Attitude Super Leaves Hand Soap",
+    "root": "beauty",
+    "sub": "Skincare",
+    "description": "Attitude Super Leaves Hand Soap is a natural and nourishing hand soap enriched with the goodness of super leaves. It cleanses and moisturizes your hands, leaving them feeling fresh and soft.",
+    "brand": "Attitude",
+    "specifications": {
+      "Product type": "Hand soap",
+      "Brand": "Attitude",
+      "Collection": "Everyday collection"
+    },
+    "price": 499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/skin-care/attitude-super-leaves-hand-soap/1.webp",
+      "https://cdn.dummyjson.com/product-images/skin-care/attitude-super-leaves-hand-soap/2.webp",
+      "https://cdn.dummyjson.com/product-images/skin-care/attitude-super-leaves-hand-soap/3.webp"
+    ],
+    "tags": [
+      "personal care",
+      "hand soap",
+      "beauty",
+      "Skincare"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/118"
+  },
+  {
+    "key": "dummyjson-120",
+    "name": "Vaseline Men Body and Face Lotion",
+    "root": "beauty",
+    "sub": "Skincare",
+    "description": "Vaseline Men Body and Face Lotion is a specially formulated lotion designed to provide long-lasting moisture to men's skin. It absorbs quickly and helps keep the skin hydrated and healthy.",
+    "brand": "Vaseline",
+    "specifications": {
+      "Product type": "Body & face lotion",
+      "Brand": "Vaseline",
+      "Collection": "Everyday collection"
+    },
+    "price": 399,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/skin-care/vaseline-men-body-and-face-lotion/1.webp",
+      "https://cdn.dummyjson.com/product-images/skin-care/vaseline-men-body-and-face-lotion/2.webp",
+      "https://cdn.dummyjson.com/product-images/skin-care/vaseline-men-body-and-face-lotion/3.webp"
+    ],
+    "tags": [
+      "personal care",
+      "body lotion",
+      "beauty",
+      "Skincare"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/120"
+  },
+  {
+    "key": "dummyjson-11",
+    "name": "Annibale Colombo Bed",
+    "root": "home",
+    "sub": "Furniture",
+    "description": "The Annibale Colombo Bed is a luxurious and elegant bed frame, crafted with high-quality materials for a comfortable and stylish bedroom.",
+    "brand": "Annibale Colombo",
+    "specifications": {
+      "Product type": "Bed",
+      "Brand": "Annibale Colombo",
+      "Collection": "Everyday living"
+    },
+    "price": 28990,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/1.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/2.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/3.webp"
+    ],
+    "tags": [
+      "furniture",
+      "beds",
+      "home",
+      "Furniture"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/11"
+  },
+  {
+    "key": "dummyjson-12",
+    "name": "Annibale Colombo Sofa",
+    "root": "home",
+    "sub": "Furniture",
+    "description": "The Annibale Colombo Sofa is a sophisticated and comfortable seating option, featuring exquisite design and premium upholstery for your living room.",
+    "brand": "Annibale Colombo",
+    "specifications": {
+      "Product type": "Sofa",
+      "Brand": "Annibale Colombo",
+      "Collection": "Everyday living"
+    },
+    "price": 42990,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/1.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/2.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/3.webp"
+    ],
+    "tags": [
+      "furniture",
+      "sofas",
+      "home",
+      "Furniture"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/12"
+  },
+  {
+    "key": "dummyjson-13",
+    "name": "Bedside Table African Cherry",
+    "root": "home",
+    "sub": "Furniture",
+    "description": "The Bedside Table in African Cherry is a stylish and functional addition to your bedroom, providing convenient storage space and a touch of elegance.",
+    "brand": "Furniture Co.",
+    "specifications": {
+      "Product type": "Bedside table",
+      "Brand": "Furniture Co.",
+      "Collection": "Everyday living"
+    },
+    "price": 5499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/1.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/2.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/3.webp"
+    ],
+    "tags": [
+      "furniture",
+      "bedside tables",
+      "home",
+      "Furniture"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/13"
+  },
+  {
+    "key": "dummyjson-14",
+    "name": "Knoll Saarinen Executive Conference Chair",
+    "root": "home",
+    "sub": "Furniture",
+    "description": "The Knoll Saarinen Executive Conference Chair is a modern and ergonomic chair, perfect for your office or conference room with its timeless design.",
+    "brand": "Knoll",
+    "specifications": {
+      "Product type": "Office chair",
+      "Brand": "Knoll",
+      "Collection": "Everyday living"
+    },
+    "price": 8990,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/furniture/knoll-saarinen-executive-conference-chair/1.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/knoll-saarinen-executive-conference-chair/2.webp",
+      "https://cdn.dummyjson.com/product-images/furniture/knoll-saarinen-executive-conference-chair/3.webp"
+    ],
+    "tags": [
+      "furniture",
+      "office chairs",
+      "home",
+      "Furniture"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/14"
+  },
+  {
+    "key": "dummyjson-44",
+    "name": "Family Tree Photo Frame",
+    "root": "home",
+    "sub": "Home Decor",
+    "description": "The Family Tree Photo Frame is a sentimental and stylish way to display your cherished family memories. With multiple photo slots, it tells the story of your loved ones.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Photo frame",
+      "Brand": "Unbranded",
+      "Collection": "Everyday living"
+    },
+    "price": 799,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/home-decoration/family-tree-photo-frame/1.webp"
+    ],
+    "tags": [
+      "home decor",
+      "photo frame",
+      "home",
+      "Home Decor"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/44"
+  },
+  {
+    "key": "dummyjson-45",
+    "name": "House Showpiece Plant",
+    "root": "home",
+    "sub": "Home Decor",
+    "description": "The House Showpiece Plant is an artificial plant that brings a touch of nature to your home without the need for maintenance. It adds greenery and style to any space.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Decorative plant",
+      "Brand": "Unbranded",
+      "Collection": "Everyday living"
+    },
+    "price": 599,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/1.webp",
+      "https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/2.webp",
+      "https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/3.webp"
+    ],
+    "tags": [
+      "home decor",
+      "artificial plants",
+      "home",
+      "Home Decor"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/45"
+  },
+  {
+    "key": "dummyjson-47",
+    "name": "Table Lamp",
+    "root": "home",
+    "sub": "Lighting",
+    "description": "The Table Lamp is a functional and decorative lighting solution for your living space. With a modern design, it provides both ambient and task lighting, enhancing the atmosphere.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Table lamp",
+      "Brand": "Unbranded",
+      "Collection": "Everyday living"
+    },
+    "price": 1899,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/home-decoration/table-lamp/1.webp"
+    ],
+    "tags": [
+      "home decor",
+      "lighting",
+      "home",
+      "Lighting"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/47"
+  },
+  {
+    "key": "dummyjson-52",
+    "name": "Carbon Steel Wok",
+    "root": "home",
+    "sub": "Kitchen",
+    "description": "The Carbon Steel Wok is a versatile cooking pan suitable for stir-frying, sautéing, and deep frying. Its sturdy construction ensures even heat distribution for delicious meals.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Wok",
+      "Brand": "Unbranded",
+      "Collection": "Everyday living",
+      "Material": "Carbon steel"
+    },
+    "price": 1499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/kitchen-accessories/carbon-steel-wok/1.webp"
+    ],
+    "tags": [
+      "cookware",
+      "woks",
+      "home",
+      "Kitchen"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/52"
+  },
+  {
+    "key": "dummyjson-27",
+    "name": "Honey Jar",
+    "root": "grocery",
+    "sub": "Staples",
+    "description": "Pure and natural honey in a convenient jar, perfect for sweetening beverages or drizzling over food.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Staples",
+      "Brand": "Unbranded",
+      "Collection": "Pantry essentials"
+    },
+    "price": 349,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/groceries/honey-jar/1.webp"
+    ],
+    "tags": [
+      "condiments",
+      "grocery",
+      "Staples"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/27"
+  },
+  {
+    "key": "dummyjson-29",
+    "name": "Juice",
+    "root": "grocery",
+    "sub": "Beverages",
+    "description": "Refreshing fruit juice, packed with vitamins and great for staying hydrated.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Beverages",
+      "Brand": "Unbranded",
+      "Collection": "Pantry essentials"
+    },
+    "price": 129,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/groceries/juice/1.webp"
+    ],
+    "tags": [
+      "beverages",
+      "grocery",
+      "Beverages"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/29"
+  },
+  {
+    "key": "dummyjson-34",
+    "name": "Nescafe Coffee",
+    "root": "grocery",
+    "sub": "Beverages",
+    "description": "Quality coffee from Nescafe, available in various blends for a rich and satisfying cup.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Beverages",
+      "Brand": "Unbranded",
+      "Collection": "Pantry essentials"
+    },
+    "price": 499,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/groceries/nescafe-coffee/1.webp"
+    ],
+    "tags": [
+      "beverages",
+      "coffee",
+      "grocery",
+      "Beverages"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/34"
+  },
+  {
+    "key": "dummyjson-38",
+    "name": "Rice",
+    "root": "grocery",
+    "sub": "Staples",
+    "description": "High-quality rice, a staple for various cuisines and a versatile base for many dishes.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Staples",
+      "Brand": "Unbranded",
+      "Collection": "Pantry essentials"
+    },
+    "price": 699,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/groceries/rice/1.webp"
+    ],
+    "tags": [
+      "grains",
+      "grocery",
+      "Staples"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/38"
+  },
+  {
+    "key": "dummyjson-40",
+    "name": "Strawberry",
+    "root": "grocery",
+    "sub": "Fresh Produce",
+    "description": "Sweet and succulent strawberries, great for snacking, desserts, or blending into smoothies.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Fresh Produce",
+      "Brand": "Unbranded",
+      "Collection": "Pantry essentials"
+    },
+    "price": 149,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/groceries/strawberry/1.webp"
+    ],
+    "tags": [
+      "fruits",
+      "grocery",
+      "Fresh Produce"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/40"
+  },
+  {
+    "key": "dummyjson-42",
+    "name": "Water",
+    "root": "grocery",
+    "sub": "Beverages",
+    "description": "Pure and refreshing bottled water, essential for staying hydrated throughout the day.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Beverages",
+      "Brand": "Unbranded",
+      "Collection": "Pantry essentials"
+    },
+    "price": 49,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/groceries/water/1.webp"
+    ],
+    "tags": [
+      "beverages",
+      "grocery",
+      "Beverages"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/42"
+  },
+  {
+    "key": "dummyjson-140",
+    "name": "Basketball",
+    "root": "sports",
+    "sub": "Team Sports",
+    "description": "The Basketball is a standard ball used in basketball games. It is designed for dribbling, shooting, and passing in the game of basketball, suitable for both indoor and outdoor play.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Team Sports",
+      "Brand": "Unbranded",
+      "Collection": "Practice & play"
+    },
+    "price": 999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/sports-accessories/basketball/1.webp"
+    ],
+    "tags": [
+      "sports equipment",
+      "basketball",
+      "sports",
+      "Team Sports"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/140"
+  },
+  {
+    "key": "dummyjson-142",
+    "name": "Cricket Ball",
+    "root": "sports",
+    "sub": "Team Sports",
+    "description": "The Cricket Ball is a hard leather ball used in the sport of cricket. It is bowled and batted in the game, and its hardness and seam contribute to the dynamics of cricket play.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Team Sports",
+      "Brand": "Unbranded",
+      "Collection": "Practice & play"
+    },
+    "price": 399,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/sports-accessories/cricket-ball/1.webp"
+    ],
+    "tags": [
+      "sports equipment",
+      "cricket",
+      "sports",
+      "Team Sports"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/142"
+  },
+  {
+    "key": "dummyjson-143",
+    "name": "Cricket Bat",
+    "root": "sports",
+    "sub": "Team Sports",
+    "description": "The Cricket Bat is an essential piece of cricket equipment used by batsmen to hit the cricket ball. It is made of wood and comes in various sizes and designs.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Team Sports",
+      "Brand": "Unbranded",
+      "Collection": "Practice & play"
+    },
+    "price": 1999,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/sports-accessories/cricket-bat/1.webp"
+    ],
+    "tags": [
+      "sports equipment",
+      "cricket",
+      "sports",
+      "Team Sports"
+    ],
+    "featured": true,
+    "source": "https://dummyjson.com/products/143"
+  },
+  {
+    "key": "dummyjson-147",
+    "name": "Football",
+    "root": "sports",
+    "sub": "Team Sports",
+    "description": "The Football, also known as a soccer ball, is the standard ball used in the sport of football (soccer). It is designed for kicking and passing in the game.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Team Sports",
+      "Brand": "Unbranded",
+      "Collection": "Practice & play"
+    },
+    "price": 899,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/sports-accessories/football/1.webp"
+    ],
+    "tags": [
+      "sports equipment",
+      "football",
+      "sports",
+      "Team Sports"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/147"
+  },
+  {
+    "key": "dummyjson-150",
+    "name": "Metal Baseball Bat",
+    "root": "sports",
+    "sub": "Team Sports",
+    "description": "The Metal Baseball Bat is a durable and lightweight baseball bat made from metal alloys. It is commonly used in baseball games for hitting and batting practice.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Team Sports",
+      "Brand": "Unbranded",
+      "Collection": "Practice & play"
+    },
+    "price": 1299,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/sports-accessories/metal-baseball-bat/1.webp"
+    ],
+    "tags": [
+      "sports equipment",
+      "baseball",
+      "sports",
+      "Team Sports"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/150"
+  },
+  {
+    "key": "dummyjson-151",
+    "name": "Tennis Ball",
+    "root": "sports",
+    "sub": "Outdoor",
+    "description": "The Tennis Ball is a standard ball used in the sport of tennis. It is designed for bouncing and hitting with tennis rackets during matches or practice sessions.",
+    "brand": "NexMart selection",
+    "specifications": {
+      "Product type": "Outdoor",
+      "Brand": "Unbranded",
+      "Collection": "Practice & play"
+    },
+    "price": 249,
+    "attributes": [
+      {
+        "Option": "Standard"
+      }
+    ],
+    "images": [
+      "https://cdn.dummyjson.com/product-images/sports-accessories/tennis-ball/1.webp"
+    ],
+    "tags": [
+      "sports equipment",
+      "tennis",
+      "sports",
+      "Outdoor"
+    ],
+    "featured": false,
+    "source": "https://dummyjson.com/products/151"
+  },
+  {
+    "key": "book-9780743273565",
+    "name": "The Great Gatsby",
+    "root": "books",
+    "sub": "Fiction",
+    "description": "An American classic about aspiration, wealth, and the distance between a dream and everyday life.",
+    "brand": "Bookshelf",
+    "specifications": {
+      "Author": "F. Scott Fitzgerald",
+      "Format": "Paperback",
+      "Language": "English",
+      "ISBN": "9780743273565"
+    },
+    "price": 299,
+    "attributes": [
+      {
+        "Format": "Paperback"
+      }
+    ],
+    "images": [
+      "https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg?default=false"
+    ],
+    "tags": [
+      "F. Scott Fitzgerald",
+      "Fiction",
+      "books",
+      "reading"
+    ],
+    "featured": false,
+    "source": "https://openlibrary.org/isbn/9780743273565"
+  },
+  {
+    "key": "book-9780735211292",
+    "name": "Atomic Habits",
+    "root": "books",
+    "sub": "Non-Fiction",
+    "description": "A practical guide to making small, repeatable changes and building habits that fit into daily life.",
+    "brand": "Bookshelf",
+    "specifications": {
+      "Author": "James Clear",
+      "Format": "Paperback",
+      "Language": "English",
+      "ISBN": "9780735211292"
+    },
+    "price": 599,
+    "attributes": [
+      {
+        "Format": "Paperback"
+      }
+    ],
+    "images": [
+      "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg?default=false"
+    ],
+    "tags": [
+      "James Clear",
+      "Non-Fiction",
+      "books",
+      "reading"
+    ],
+    "featured": false,
+    "source": "https://openlibrary.org/isbn/9780735211292"
+  },
+  {
+    "key": "book-9780857197689",
+    "name": "The Psychology of Money",
+    "root": "books",
+    "sub": "Non-Fiction",
+    "description": "Short stories exploring how behaviour, experience, and perspective shape financial decisions.",
+    "brand": "Bookshelf",
+    "specifications": {
+      "Author": "Morgan Housel",
+      "Format": "Paperback",
+      "Language": "English",
+      "ISBN": "9780857197689"
+    },
+    "price": 399,
+    "attributes": [
+      {
+        "Format": "Paperback"
+      }
+    ],
+    "images": [
+      "https://covers.openlibrary.org/b/isbn/9780857197689-L.jpg?default=false"
+    ],
+    "tags": [
+      "Morgan Housel",
+      "Non-Fiction",
+      "books",
+      "reading"
+    ],
+    "featured": false,
+    "source": "https://openlibrary.org/isbn/9780857197689"
+  },
+  {
+    "key": "book-9781455586691",
+    "name": "Deep Work",
+    "root": "books",
+    "sub": "Non-Fiction",
+    "description": "An exploration of focused work, attention, and creating space for demanding, meaningful projects.",
+    "brand": "Bookshelf",
+    "specifications": {
+      "Author": "Cal Newport",
+      "Format": "Paperback",
+      "Language": "English",
+      "ISBN": "9781455586691"
+    },
+    "price": 449,
+    "attributes": [
+      {
+        "Format": "Paperback"
+      }
+    ],
+    "images": [
+      "https://covers.openlibrary.org/b/isbn/9781455586691-L.jpg?default=false"
+    ],
+    "tags": [
+      "Cal Newport",
+      "Non-Fiction",
+      "books",
+      "reading"
+    ],
+    "featured": false,
+    "source": "https://openlibrary.org/isbn/9781455586691"
+  },
+  {
+    "key": "book-9780061122415",
+    "name": "The Alchemist",
+    "root": "books",
+    "sub": "Fiction",
+    "description": "A story following a young shepherd on a journey of discovery and the pursuit of a personal dream.",
+    "brand": "Bookshelf",
+    "specifications": {
+      "Author": "Paulo Coelho",
+      "Format": "Paperback",
+      "Language": "English",
+      "ISBN": "9780061122415"
+    },
+    "price": 349,
+    "attributes": [
+      {
+        "Format": "Paperback"
+      }
+    ],
+    "images": [
+      "https://covers.openlibrary.org/b/isbn/9780061122415-L.jpg?default=false"
+    ],
+    "tags": [
+      "Paulo Coelho",
+      "Fiction",
+      "books",
+      "reading"
+    ],
+    "featured": false,
+    "source": "https://openlibrary.org/isbn/9780061122415"
+  },
+  {
+    "key": "book-9780143130727",
+    "name": "Ikigai",
+    "root": "books",
+    "sub": "Non-Fiction",
+    "description": "A look at purpose, everyday rituals, and the Japanese idea of finding joy in a meaningful life.",
+    "brand": "Bookshelf",
+    "specifications": {
+      "Author": "Héctor García & Francesc Miralles",
+      "Format": "Paperback",
+      "Language": "English",
+      "ISBN": "9780143130727"
+    },
+    "price": 499,
+    "attributes": [
+      {
+        "Format": "Paperback"
+      }
+    ],
+    "images": [
+      "https://covers.openlibrary.org/b/isbn/9780143130727-L.jpg?default=false"
+    ],
+    "tags": [
+      "Héctor García & Francesc Miralles",
+      "Non-Fiction",
+      "books",
+      "reading"
+    ],
+    "featured": false,
+    "source": "https://openlibrary.org/isbn/9780143130727"
+  }
+]

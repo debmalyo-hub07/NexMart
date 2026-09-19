@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Category } from '../models/Category';
+import { Product } from '../models/Product';
+import { categoryGroupStage, categorySummaries, type CategoryGroup } from '../services/catalog.service';
+import { visibleCategories } from '../utils/categoryVisibility';
 import { sendSuccess, sendCreated, sendNotFound } from '../utils/response';
 import { generateSlug } from '../utils/helpers';
 
@@ -27,48 +30,25 @@ async function clearCategoryCache() {
 }
 
 export async function getCategories(req: Request, res: Response): Promise<void> {
-  // Admin-only flag: include deactivated categories so they remain manageable.
-  // The admin caller (categories manager) passes ?includeInactive=true; public
-  // storefront callers never do, so they keep seeing only active categories.
   const includeInactive = req.query.includeInactive === 'true';
-
-  const filter: Record<string, unknown> = {};
-  if (req.query.parent !== undefined) {
-    filter.parent = req.query.parent === 'null' ? null : req.query.parent;
-  }
-
-  // Admin results get a distinct cache key and are never written to cache,
-  // so they can never poison the public cache entries.
-  const cacheKey = `nexmart:categories:${includeInactive ? 'admin' : (req.query.parent !== undefined ? String(req.query.parent) : 'all')}`;
-  try {
-    const cached = await upstashRedis.get(cacheKey);
-    if (cached) {
-      sendSuccess(res, cached);
-      return;
-    }
-  } catch (err) {
-    console.error('Redis read error for categories:', err);
-  }
-
-  const categories = await Category.find(includeInactive ? filter : { ...filter, isActive: true })
-    .populate('parent', 'name slug _id')
-    .sort({ displayOrder: 1, name: 1 });
-
-  if (!includeInactive) {
-    try {
-      await upstashRedis.set(cacheKey, categories, { ex: 300 }); // 5 minutes TTL
-    } catch (err) {
-      console.error('Redis write error for categories:', err);
-    }
-  }
-
-  sendSuccess(res, categories);
+  const [allCategories, groups] = await Promise.all([
+    Category.find(includeInactive ? {} : { isActive: true }).sort({ displayOrder: 1, name: 1 }).lean(),
+    Product.aggregate<CategoryGroup>([{ $match: { isPublished: true } }, categoryGroupStage]),
+  ]);
+  const categories = includeInactive ? allCategories : visibleCategories(allCategories);
+  const ids = new Set(categories.map(category => String(category._id)));
+  const summaries = categorySummaries(categories, includeInactive ? groups : groups.filter(group => ids.has(String(group._id.category)) && (!group._id.subCategory || ids.has(String(group._id.subCategory)))));
+  const byId = new Map(categories.map(category => [String(category._id), category]));
+  const selected = req.query.parent === undefined ? summaries : summaries.filter(category => req.query.parent === 'null' ? !category.parent : String(category.parent) === String(req.query.parent));
+  res.setHeader('Cache-Control', includeInactive ? 'private, no-store' : 'public, max-age=60, s-maxage=60, stale-while-revalidate=120');
+  sendSuccess(res, selected.map(category => ({ ...category, parent: category.parent ? byId.get(String(category.parent)) : null })));
 }
 
 export async function getCategoryBySlug(req: Request, res: Response): Promise<void> {
-  const category = await Category.findOne({ slug: req.params.slug, isActive: true }).populate('parent', 'name slug');
+  const categories = visibleCategories(await Category.find({ isActive: true }).lean());
+  const category = categories.find(item => item.slug === req.params.slug);
   if (!category) { sendNotFound(res, 'Category not found'); return; }
-  sendSuccess(res, category);
+  sendSuccess(res, { ...category, parent: category.parent ? categories.find(item => String(item._id) === String(category.parent)) : null });
 }
 
 export async function createCategory(req: Request, res: Response): Promise<void> {

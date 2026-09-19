@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { Product } from '../models/Product';
+import { Category } from '../models/Category';
 import { Seller } from '../models/Seller';
 import { SellerListing, LISTING_LIFECYCLE_STATES, type ListingLifecycleState } from '../models/SellerListing';
 import { SellerInventory } from '../models/SellerInventory';
@@ -12,6 +13,7 @@ import type { AuthenticatedRequest } from '../types';
 import { parsePagination } from '../utils/helpers';
 import { sendBadRequest, sendConflict, sendForbidden, sendNotFound, sendPaginated, sendSuccess } from '../utils/response';
 import { isListingTransitionAllowed, recordListingAudit } from '../utils/listingLifecycle';
+import { publicProductVisibility, visibleCategories } from '../utils/categoryVisibility';
 
 const objectId = z.string().refine((value) => mongoose.isValidObjectId(value), 'Invalid id');
 
@@ -347,15 +349,39 @@ export async function adjustSellerInventory(req: Request, res: Response): Promis
 
 export async function getProductOffers(req: Request, res: Response): Promise<void> {
   if (!mongoose.isValidObjectId(req.params.id)) { sendSuccess(res, [], 'No offers found'); return; }
-  const product = await Product.findOne({ _id: req.params.id, isPublished: true }).select('_id').lean();
+  const categories = visibleCategories(await Category.find({ isActive: true }).select('_id parent').lean());
+  const product = await Product.findOne({ _id: req.params.id, ...publicProductVisibility(categories), isDemo: { $ne: true } }).select('_id variants.sku').lean();
   if (!product) { sendNotFound(res, 'Product not found'); return; }
+  type OfferSeller = {
+    _id: mongoose.Types.ObjectId;
+    storefrontName: string;
+    kycState: string;
+    complianceState: string;
+    performance?: { ratingAverage: number; ratingCount: number };
+  };
   const listings = await SellerListing.find({ canonicalProduct: req.params.id, status: 'published' })
-    .populate({ path: 'seller', match: { isActive: true, lifecycleStatus: 'active' }, select: 'storefrontName performance kycState complianceState lifecycleStatus' })
+    .select('canonicalVariantSku seller pricePaise compareAtPricePaise condition handlingTimeDays fulfillmentMode returnWindowDays warrantyText')
+    .populate<{ seller: OfferSeller | null }>({ path: 'seller', match: { isActive: true, lifecycleStatus: 'active' }, select: 'storefrontName performance.ratingAverage performance.ratingCount kycState complianceState' })
+    .sort({ pricePaise: 1, _id: 1 })
     .lean();
-  const visible = listings.filter((listing) => listing.seller);
-  const inventory = await SellerInventory.find({ listing: { $in: visible.map((item) => item._id) } }).lean();
+  const visible = listings.filter((listing) => listing.seller && product.variants.length && (!listing.canonicalVariantSku || product.variants.some(variant => variant.sku === listing.canonicalVariantSku)));
+  const inventory = await SellerInventory.find({ listing: { $in: visible.map((item) => item._id) } }).select('listing seller available').lean();
   const inventoryByListing = new Map(inventory.map((item) => [String(item.listing), item]));
-  sendSuccess(res, visible.map((item) => publicListing(item as any, inventoryByListing.get(String(item._id)) || null)), 'Offers loaded');
+  sendSuccess(res, visible.map((item) => {
+    const seller = item.seller!;
+    const stock = inventoryByListing.get(String(item._id));
+    return {
+      id: String(item._id), canonicalProduct: String(product._id), canonicalVariantSku: item.canonicalVariantSku,
+      pricePaise: item.pricePaise, compareAtPricePaise: item.compareAtPricePaise, condition: item.condition,
+      handlingTimeDays: item.handlingTimeDays, fulfillmentMode: item.fulfillmentMode,
+      returnWindowDays: item.returnWindowDays, warrantyText: item.warrantyText,
+      inventory: { available: stock && String(stock.seller) === String(seller._id) ? stock.available : 0 },
+      seller: {
+        id: String(seller._id), storefrontName: seller.storefrontName, performance: seller.performance,
+        verification: seller.kycState === 'verified' && seller.complianceState === 'verified' ? 'verified' : 'standard',
+      },
+    };
+  }), 'Offers loaded');
 }
 
 export async function getAllListings(req: Request, res: Response): Promise<void> {

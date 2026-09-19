@@ -12,7 +12,8 @@ function cloudinaryLoader({ src, width, quality }: ImageLoaderProps) {
 export function ProductImage({ src, alt, sizes, priority = false, className }: { src?: string; alt: string; sizes: string; priority?: boolean; className?: string }) {
   const [failedSrc, setFailedSrc] = useState<string>();
   const cloudinary = !!src?.startsWith('https://res.cloudinary.com/') && src.includes('/image/upload/');
-  const allowed = cloudinary || src?.startsWith('/images/');
+  const catalogPhoto = !!src && /^https:\/\/(cdn\.dummyjson\.com|covers\.openlibrary\.org)\//.test(src);
+  const allowed = cloudinary || catalogPhoto || src?.startsWith('/images/');
   if (!src || !allowed || failedSrc === src) return <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center text-sm text-space-500" role="img" aria-label={`${alt}: image unavailable`}><ImageOff size={28} aria-hidden /><span>Image unavailable</span></div>;
   return <Image src={src} alt={alt} fill sizes={sizes} priority={priority} loader={cloudinary ? cloudinaryLoader : undefined} className={cn('object-contain', className)} onError={() => setFailedSrc(src)} />;
 }

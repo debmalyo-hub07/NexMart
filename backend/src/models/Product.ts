@@ -1,5 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import { IProduct } from '../types';
+import { productSearchText } from '../utils/catalogSearch';
 
 const VariantSchema = new Schema({
   sku: { type: String, required: true },
@@ -40,6 +41,9 @@ const ProductSchema = new Schema<IProduct>(
     reviews: [ReviewSchema],
     isPublished: { type: Boolean, default: false, index: true },
     isFeatured: { type: Boolean, default: false, index: true },
+    isDemo: { type: Boolean, default: false },
+    demoSource: String,
+    searchText: { type: String, select: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
   },
   {
@@ -47,6 +51,10 @@ const ProductSchema = new Schema<IProduct>(
     toJSON: { virtuals: true },
   }
 );
+
+ProductSchema.pre('validate', function () {
+  this.searchText = productSearchText(this);
+});
 
 // Text search index
 ProductSchema.index(
@@ -58,5 +66,7 @@ ProductSchema.index(
 ProductSchema.index({ category: 1, isPublished: 1 });
 ProductSchema.index({ isFeatured: 1, isPublished: 1 });
 ProductSchema.index({ 'ratings.average': -1 });
+ProductSchema.index({ isPublished: 1, createdAt: -1 });
+ProductSchema.index({ subCategory: 1, isPublished: 1 });
 
 export const Product = mongoose.model<IProduct>('Product', ProductSchema);

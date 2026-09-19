@@ -2,7 +2,7 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 import { cn } from '@/lib/utils';
 
 interface OverlayProps {
@@ -24,6 +24,8 @@ interface OverlayProps {
    * user on <body> instead.
    */
   initialFocus?: string;
+  /** Required for lazily mounted, initially-open dialogs with an external trigger. */
+  returnFocus?: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -31,7 +33,7 @@ interface OverlayProps {
  * Escape, and returns focus to the trigger on close. `busy` holds the surface
  * open through a pending write so a half-finished action cannot be dismissed.
  */
-export function Overlay({ open, onClose, title, description, children, footer, variant = 'dialog', busy = false, className, initialFocus }: OverlayProps) {
+export function Overlay({ open, onClose, title, description, children, footer, variant = 'dialog', busy = false, className, initialFocus, returnFocus }: OverlayProps) {
   const descriptionId = useId();
   const content = useRef<HTMLDivElement | null>(null);
 
@@ -70,7 +72,7 @@ export function Overlay({ open, onClose, title, description, children, footer, v
           onCloseAutoFocus={(event) => {
             // Only override Radix when a live trigger is known; otherwise let
             // its own restoration run.
-            const target = trigger.current;
+            const target = returnFocus?.current ?? trigger.current;
             if (!target?.isConnected) return;
             event.preventDefault();
             target.focus();

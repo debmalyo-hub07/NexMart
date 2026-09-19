@@ -75,6 +75,9 @@ export interface IProduct extends Document {
   reviews: IProductReview[];
   isPublished: boolean;
   isFeatured: boolean;
+  isDemo?: boolean;
+  demoSource?: string;
+  searchText?: string;
   createdBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;

@@ -2,11 +2,14 @@
 
 import { use } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Store, BadgeCheck, Star, ShieldCheck, MapPin, ArrowLeft, Package } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Store, BadgeCheck, Star, MapPin, ArrowLeft, ArrowUpRight, Check, Info, Package, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import api, { getApiError } from '@/lib/api';
+import type { ApiResponse } from '@/types';
 import { QueryError } from '@/components/common/QueryError';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Pagination } from '@/components/common/Pagination';
 import { formatPrice } from '@/lib/utils';
 import { ProductImage } from '@/components/product/ProductImage';
 
@@ -14,262 +17,125 @@ type PublicSeller = {
   _id: string;
   storefrontName: string;
   legalBusinessName: string;
-  businessType: string;
-  verification: string;
-  performance?: {
-    ratingAverage?: number;
-    ratingCount?: number;
-  };
-  returnPolicy?: {
-    acceptsReturns: boolean;
-    returnWindowDays: number;
-  };
-  businessAddress?: {
-    city?: string;
-    state?: string;
-  };
-  createdAt: string;
+  verification: 'verified' | 'standard';
+  performance?: { ratingAverage?: number; ratingCount?: number };
+  businessAddress?: { city?: string; state?: string };
 };
 
 type SellerListingItem = {
   _id: string;
-  sellerSku: string;
+  canonicalVariantSku?: string;
   pricePaise: number;
   compareAtPricePaise?: number;
-  condition: string;
-  canonicalProduct?: {
-    _id: string;
-    name: string;
-    slug: string;
-    images?: string[];
-    description?: string;
-  };
-  inventory?: {
-    available: number;
-  };
+  condition: 'new' | 'used' | 'refurbished';
+  handlingTimeDays?: number;
+  returnWindowDays?: number;
+  canonicalProduct: { _id: string; name: string; slug: string; images?: string[] };
+  inventory: { available: number };
 };
 
 type StorefrontData = {
   seller: PublicSeller;
   listings: SellerListingItem[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 };
 
-export default function SellerStorefrontPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function SellerStorefrontPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-
-  const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ['seller', 'storefront', id],
-    queryFn: async () => (await api.get(`/seller/storefront/${id}`)).data.data as StorefrontData,
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const requestedPage = Number(searchParams.get('page') || '1');
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const { data, isPending, isFetching, isError, error, refetch } = useQuery({
+    queryKey: ['storefront', 'seller', id, page],
+    queryFn: ({ signal }) => api.get<ApiResponse<StorefrontData>>('/seller/storefront/' + encodeURIComponent(id), { signal, params: { page, limit: 24 } }).then(response => response.data.data),
+    staleTime: 30_000,
+    placeholderData: previous => previous?.seller._id === id ? previous : undefined,
   });
 
-  if (isPending) {
-    return (
-      <main id="main-content" className="store-page min-h-screen py-8">
-        <div className="page-container space-y-6">
-          <div className="h-44 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03]" />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-72 animate-pulse rounded-xl border border-white/10 bg-white/[0.03]" />
-            ))}
-          </div>
-        </div>
-      </main>
-    );
+  function changePage(nextPage: number) {
+    const query = new URLSearchParams(searchParams.toString());
+    if (nextPage > 1) query.set('page', String(nextPage)); else query.delete('page');
+    router.push('/sellers/' + encodeURIComponent(id) + (query.size ? '?' + query : ''), { scroll: false });
   }
 
-  if (isError) {
-    return (
-      <main id="main-content" className="store-page min-h-screen py-8">
-        <div className="page-container">
-          <QueryError
-            label="Storefront"
-            detail={getApiError(error)}
-            onRetry={() => void refetch()}
-          />
-        </div>
-      </main>
-    );
-  }
+  const backLink = <Link href="/products" className="inline-flex min-h-11 items-center gap-2 text-sm text-secondary transition-colors hover:text-white"><ArrowLeft size={16} aria-hidden />Back to catalog</Link>;
 
-  if (!data?.seller) {
-    return (
-      <main id="main-content" className="store-page min-h-screen py-8">
-        <div className="page-container">
-          <EmptyState
-            icon={Store}
-            title="Store not found"
-            description="This seller store may have been paused or is currently inactive."
-            action={
-              <Link href="/products" className="btn-primary">
-                Browse all products
-              </Link>
-            }
-          />
-        </div>
-      </main>
-    );
-  }
+  if (isPending) return <main id="main-content" className="store-page min-h-screen py-8">
+    <div className="page-container space-y-6">
+      {backLink}<p role="status" className="text-sm text-muted">Loading seller and product offers…</p>
+      <div aria-hidden className="h-44 animate-pulse rounded-2xl border border-white/15 bg-space-800" />
+      <div aria-hidden className="catalog-grid">{[0, 1, 2, 3].map(index => <div key={index} className="h-72 animate-pulse rounded-xl border border-white/15 bg-space-800" />)}</div>
+    </div>
+  </main>;
 
-  const { seller, listings } = data;
-  const isVerified = seller.verification === 'verified';
+  if (isError) return <main id="main-content" className="store-page min-h-screen py-8">
+    <div className="page-container space-y-6">{backLink}<QueryError label="Seller storefront" detail={getApiError(error)} onRetry={() => void refetch()} /></div>
+  </main>;
 
-  return (
-    <main id="main-content" className="store-page min-h-screen py-8">
-      <div className="page-container space-y-8">
-        <Link
-          href="/products"
-          className="inline-flex items-center gap-2 text-sm text-secondary hover:text-white transition-colors"
-        >
-          <ArrowLeft size={16} aria-hidden /> Back to catalog
-        </Link>
+  if (!data?.seller) return <main id="main-content" className="store-page min-h-screen py-8">
+    <div className="page-container">{backLink}<EmptyState icon={Store} title="Store not found" description="This seller store may have been paused or is currently inactive." action={<Link href="/products" className="btn-primary">Browse all products</Link>} /></div>
+  </main>;
 
-        {/* Storefront Hero Header */}
-        <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-space-900 via-space-900/90 to-violet-950/20 p-6 sm:p-8">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-violet-500/30 bg-violet-600/20 text-violet-300">
-                <Store size={32} aria-hidden />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="font-outfit text-2xl font-bold sm:text-3xl text-white">
-                    {seller.storefrontName}
-                  </h1>
-                  {isVerified && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-300 border border-violet-500/30">
-                      <BadgeCheck size={14} /> Verified Merchant
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-secondary">
-                  <span className="flex items-center gap-1">
-                    <Star
-                      size={14}
-                      className={
-                        seller.performance?.ratingAverage ? 'text-amber-400' : 'text-muted'
-                      }
-                    />
-                    <span className="font-medium text-white">
-                      {seller.performance?.ratingAverage
-                        ? seller.performance.ratingAverage.toFixed(1)
-                        : 'New Store'}
-                    </span>
-                    {seller.performance?.ratingCount ? (
-                      <span className="text-muted">({seller.performance.ratingCount} reviews)</span>
-                    ) : null}
-                  </span>
-
-                  {seller.businessAddress?.city && (
-                    <span className="flex items-center gap-1 text-muted">
-                      <MapPin size={13} />
-                      {seller.businessAddress.city}, {seller.businessAddress.state || 'India'}
-                    </span>
-                  )}
-
-                  {seller.returnPolicy?.acceptsReturns !== false && (
-                    <span className="flex items-center gap-1 text-acid-400">
-                      <ShieldCheck size={13} />
-                      {seller.returnPolicy?.returnWindowDays || 14}-day returns
-                    </span>
-                  )}
-                </div>
+  const { seller, listings, pagination } = data;
+  const reviewCount = seller.performance?.ratingCount ?? 0;
+  return <main id="main-content" className="store-page min-h-screen py-8">
+    <div className="page-container space-y-8">
+      {backLink}
+      <section className="rounded-2xl border border-white/15 bg-space-900 p-5 sm:p-8">
+        <p className="eyebrow mb-5">Meet the seller</p>
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-space-800"><Store size={26} aria-hidden /></div>
+            <div className="min-w-0">
+              <h1 className="break-words text-2xl sm:text-4xl">{seller.storefrontName}</h1>
+              <p className="mt-2 break-words text-sm text-secondary">{seller.legalBusinessName}</p>
+              {seller.verification === 'verified' && <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-secondary"><BadgeCheck size={16} aria-hidden />Seller verification recorded</p>}
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-3 text-xs text-secondary">
+                <span className="inline-flex items-center gap-1.5"><Star size={14} aria-hidden />{reviewCount > 0 && seller.performance?.ratingAverage !== undefined ? <>{seller.performance.ratingAverage.toFixed(1)} · {new Intl.NumberFormat('en-IN').format(reviewCount)} {reviewCount === 1 ? 'review' : 'reviews'}</> : 'No seller reviews yet'}</span>
+                {seller.businessAddress?.city && <span className="inline-flex items-center gap-1.5"><MapPin size={14} aria-hidden />{[seller.businessAddress.city, seller.businessAddress.state].filter(Boolean).join(', ')}</span>}
               </div>
             </div>
-
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center sm:text-right">
-              <p className="text-xs text-muted">Active Catalog</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-white">
-                {listings?.length || 0}
-              </p>
-              <p className="text-[11px] text-secondary">Published offers</p>
-            </div>
           </div>
-        </section>
-
-        {/* Listings Showcase */}
-        <section className="space-y-6">
-          <div className="border-b border-white/10 pb-4">
-            <h2 className="font-outfit text-xl font-semibold">Products from this seller</h2>
-            <p className="text-xs text-secondary">Browse items stocked and dispatched by {seller.storefrontName}.</p>
+          <div className="shrink-0 border-t border-white/15 pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+            <p className="font-mono text-3xl tabular-nums">{new Intl.NumberFormat('en-IN').format(pagination.total)}</p>
+            <p className="mt-1 text-xs text-muted">Published {pagination.total === 1 ? 'offer' : 'offers'}</p>
           </div>
+        </div>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-white/15 pt-4">
+          <p className="max-w-2xl text-sm leading-relaxed text-secondary">Compare the selected option, condition and seller-stated terms before you order. Delivery, returns and warranty can vary by offer.</p>
+          <Link href="/returns" className="inline-flex min-h-11 items-center gap-1.5 text-sm underline decoration-white/30 underline-offset-4 hover:text-white">Read return information<ArrowUpRight size={16} aria-hidden /></Link>
+        </div>
+      </section>
 
-          {!listings?.length ? (
-            <EmptyState
-              icon={Package}
-              title="No active listings"
-              description="This seller does not have any active product offers published right now."
-            />
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {listings.map((item) => {
-                const product = item.canonicalProduct;
-                if (!product) return null;
-                const stock = item.inventory?.available || 0;
-
-                return (
-                  <article
-                    key={item._id}
-                    className="flex flex-col justify-between rounded-xl border border-white/10 bg-space-900 p-4 transition-colors hover:border-white/20"
-                  >
-                    <div>
-                      <div className="product-stage relative mb-3 aspect-square w-full overflow-hidden rounded-lg bg-white/5">
-                        <ProductImage
-                          src={product.images?.[0]}
-                          alt={product.name}
-                          sizes="(max-width: 768px) 50vw, 25vw"
-                        />
-                      </div>
-
-                      <span className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-secondary">
-                        {item.condition}
-                      </span>
-
-                      <h3 className="mt-2 font-medium line-clamp-2 text-sm text-white">
-                        <Link
-                          href={`/products/${product.slug}`}
-                          className="hover:text-violet-300 focus-visible:underline"
-                        >
-                          {product.name}
-                        </Link>
-                      </h3>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-white/5">
-                      <div className="flex items-baseline justify-between">
-                        <span className="font-mono text-lg font-semibold text-white">
-                          {formatPrice(item.pricePaise / 100)}
-                        </span>
-                        {item.compareAtPricePaise && item.compareAtPricePaise > item.pricePaise && (
-                          <del className="font-mono text-xs text-muted">
-                            {formatPrice(item.compareAtPricePaise / 100)}
-                          </del>
-                        )}
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between text-xs">
-                        <span className={stock > 0 ? 'text-emerald-400' : 'text-red-400'}>
-                          {stock > 0 ? (stock < 5 ? `Only ${stock} left` : 'In stock') : 'Out of stock'}
-                        </span>
-                        <Link
-                          href={`/products/${product.slug}`}
-                          className="text-violet-300 hover:underline"
-                        >
-                          View offer →
-                        </Link>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
-    </main>
-  );
+      <section className="space-y-6" aria-busy={isFetching}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 pb-4">
+          <div><h2 className="text-xl sm:text-2xl">Explore this store</h2><p className="mt-2 text-sm text-muted">Published offers, ordered by price. Availability is checked again in your cart.</p></div>
+          {isFetching && <p role="status" className="inline-flex items-center gap-2 text-xs text-muted"><Loader2 size={14} className="animate-spin" aria-hidden />Updating offers…</p>}
+        </div>
+        {!listings.length ? <EmptyState icon={Package} title={pagination.total ? 'No offers on this page' : 'No active listings'} description={pagination.total ? 'Return to the first page to browse this store.' : 'This seller does not have any product offers published right now.'} action={pagination.total ? <button type="button" className="btn-secondary" onClick={() => changePage(1)}>First page</button> : <Link href="/products" className="btn-secondary">Explore the catalog</Link>} /> : <div className="catalog-grid">
+          {listings.map(item => {
+            const product = item.canonicalProduct;
+            const stock = item.inventory.available;
+            const href = '/products/' + product.slug + (item.canonicalVariantSku ? '?option=' + encodeURIComponent(item.canonicalVariantSku) : '') + '#seller-offers';
+            return <article key={item._id} className="product-tile">
+              <Link href={href} className="product-stage relative block aspect-square" aria-label={'View seller options for ' + product.name}><ProductImage src={product.images?.[0]} alt={product.name} sizes="(max-width: 639px) 46vw, (max-width: 1023px) 30vw, 320px" className="p-4 sm:p-6" /></Link>
+              <div className="flex flex-1 flex-col p-3 sm:p-5">
+                <p className="text-xs capitalize text-muted">{item.condition} condition</p>
+                <h3 className="mt-2 min-h-11 text-sm leading-snug sm:text-base"><Link href={href} className="line-clamp-2 hover:text-violet-200">{product.name}</Link></h3>
+                <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="font-mono text-base font-medium sm:text-lg">{formatPrice(item.pricePaise / 100)}</span>
+                  {item.compareAtPricePaise !== undefined && item.compareAtPricePaise > item.pricePaise && <del className="text-xs text-muted"><span className="sr-only">Seller compare-at price </span>{formatPrice(item.compareAtPricePaise / 100)}</del>}
+                </div>
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-secondary">{stock > 0 ? <Check size={13} className="text-acid-400" aria-hidden /> : <Info size={13} aria-hidden />}{stock > 0 ? 'Available from this seller' : 'Currently unavailable'}</p>
+                {item.handlingTimeDays !== undefined && <p className="mt-3 text-xs leading-relaxed text-muted">Seller handling: {item.handlingTimeDays} {item.handlingTimeDays === 1 ? 'day' : 'days'}. Arrival date not guaranteed.</p>}
+                <Link href={href} className="btn-secondary mt-4 w-full gap-1 px-2 text-xs sm:text-sm">View seller options<ArrowUpRight size={15} aria-hidden /></Link>
+              </div>
+            </article>;
+          })}
+        </div>}
+        <Pagination page={page} totalPages={pagination.totalPages} onPageChange={changePage} />
+      </section>
+    </div>
+  </main>;
 }

@@ -1,186 +1,47 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { BadgeCheck, Loader2, Package, ShieldCheck, ShoppingCart, Star, Clock, ArrowDownUp } from 'lucide-react';
-import api from '@/lib/api';
+import { BadgeCheck, Clock, Info, Loader2, ShoppingBag, Star } from 'lucide-react';
+import api, { getApiError } from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
+import { lowestAvailablePrice, matchingOffers, type OfferSort, type SellerOffer } from '@/lib/sellerOffers';
 import type { ApiResponse } from '@/types';
 import { useCartStore } from '@/store/cartStore';
+import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
-import { EmptyState } from '@/components/common/EmptyState';
+import { QueryError } from '@/components/common/QueryError';
+import { Select } from '@/components/common/Select';
 
-interface SellerOffer {
-  id: string;
-  pricePaise: number;
-  compareAtPricePaise?: number;
-  condition: 'new' | 'used' | 'refurbished';
-  handlingTimeDays: number;
-  fulfillmentMode: 'seller' | 'nexmart';
-  returnWindowDays: number;
-  warrantyText?: string;
-  inventory?: {
-    available: number;
-  };
-  seller: {
-    id: string;
-    storefrontName: string;
-    verification: 'verified' | 'standard';
-    performance?: {
-      ratingAverage?: number;
-      ratingCount?: number;
-    };
-  };
-  canonicalVariantSku?: string;
-}
-
-export function SellerOffers({ productId, currentSku }: { productId: string, currentSku: string }) {
-  const [sortBy, setSortBy] = useState<'price' | 'rating' | 'speed'>('price');
-  const [addingId, setAddingId] = useState<string | null>(null);
-  
-  const addItem = useCartStore(s => s.addItem);
-  const cartBusy = useCartStore(s => s.isLoading);
-  const toast = useUIStore(s => s.showToast);
-
-  const { data, isPending, isError } = useQuery({
-    queryKey: ['storefront', 'offers', productId],
-    queryFn: ({ signal }) => api.get<ApiResponse<SellerOffer[]>>(`/products/${productId}/offers`, { signal }).then(r => r.data.data ?? []),
-  });
-
-  if (isPending) return <div className="animate-pulse space-y-4"><div className="h-8 w-64 rounded bg-white/10" /><div className="h-32 rounded-xl bg-white/5" /></div>;
-  if (isError) return null; // Fallback or silent fail if offers can't be loaded
-
-  // Filter offers matching the current SKU
-  const offers = (data || []).filter(offer => !offer.canonicalVariantSku || offer.canonicalVariantSku === currentSku);
-
-  if (offers.length === 0) return null;
-
-  const sortedOffers = [...offers].sort((a, b) => {
-    if (sortBy === 'price') return a.pricePaise - b.pricePaise;
-    if (sortBy === 'rating') return (b.seller.performance?.ratingAverage ?? 0) - (a.seller.performance?.ratingAverage ?? 0);
-    if (sortBy === 'speed') return a.handlingTimeDays - b.handlingTimeDays;
-    return 0;
-  });
-
-  // Determine best price offer for highlighting
-  const lowestPrice = Math.min(...offers.map(o => o.pricePaise));
-
-  const handleAdd = async (offer: SellerOffer) => {
-    if (addingId || cartBusy) return;
-    if (!offer.inventory?.available) return;
-    
-    setAddingId(offer.id);
-    try {
-      await addItem(productId, currentSku || offer.canonicalVariantSku || '', 1, offer.id);
-      toast('Added to your cart');
-    } catch (error: any) {
-      toast(error?.response?.data?.message || 'Could not add to cart', 'error');
-    } finally {
-      setAddingId(null);
-    }
-  };
-
-  return (
-    <section className="mt-12 scroll-mt-24" id="seller-offers">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
-        <div>
-          <p className="text-sm text-violet-300">Marketplace</p>
-          <h2 className="mt-1 font-outfit text-2xl font-semibold">Available from sellers</h2>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <ArrowDownUp size={16} className="text-secondary" />
-          <select 
-            className="input min-h-10 border-transparent bg-white/5 py-1 text-sm focus:bg-space-800"
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value as any)}
-            aria-label="Sort offers"
-          >
-            <option value="price">Lowest Price</option>
-            <option value="rating">Top Rated Sellers</option>
-            <option value="speed">Fastest Dispatch</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {sortedOffers.map(offer => {
-          const isBestPrice = offer.pricePaise === lowestPrice;
-          const isVerified = offer.seller.verification === 'verified';
-          const stock = offer.inventory?.available || 0;
-          const isAdding = addingId === offer.id;
-
-          return (
-            <div 
-              key={offer.id} 
-              className={`flex flex-col justify-between rounded-xl border p-5 transition-colors ${isBestPrice ? 'border-violet-400/30 bg-violet-500/5' : 'border-white/10 bg-space-900'} hover:border-white/30`}
-            >
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="flex items-center gap-1.5 font-medium truncate">
-                      <Link href={`/sellers/${offer.seller.id}`} className="hover:text-violet-300 hover:underline truncate">
-                        {offer.seller.storefrontName}
-                      </Link>
-                      {isVerified && <BadgeCheck size={16} className="text-violet-400 shrink-0" aria-label="NexMart Verified Seller" />}
-                    </h3>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-secondary">
-                      <span className="flex items-center gap-1">
-                        <Star size={13} className={offer.seller.performance?.ratingAverage ? "text-amber-400" : "text-muted"} />
-                        {offer.seller.performance?.ratingAverage ? `${offer.seller.performance.ratingAverage.toFixed(1)} (${offer.seller.performance.ratingCount})` : 'New seller'}
-                      </span>
-                      <span className="capitalize text-muted">{offer.condition}</span>
-                    </div>
-                  </div>
-                  {isBestPrice && <span className="shrink-0 rounded bg-acid-400/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-acid-400">Best Price</span>}
-                </div>
-
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-mono text-xl font-semibold">{formatPrice(offer.pricePaise / 100)}</span>
-                  {offer.compareAtPricePaise && offer.compareAtPricePaise > offer.pricePaise && (
-                    <del className="text-xs text-muted font-mono">{formatPrice(offer.compareAtPricePaise / 100)}</del>
-                  )}
-                </div>
-
-                <ul className="space-y-2 text-xs text-secondary">
-                  <li className="flex items-center gap-2">
-                    <Clock size={14} className="shrink-0" />
-                    <span>Dispatches in {offer.handlingTimeDays} {offer.handlingTimeDays === 1 ? 'day' : 'days'}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <ShieldCheck size={14} className="shrink-0" />
-                    <span>{offer.returnWindowDays > 0 ? `${offer.returnWindowDays}-day return window` : 'No returns'}</span>
-                  </li>
-                  {offer.fulfillmentMode === 'nexmart' && (
-                    <li className="flex items-center gap-2 text-violet-300">
-                      <Package size={14} className="shrink-0" />
-                      <span>Fulfilled by NexMart</span>
-                    </li>
-                  )}
-                </ul>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-white/5">
-                <div className="mb-3 flex items-center justify-between text-xs">
-                  <span className={stock > 0 ? (stock < 5 ? 'text-amber-300' : 'text-emerald-400') : 'text-red-400'}>
-                    {stock > 0 ? (stock < 5 ? `Only ${stock} left` : 'In stock') : 'Out of stock'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleAdd(offer)}
-                  disabled={isAdding || cartBusy || stock === 0}
-                  className="btn-secondary w-full"
-                >
-                  {isAdding ? <Loader2 className="animate-spin" size={16} /> : <ShoppingCart size={16} />}
-                  {isAdding ? 'Adding…' : 'Add to cart'}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
+export function SellerOffers({ productId, currentSku }: { productId: string; currentSku: string }) {
+  const [sort, setSort] = useState<OfferSort>('price');
+  const [adding, setAdding] = useState('');
+  const pending = useRef(false);
+  const addItem = useCartStore(state => state.addItem);
+  const busy = useCartStore(state => state.isLoading);
+  const admin = useAuthStore(state => state.user?.role === 'admin');
+  const toast = useUIStore(state => state.showToast);
+  const query = useQuery({ queryKey: ['storefront', 'offers', productId], queryFn: ({ signal }) => api.get<ApiResponse<SellerOffer[]>>(`/products/${productId}/offers`, { signal }).then(response => response.data.data ?? []), staleTime: 30_000 });
+  const offers = matchingOffers(query.data ?? [], currentSku, sort);
+  const lowest = lowestAvailablePrice(offers);
+  async function add(offer: SellerOffer) {
+    if (pending.current || busy || !offer.inventory?.available || !currentSku) return;
+    pending.current = true; setAdding(offer.id);
+    try { await addItem(productId, currentSku, 1, offer.id); toast('Seller offer added to your cart'); }
+    catch (error) { toast(getApiError(error), 'error'); }
+    finally { pending.current = false; setAdding(''); }
+  }
+  return <section className="policy-content mt-7 border-t border-white/15 pt-6" id="seller-offers">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl">Seller options</h2>{offers.length > 1 && <Select id="seller-offer-sort" label="Sort seller offers" value={sort} onChange={value => setSort(value as OfferSort)} options={[{ value: 'price', label: 'Lowest price' }, { value: 'rating', label: 'Seller rating' }, { value: 'speed', label: 'Dispatch estimate' }]} />}</div>
+    {query.isError ? <QueryError label="Seller offers" onRetry={() => void query.refetch()} /> : query.isPending ? <p role="status" className="flex items-center gap-2 py-4 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />Checking seller options…</p> : !offers.length ? <p className="text-sm text-muted">No additional seller offers for this option.</p> : <div className="space-y-3">{offers.map(offer => {
+      const stock = offer.inventory?.available ?? 0;
+      return <article key={offer.id} className="rounded-xl border border-white/20 bg-space-800 p-4">
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><Link href={`/sellers/${offer.seller.id}`} className="inline-flex min-h-11 items-center gap-1.5 break-words text-sm font-medium underline decoration-white/20 underline-offset-4">{offer.seller.storefrontName}{offer.seller.verification === 'verified' && <BadgeCheck size={16} className="shrink-0 text-violet-200" aria-label="Seller verification recorded" />}</Link><p className="flex flex-wrap items-center gap-2 text-xs text-muted"><span className="capitalize">{offer.condition}</span>{!!offer.seller.performance?.ratingCount && <span className="inline-flex items-center gap-1"><Star size={12} aria-hidden />{offer.seller.performance.ratingAverage?.toFixed(1)} ({offer.seller.performance.ratingCount})</span>}</p></div><div className="shrink-0 text-right"><p className="font-mono text-lg">{formatPrice(offer.pricePaise / 100)}</p>{offers.length > 1 && stock > 0 && offer.pricePaise === lowest && <p className="mt-1 text-xs text-secondary">Lowest available price</p>}</div></div>
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-secondary"><p className="inline-flex items-center gap-1.5"><Clock size={14} aria-hidden />Seller handling: {offer.handlingTimeDays} {offer.handlingTimeDays === 1 ? 'day' : 'days'}</p><Link href="/returns" className="inline-flex items-center gap-1.5 underline underline-offset-4"><Info size={14} aria-hidden />{offer.returnWindowDays > 0 ? `Seller-stated ${offer.returnWindowDays}-day return window` : 'No voluntary return window stated'}</Link></div>
+        {offer.warrantyText && <p className="mt-3 text-xs text-secondary">Seller warranty: {offer.warrantyText}</p>}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/15 pt-3"><p className="flex items-center gap-1.5 text-xs text-secondary"><Info size={14} aria-hidden />{stock > 0 ? 'Available from this seller' : 'Currently unavailable'}</p>{!admin && <button type="button" onClick={() => void add(offer)} disabled={busy || !!adding || stock < 1 || !currentSku} className="btn-secondary px-3 text-xs">{adding === offer.id ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <ShoppingBag size={15} aria-hidden />}{adding === offer.id ? 'Adding…' : 'Choose this seller'}</button>}</div>
+      </article>;
+    })}<p className="text-xs leading-relaxed text-muted">Handling times are seller estimates, not guaranteed arrival dates. Statutory consumer rights still apply.</p></div>}
+  </section>;
 }

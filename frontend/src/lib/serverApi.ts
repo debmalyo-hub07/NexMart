@@ -16,6 +16,8 @@ import { headers } from 'next/headers';
 export interface ServerApiOptions extends RequestInit {
   /** The incoming framework request — used to derive the Origin header. */
   request?: Request;
+  /** Stable public GET cache key; account requests keep their correlation ID. */
+  publicCatalog?: boolean;
 }
 
 function envFrontendOrigin(): string | null {
@@ -67,17 +69,17 @@ function requestId(): string {
 
 export async function serverApiFetch(
   url: string,
-  { request, headers: extraHeaders, ...init }: ServerApiOptions = {},
+  { request, publicCatalog = false, headers: extraHeaders, ...init }: ServerApiOptions = {},
 ): Promise<Response> {
   // No explicit request (e.g. NextAuth's signIn callback, which receives
   // none): fall back to the live request headers, then env.
-  const origin = originFromRequest(request) ?? (await originFromNextHeaders()) ?? envFrontendOrigin() ?? 'http://localhost:3000';
+  const origin = publicCatalog ? frontendOrigin() : originFromRequest(request) ?? (await originFromNextHeaders()) ?? envFrontendOrigin() ?? 'http://localhost:3000';
   return fetch(url, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       Origin: origin,
-      'X-Request-Id': requestId(),
+      ...(!publicCatalog ? { 'X-Request-Id': requestId() } : {}),
       ...(extraHeaders as Record<string, string> | undefined),
     },
   });

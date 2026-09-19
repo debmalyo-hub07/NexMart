@@ -2,12 +2,15 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Product } from '../models/Product';
+import { Category } from '../models/Category';
 import { Order } from '../models/Order';
 import { uploadImageBuffer, deleteImageByUrl } from '../services/cloudinary.service';
-import { sendSuccess, sendCreated, sendNotFound, sendBadRequest, sendPaginated } from '../utils/response';
+import { sendSuccess, sendCreated, sendNotFound, sendBadRequest } from '../utils/response';
 import { AuthenticatedRequest } from '../types';
-import { parsePagination, parseSortField, generateSlug, escapeRegExp, resolveCategoryFilter } from '../utils/helpers';
+import { generateSlug } from '../utils/helpers';
 import { upstashRedis } from '../config/redis';
+import { queryCatalog } from '../services/catalog.service';
+import { publicProductVisibility, visibleCategories } from '../utils/categoryVisibility';
 
 async function clearFeaturedProductsCache() {
   try {
@@ -40,96 +43,25 @@ const productSchema = z.object({
   images: z.array(z.string()).optional(),
 });
 
-const ALLOWED_SORT = ['createdAt', 'name', 'ratings.average', 'variants.0.price'];
-
 export async function getProducts(req: Request, res: Response): Promise<void> {
-  const { page, limit, skip } = parsePagination(req.query);
-  const sort = parseSortField(req.query.sort as string, ALLOWED_SORT, '-createdAt');
-
-  const filter: Record<string, unknown> = { isPublished: true };
-  if (req.query.category) {
-    // ObjectId or slug — one shared resolver so /products and /search can
-    // never disagree on the same category value.
-    const categoryId = await resolveCategoryFilter(req.query.category);
-    if (categoryId === null) {
-      sendPaginated(res, [], 0, page, limit);
-      return;
-    }
-    if (categoryId !== undefined) filter.$and = [{ $or: [{ category: categoryId }, { subCategory: categoryId }] }];
-  }
-  if (req.query.brand) filter.brand = new RegExp(escapeRegExp(String(req.query.brand)), 'i');
-  if (req.query.featured === 'true') filter.isFeatured = true;
-  if (req.query.inStock === 'true') filter['variants.stock'] = { $gt: 0 };
-  if (req.query.q) {
-    const searchRegex = new RegExp(escapeRegExp(String(req.query.q)), 'i');
-    filter.$or = [{ name: searchRegex }, { description: searchRegex }];
-  }
-  if (req.query.minPrice || req.query.maxPrice) {
-    filter['variants.0.price'] = {};
-    if (req.query.minPrice) (filter['variants.0.price'] as Record<string, number>)['$gte'] = parseFloat(req.query.minPrice as string);
-    if (req.query.maxPrice) (filter['variants.0.price'] as Record<string, number>)['$lte'] = parseFloat(req.query.maxPrice as string);
-  }
-  if (req.query.rating) {
-    filter['ratings.average'] = { $gte: parseFloat(req.query.rating as string) };
-  }
-
-  // Caching featured homepage products. The shared key is only safe for the
-  // exact homepage query (featured + limit 8 + default page + no other
-  // filters): a request like ?featured=true&limit=8&category=x must never
-  // read from or overwrite the shared entry — that poisoned the homepage
-  // grid for the whole cache TTL.
-  const isHomepageFeatured =
-    req.query.featured === 'true' &&
-    limit === 8 &&
-    page === 1 &&
-    !req.query.category &&
-    !req.query.brand &&
-    !req.query.q &&
-    !req.query.minPrice &&
-    !req.query.maxPrice &&
-    !req.query.rating &&
-    !req.query.inStock &&
-    !req.query.sort;
-  if (isHomepageFeatured) {
-    try {
-      const cached = await upstashRedis.get('nexmart:products:featured');
-      if (cached) {
-        const { products, total } = cached as { products: any[]; total: number };
-        sendPaginated(res, products, total, page, limit);
-        return;
-      }
-    } catch (err) {
-      console.error('Redis read error for featured products:', err);
-    }
-  }
-
-  const [products, total] = await Promise.all([
-    Product.find(filter).populate('category', 'name slug').sort(sort).skip(skip).limit(limit).lean(),
-    Product.countDocuments(filter),
-  ]);
-
-  if (isHomepageFeatured) {
-    try {
-      await upstashRedis.set('nexmart:products:featured', { products, total }, { ex: 300 }); // 5 minutes TTL
-    } catch (err) {
-      console.error('Redis write error for featured products:', err);
-    }
-  }
-
-  sendPaginated(res, products, total, page, limit);
+  const result = await queryCatalog(req.query);
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=60');
+  res.status(200).json(result);
 }
 
 export async function getProductBySlug(req: Request, res: Response): Promise<void> {
   const isObjectId = /^[0-9a-fA-F]{24}$/.test(req.params.slug);
-  const query: Record<string, any> = isObjectId ? { _id: req.params.slug } : { slug: req.params.slug };
-  
-  // Note: For admin we might want to fetch unpublished products too, but for now we'll fetch all if using ID.
-  if (!isObjectId) query.isPublished = true;
+  const categories = visibleCategories(await Category.find({ isActive: true }).select('_id parent').lean());
+  const query = { ...(isObjectId ? { _id: req.params.slug } : { slug: req.params.slug }), ...publicProductVisibility(categories) };
+  const product = await Product.findOne(query).select('-reviews -createdBy').populate('category', 'name slug').lean();
+  if (!product) { sendNotFound(res, 'Product not found'); return; }
+  sendSuccess(res, product);
+}
 
-  const product = await Product.findOne(query)
-    .populate('category', 'name slug')
-    .populate('reviews.user', 'name profilePicture')
-    .lean();
+// IDs never bypass publication. Editing uses an explicitly guarded route.
+export async function getProductForAdmin(req: Request, res: Response): Promise<void> {
+  if (!mongoose.isValidObjectId(req.params.id)) { sendNotFound(res, 'Product not found'); return; }
+  const product = await Product.findById(req.params.id).populate('category', 'name slug').lean();
   if (!product) { sendNotFound(res, 'Product not found'); return; }
   sendSuccess(res, product);
 }
@@ -155,7 +87,7 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
     ...data,
     slug: finalSlug,
     createdBy: userId,
-    images: [],
+    images: data.images ?? [],
   });
 
   // Upload any provided images
@@ -187,8 +119,10 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
 
   const data = productSchema.partial().parse(req.body);
 
-  const product = await Product.findByIdAndUpdate(id, data, { new: true });
+  const product = await Product.findById(id);
   if (!product) { sendNotFound(res, 'Product not found'); return; }
+  product.set(data);
+  await product.save();
   await clearFeaturedProductsCache();
   sendSuccess(res, product, 'Product updated');
 }
@@ -239,7 +173,7 @@ export const reviewSchema = z.object({
 });
 
 export async function getProductReviews(req: Request, res: Response): Promise<void> {
-  const product = await Product.findById(req.params.id)
+  const product = await Product.findOne({ _id: req.params.id, isPublished: true })
     .select('reviews')
     .populate('reviews.user', 'name profilePicture');
 
@@ -256,8 +190,9 @@ export async function addProductReview(req: Request, res: Response): Promise<voi
   const { userId } = (req as AuthenticatedRequest).user!;
   const { rating, title, body } = reviewSchema.parse(req.body);
 
-  const product = await Product.findById(req.params.id);
+  const product = await Product.findOne({ _id: req.params.id, isPublished: true });
   if (!product) { sendNotFound(res, 'Product not found'); return; }
+  if (product.isDemo) { sendBadRequest(res, 'Sample products cannot receive customer reviews.'); return; }
 
   const alreadyReviewed = product.reviews.some((r) => r.user.toString() === userId);
   if (alreadyReviewed) { sendBadRequest(res, 'You have already reviewed this product'); return; }

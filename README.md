@@ -89,12 +89,16 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 
 ## 🌟 Features (as built)
 
-### 🛍️ Customer storefront (`/`, `/products`, `/categories`, `/search`, `/sellers/[id]`)
-- Deep-Space Kinetic Editorial design: char-reveal headlines, magnetic CTAs, WebGL particle hero (desktop only, reduced-motion safe)
+### 🛍️ Customer storefront (`/`, `/products`, `/categories`, `/search`, `/sellers/[id]`, `/terms`, `/privacy`, `/shipping`, `/returns`, `/contact`, `/help`)
+- Deep-Space Kinetic Editorial design: char-reveal headlines, magnetic CTAs, WebGL particle hero (desktop only, reduced-motion safe), and auto-advancing curated edit spotlight
+- **Unified Catalog & Search Engine**: Single aggregate-backed query service with normalized Unicode/unit matching, bounded typo fallback, descendant-category traversal, disjunctive facet counts, and stable sorting
+- **Faceted Discovery & Merchandising**: URL-backed multi-select filters (`CatalogFilters`), active filter chips, category breadcrumbs, SSR snapshot hydration (`CatalogSnapshot`), and visual category directory (`/categories`)
+- **Interactive Product Exploration**: Product cards with same-option price/stock matching, hover secondary preview, Quick View modal (`QuickView`), and side-by-side Product Comparison tray (`CompareTray`)
 - **Multi-seller offers** (`SellerOffers`) on product detail pages comparing merchant prices, verified ratings, dispatch speed, and fulfillment badges
-- **Seller-grouped cart** (`CartContents`) cleanly partitioning items by merchant storefront
+- **Seller-grouped cart** (`CartContents`) cleanly partitioning items by merchant storefront with strict offer/variant revalidation
 - **Attributed checkout** and multi-package tracking (`/orders/[id]`) showing per-seller fulfillment status and carrier tracking
 - **Public Seller Storefronts** (`/sellers/[id]`) highlighting merchant profile, verified status, and published catalog
+- **Customer Help & Policy Foundation**: Centralized business details and draft compliance pages (`/terms`, `/privacy`, `/shipping`, `/returns`, `/contact`, `/help`)
 - Wishlist (account-bound, optimistic UI), guest-to-account cart merge, and live Socket.IO status updates
 
 ### 🏬 Seller Operations Hub (`/seller/*`)
@@ -120,7 +124,8 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 - **Balanced Double-Entry Ledger**: Every payment capture, commission split, reserve hold, and refund creates balanced credit/debit entries (`assertBalanced`)
 - **Upstash Redis**: Sliding-window rate limiters, JWT blacklist, login lockouts, and response caches
 - **Razorpay Integration**: Multi-seller capture reconciliation, HMAC signature verification, and automated stale-order reaper
-- **Integration Test Suite**: 25 test suites, 142 hermetic tests covering lifecycle, race conditions, fee snapshots, and ledger consistency
+- **Integration Test Suite**: 29 test suites, 190 hermetic backend tests + 11 frontend test suites (49 tests) covering lifecycle, race conditions, fee snapshots, ledger consistency, and storefront catalog discovery/offers
+- **Additive Catalog Seeder**: Idempotent 60-product starter catalog across 9 departments with strict checkout/offer boundaries (`npm run seed:catalog`)
 
 ---
 
@@ -129,7 +134,7 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 | Layer | Technology |
 |-------|------------|
 | Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS 3.4 |
-| State/data | Zustand (auth/cart/ui) + TanStack Query v5 |
+| State/data | Zustand (auth/cart/ui/compare) + TanStack Query v5 |
 | Auth | NextAuth v5 (JWT strategy) + backend httpOnly cookies — hybrid, see CLAUDE.md §1.3 |
 | Animation | framer-motion, GSAP + ScrollTrigger, Lenis (storefront only), three.js (homepage hero only) |
 | Backend | Node.js, Express, TypeScript |
@@ -140,7 +145,7 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 | Realtime | Socket.IO (canonical event names in `frontend/src/lib/socketEvents.ts`) |
 | Email | Brevo SMTP |
 | Charts | Recharts |
-| Tests | Vitest — `frontend/src/lib/*.test.ts` + backend unit & integration tests (`backend/src/test/`, `backend/src/utils/__tests__/`) |
+| Tests | Vitest — `frontend/src/lib/*.test.ts`, `frontend/src/store/*.test.ts` + backend unit & integration tests (`backend/src/test/`, `backend/src/utils/__tests__/`, `backend/src/controllers/__tests__/`, `backend/src/services/__tests__/`) |
 
 ---
 
@@ -167,9 +172,11 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 | Where | Command | What |
 |-------|---------|------|
 | `backend/` | `npm run dev` / `build` / `start` | nodemon / tsc / production server |
-| `backend/` | `npm test` | Vitest unit tests (order transition graph, cart-merge & password schemas, Cloudinary URL parser) |
+| `backend/` | `npm test` | Vitest unit & integration tests (29 suites, 190 tests) |
+| `backend/` | `npm run seed:catalog` | Additive starter catalog seeder (guarded by `--apply --database=nexmart`) |
+| `backend/` | `npm run seed:categories` | Department & subcategory taxonomy seeder |
 | `frontend/` | `npm run dev` / `build` / `start` | dev server / production build / serve |
-| `frontend/` | `npm test` | Vitest unit tests |
+| `frontend/` | `npm test` | Vitest unit tests (11 suites, 49 tests) |
 | `frontend/` | `npm run lint` | ESLint (next/core-web-vitals) |
 
 ---
@@ -196,11 +203,12 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 
 | Doc | Purpose |
 |-----|---------|
-| [CLAUDE.md](./CLAUDE.md) | **Read first.** Reality snapshot, design law, interaction contracts, P0–P9 roadmap with status |
+| [CLAUDE.md](./CLAUDE.md) | **Read first.** Reality snapshot, design law, interaction contracts, P0–P10 roadmap with status |
+| [docs/STOREFRONT-AUDIT-2026-09-19.md](./docs/STOREFRONT-AUDIT-2026-09-19.md) | Storefront audit, data flow, research citations, catalog provenance, and browser QA results |
 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Free-tier (₹0) deployment: Cloudflare Pages + Render with keep-alive |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | Dated record of every change wave |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | How to make changes (the plan → execute → verify → document workflow) |
-| [docs/superpowers/plans/](./docs/superpowers/plans/) | Implementation plans per wave |
+| [docs/superpowers/plans/](./docs/superpowers/plans/) | Implementation plans per wave (including `2026-09-17-storefront-discovery.md`) |
 
 ---
 

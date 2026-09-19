@@ -4,6 +4,8 @@
   "description": "NexMart E-Commerce API Server",
   "main": "dist/server.js",
   "scripts": {
+    "seed:catalog": "ts-node src/scripts/seedCatalog.ts",
+    "seed:categories": "ts-node src/scripts/seedCategories.ts",
     "dev": "nodemon",
     "build": "tsc",
     "start": "node dist/server.js",

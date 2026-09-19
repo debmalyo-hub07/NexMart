@@ -16,6 +16,7 @@ playwright-report/
 test-results/
 .next-before/
 .next-verify/
+.next-final/
 
 # Environment files — NEVER commit these
 .env

@@ -28,4 +28,17 @@ describe('purchase information', () => {
     expect(() => formatDate('2026-09-11T08:00:00Z', { dateStyle: 'medium', timeStyle: 'short' })).not.toThrow();
     expect(formatDate('invalid')).toBe('Date unavailable');
   });
+  it('uses the selected seller offer price and stock, not the base product', () => {
+    const item = { listing: 'offer-a', price: 750, quantity: 2, variant: 'A', product: { variants: [{ sku: 'A', price: 900, stock: 0 }] }, offer: { price: 720, stock: 3, available: true } } as CartItem;
+    expect(getCartItemState(item)).toMatchObject({ price: 720, priceChanged: true, stock: 3, available: true });
+  });
+  it('fails closed when a seller offer snapshot is unavailable', () => {
+    const item = { listing: 'offer-a', price: 750, quantity: 1, variant: 'A', product: { variants: [{ sku: 'A', price: 900, stock: 50 }] } } as CartItem;
+    expect(getCartItemState(item)).toMatchObject({ price: 750, available: false });
+  });
+  it('checks seller quantities and sample-product restrictions', () => {
+    const item = { listing: 'offer-a', price: 750, quantity: 3, variant: 'A', product: { variants: [{ sku: 'A', price: 900, stock: 50 }] }, offer: { price: 750, stock: 2, available: true } } as CartItem;
+    expect(getCartItemState(item).available).toBe(false);
+    expect(getCartItemState({ ...item, quantity: 1, product: { ...item.product!, isDemo: true } }).available).toBe(false);
+  });
 });
