@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { ArrowRight, ArrowUpRight, CreditCard, RotateCcw, ShieldCheck, Truck } from 'lucide-react';
 import { HomeCategories, HomeDiscovery, HomeEditorial, HomeMoreProducts, HomeSpotlight } from '@/components/home/HomeCatalog';
+import { RecentlyViewed } from '@/components/home/RecentlyViewed';
 import { Skeleton } from '@/components/common/SkeletonLoader';
 import { publicCatalog } from '@/lib/publicCatalog';
 import type { Category, Product } from '@/types';
@@ -43,10 +44,12 @@ export default function HomePage() {
     <section className="page-container flex flex-wrap items-center gap-3 pt-6" aria-labelledby="shop-by-budget">
       <h2 id="shop-by-budget" className="mr-1 text-sm font-semibold">Shop by budget</h2>
       {[['Under ₹999', 999], ['Under ₹1,999', 1999], ['Under ₹4,999', 4999], ['Under ₹9,999', 9999]].map(([label, max]) => <Link key={max} href={`/products?maxPrice=${max}`} className="rounded-full border border-[var(--border-control)] bg-white px-4 py-2 text-xs font-medium text-secondary transition-colors hover:border-orange-500 hover:text-orange-600">{label}</Link>)}
-      <Link href="/products?sort=price-asc" className="text-xs font-medium text-orange-600">Lowest price first ↗</Link>
+      <Link href="/budget?maxPrice=1999" className="text-xs font-medium text-orange-600">Plan a budget ↗</Link>
+      <Link href="/products?sort=price" className="text-xs font-medium text-orange-600">Lowest price first ↗</Link>
     </section>
     <Suspense fallback={<div className="page-container py-12"><Skeleton className="h-48" /></div>}><Categories /></Suspense>
     <Suspense fallback={<div className="page-container py-12"><Skeleton className="h-96" /></div>}><Collections /></Suspense>
+    <RecentlyViewed />
     <Suspense fallback={<div className="page-container py-8"><Skeleton className="h-64" /></div>}><Editorial /></Suspense>
     <section className="page-container pb-12 sm:pb-16"><div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl border border-[var(--border)] bg-white p-6 sm:p-9"><div><p className="eyebrow mb-2">A little clarity goes a long way</p><h2 className="text-2xl sm:text-3xl">Good shopping starts with good information.</h2><p className="mt-3 max-w-xl text-sm text-muted">Understand your total, your payment options, and what happens after you order.</p></div><Link href="/help" className="btn-secondary">Your shopping guide <ArrowUpRight size={17} aria-hidden /></Link></div></section>
   </main>;

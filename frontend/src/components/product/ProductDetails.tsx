@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { useCompareStore } from '@/store/compareStore';
 import { useWishlist } from '@/hooks/useWishlist';
+import { recordRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { ProductGallery } from './ProductGallery';
 import { VariantSelector } from './VariantSelector';
 import { ProductCard } from './ProductCard';
@@ -37,6 +38,8 @@ export function ProductDetails({ slug, initialProduct }: { slug: string; initial
   const toggleCompare = useCompareStore(state => state.toggle);
   const query = useQuery({ ...productQueryOptions(slug), initialData: initialProduct });
   const product = query.data;
+  // Local-only discovery aid: remember what this device looked at.
+  useEffect(() => { if (product) recordRecentlyViewed(product); }, [product]);
   const variant = selectVariant(product?.variants, search.get('option') || '');
   const qty = Math.min(quantity, Math.max(1, Math.min(10, variant?.stock ?? 0)));
   const related = useQuery({ queryKey: ['storefront', 'related', product?.category?._id], queryFn: ({ signal }) => api.get<ApiResponse<Product[]>>('/products', { params: { category: product?.category?._id, limit: 5 }, signal }).then(response => response.data.data ?? []), enabled: !!product?.category?._id, staleTime: 60_000 });
