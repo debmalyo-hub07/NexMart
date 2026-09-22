@@ -7,7 +7,7 @@ import { DeliveryAssignment } from '../models/DeliveryAssignment';
 import { DeliveryAgent } from '../models/DeliveryAgent';
 import { Admin } from '../models/Admin';
 import { sendSuccess, sendNotFound, sendBadRequest, sendError, sendPaginated } from '../utils/response';
-import { parsePagination, parseSortField } from '../utils/helpers';
+import { parsePagination, parseSortField, escapeRegExp } from '../utils/helpers';
 import { sendAgentAssignmentEmail, sendOrderStatusEmail } from '../services/email.service';
 import { emitOrderStatusUpdate, emitDeliveryAssigned } from '../config/socket';
 import { refundPayment } from '../services/razorpay.service';
@@ -33,7 +33,7 @@ export async function getAllProducts(req: Request, res: Response): Promise<void>
   const sort = parseSortField(req.query.sort as string, PRODUCT_SORT_FIELDS, '-createdAt');
   const filter: Record<string, unknown> = {};
   if (req.query.q) {
-    const searchRegex = new RegExp(req.query.q as string, 'i');
+    const searchRegex = new RegExp(escapeRegExp(String(req.query.q)), 'i');
     filter.$or = [{ name: searchRegex }, { description: searchRegex }];
   }
 
@@ -131,7 +131,7 @@ export async function getAllUsers(req: Request, res: Response): Promise<void> {
   const sort = parseSortField(req.query.sort as string, USER_SORT_FIELDS, '-createdAt');
   const filter: Record<string, unknown> = {};
   if (req.query.search) {
-    const s = new RegExp(req.query.search as string, 'i');
+    const s = new RegExp(escapeRegExp(String(req.query.search ?? '')), 'i');
     Object.assign(filter, { $or: [{ name: s }, { email: s }] });
   }
 
@@ -155,7 +155,7 @@ export async function getAllAgents(req: Request, res: Response): Promise<void> {
   const filter: Record<string, unknown> = {};
   if (req.query.status) filter.status = req.query.status;
   if (req.query.search) {
-    const s = new RegExp(req.query.search as string, 'i');
+    const s = new RegExp(escapeRegExp(String(req.query.search ?? '')), 'i');
     Object.assign(filter, { $or: [{ name: s }, { email: s }] });
   }
 

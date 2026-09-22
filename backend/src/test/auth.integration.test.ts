@@ -17,9 +17,13 @@ vi.mock('../config/redis', () => ({
   paymentRateLimiter: { limit: vi.fn(async () => ({ success: true })) },
   upstashRedis: { get: vi.fn(async () => null), set: vi.fn(async () => undefined), del: vi.fn(async () => undefined) },
 }));
+// The code only ever exists in the email — captured where the email would be
+// composed so the test can prove the STORED value is a hash (audit §B2).
+const otpDelivery = vi.hoisted(() => ({ code: '' }));
+
 vi.mock('../services/email.service', () => ({
   sendEmail: vi.fn(async () => undefined),
-  buildOtpEmail: vi.fn(() => '<p>otp</p>'),
+  buildOtpEmail: vi.fn((_name: string, code: string) => { otpDelivery.code = code; return '<p>otp</p>'; }),
   sendOrderStatusEmail: vi.fn(async () => undefined),
 }));
 
@@ -47,9 +51,13 @@ describe('customer auth lifecycle', () => {
 
     const pending = await Customer.findOne({ email });
     expect(pending?.emailVerified).toBe(false);
+    // Stored value must be the SHA-256 hash, never the mailed code (audit §B2).
+    expect(pending?.otp).toBeTruthy();
+    expect(pending?.otp).not.toBe(otpDelivery.code);
 
-    const verified = await post(app, '/api/v1/customer/auth/verify-otp', { email, otp: pending?.otp });
+    const verified = await post(app, '/api/v1/customer/auth/verify-otp', { email, otp: otpDelivery.code });
     expect(verified.status).toBe(200);
+    expect((await Customer.findOne({ email }))?.otp).toBeUndefined();
 
     const login = await post(app, '/api/v1/customer/auth/login', { email, password });
     expect(login.status).toBe(200);
@@ -62,6 +70,30 @@ describe('customer auth lifecycle', () => {
   it('refuses a protected route without a session', async () => {
     const profile = await get(app, '/api/v1/customer/profile');
     expect(profile.status).toBe(401);
+  });
+
+  it('locks verification after five wrong codes (audit §B2)', async () => {
+    const email = 'brute@test.local';
+    const registered = await post(app, '/api/v1/customer/auth/register', {
+      name: 'Brute Force', email, password: 'Passw0rdOne',
+    });
+    expect(registered.status).toBe(201);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const wrong = await post(app, '/api/v1/customer/auth/verify-otp', { email, otp: '000000' });
+      expect(wrong.status).toBe(400);
+    }
+
+    // Code burned: even the correct code is refused until a resend.
+    const correct = await post(app, '/api/v1/customer/auth/verify-otp', { email, otp: otpDelivery.code });
+    expect(correct.status).toBe(400);
+    expect((await Customer.findOne({ email }))?.emailVerified).toBe(false);
+
+    // A resend restores one fresh code with a fresh attempt budget.
+    otpDelivery.code = '';
+    expect((await post(app, '/api/v1/customer/auth/resend-otp', { email })).status).toBe(202);
+    const verified = await post(app, '/api/v1/customer/auth/verify-otp', { email, otp: otpDelivery.code });
+    expect(verified.status).toBe(200);
   });
 
   it('rejects a mutating request whose Origin does not match', async () => {

@@ -142,8 +142,13 @@ function percentage(amountPaise: number, basisPoints: number): number {
   return Math.floor((amountPaise * basisPoints) / 10_000);
 }
 
-/** Pure, deterministic fee calculation. Tax is carried through as a payable
- * amount and is never classified as platform revenue. */
+/** Pure, deterministic fee calculation.
+ *
+ * PRICING IS TAX-INCLUSIVE (audit 2026-09-22 §C2): `taxPaise` is the GST
+ * **contained** inside `merchandisePaise`, not an amount added on top. The
+ * customer's actual charge is merchandise + shipping; the contained tax is
+ * credited to `tax_payable` and withheld from seller payable (the seller must
+ * remit it), so the capture ledger still balances exactly. */
 export function calculateMarketplaceFees(input: MarketplaceFeeInput): MarketplaceFeeCalculation {
   assertMinorUnit(input.merchandisePaise, 'merchandisePaise');
   assertMinorUnit(input.discountPaise, 'discountPaise');
@@ -153,13 +158,13 @@ export function calculateMarketplaceFees(input: MarketplaceFeeInput): Marketplac
 
   const rule = input.rule;
   const adjustedMerchandisePaise = input.merchandisePaise - input.discountPaise;
-  const customerChargePaise = adjustedMerchandisePaise + input.shippingPaise + input.taxPaise;
+  const customerChargePaise = adjustedMerchandisePaise + input.shippingPaise;
   const paymentBps = input.paymentMethod === 'online' ? rule.paymentCollection.onlineBps : rule.paymentCollection.codBps;
   const paymentFixed = input.paymentMethod === 'online' ? rule.paymentCollection.onlineFixedPaise : rule.paymentCollection.codFixedPaise;
   const commissionPaise = percentage(adjustedMerchandisePaise, rule.commissionBps);
   const paymentCollectionFeePaise = percentage(customerChargePaise, paymentBps) + paymentFixed;
   const platformRevenuePaise = commissionPaise + rule.fixedFeePaise + rule.otherFeePaise;
-  const sellerPayableBeforeHoldPaise = adjustedMerchandisePaise + input.shippingPaise
+  const sellerPayableBeforeHoldPaise = adjustedMerchandisePaise - input.taxPaise + input.shippingPaise
     - commissionPaise - rule.fixedFeePaise - paymentCollectionFeePaise
     - rule.shippingCostPaise - rule.otherFeePaise;
   const reservePaise = sellerPayableBeforeHoldPaise > 0

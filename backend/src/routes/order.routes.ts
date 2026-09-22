@@ -7,7 +7,9 @@ import { getCheckoutOrder, resumePayment } from '../controllers/checkout.control
 const router = Router();
 
 // Customer routes — each guarded individually (NOT router-wide: PATCH status is admin)
-router.post('/', protectCustomer, createOrder);
+// Each customer order create goes through Razorpay's paid orders API, so it is
+// rate-limited exactly like the payment routes (audit 2026-09-22 §C5).
+router.post('/', protectCustomer, paymentLimit, createOrder);
 router.get('/', protectCustomer, getMyOrders);
 router.get('/checkout/:checkoutId', protectCustomer, getCheckoutOrder);
 router.get('/:id', protectCustomer, getOrderById);

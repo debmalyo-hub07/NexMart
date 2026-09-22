@@ -91,7 +91,7 @@ async function fixture(): Promise<{
       { product: String(product._id), listing: String(sellerA.listing._id), variant: 'sku', quantity: 1, expectedPrice: 100 },
       { product: String(product._id), listing: String(sellerB.listing._id), variant: 'sku', quantity: 1, expectedPrice: 120 },
     ],
-    shippingAddress: address, paymentMethod: 'cod', expectedTotal: 308.6,
+    shippingAddress: address, paymentMethod: 'cod', expectedTotal: 269,
   }, customer.cookie);
   expect(response.status, JSON.stringify(response.body)).toBe(201);
   const groups = await FulfillmentGroup.find({ order: response.body.data.orderId }).sort('seller');

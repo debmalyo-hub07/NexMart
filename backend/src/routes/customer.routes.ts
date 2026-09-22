@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { protectCustomer } from '../middleware/auth';
+import { protectCustomer, generateToken } from '../middleware/auth';
+import { env } from '../config/env';
 import { checkIP } from '../middleware/ipWhitelist';
 import { authLimit, otpLimit, registerLimit } from '../middleware/rateLimiter';
 import { Customer } from '../models/Customer';
@@ -15,7 +16,7 @@ import {
   resetPassword,
 } from '../controllers/roleAuth.controller';
 import { getWishlist, addToWishlist, removeFromWishlist } from '../controllers/wishlist.controller';
-import { passwordChangeSchema, profileUpdateSchema, setPasswordSchema } from '../utils/validation';
+import { passwordChangeSchema, profileUpdateSchema, setPasswordSchema, addressSchema } from '../utils/validation';
 import { generateResetCode, hashResetCode, RESET_CODE_TTL_MS, RESET_CODE_MAX_ATTEMPTS } from '../utils/resetCode';
 import { sendEmail, buildResetEmail } from '../services/email.service';
 
@@ -71,7 +72,21 @@ router.put('/password', async (req: any, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
-  await Customer.findByIdAndUpdate(req.user.id, { password: hashedPassword });
+  // Changing the password invalidates every session issued earlier (audit §B4)
+  // — a stolen cookie must not survive the victim's password change. The
+  // caller's own device gets a freshly minted token here, so only OTHER
+  // devices are signed out (mint time ≥ credentialsChangedAt survives).
+  await Customer.findByIdAndUpdate(req.user.id, {
+    $set: { password: hashedPassword, credentialsChangedAt: new Date() },
+  });
+  const token = generateToken({ id: req.user.id, role: 'customer' }, env.JWT_SECRET_CUSTOMER, env.JWT_EXPIRES_IN);
+  res.cookie('nexmart_customer_session', token, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
   res.json({ success: true, message: 'Password updated successfully' });
 });
 
@@ -140,15 +155,21 @@ router.post('/sign-out-everywhere', async (req: any, res) => {
 
 router.post('/address', async (req: any, res) => {
   try {
+    // Validated and allow-listed (audit §C1): the raw body used to be pushed
+    // straight into the subdocument.
+    const parsed = addressSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, message: parsed.error.issues[0]?.message || 'Invalid address' });
+    }
     const customer = await Customer.findById(req.user.id);
     if (!customer) return res.status(404).json({ success: false, message: 'Not found' });
     
-    if (req.body.isDefault) {
+    if (parsed.data.isDefault) {
       customer.addresses?.forEach(a => { a.isDefault = false; });
     }
     
     if (!customer.addresses) customer.addresses = [];
-    customer.addresses.push(req.body);
+    customer.addresses.push(parsed.data as never);
     await customer.save();
     
     res.json({ success: true, data: customer.addresses, message: 'Address added' });
@@ -159,17 +180,23 @@ router.post('/address', async (req: any, res) => {
 
 router.put('/address/:id', async (req: any, res) => {
   try {
+    // Partial update, still allow-listed (audit §C1): Object.assign used to
+    // take every incoming key, including ones the schema never declared.
+    const parsed = addressSchema.partial().safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, message: parsed.error.issues[0]?.message || 'Invalid address' });
+    }
     const customer = await Customer.findById(req.user.id);
     if (!customer) return res.status(404).json({ success: false, message: 'Not found' });
 
-    if (req.body.isDefault) {
+    if (parsed.data.isDefault) {
       customer.addresses?.forEach(a => { a.isDefault = false; });
     }
 
     const addr = customer.addresses?.find(a => a._id?.toString() === req.params.id);
     if (!addr) return res.status(404).json({ success: false, message: 'Address not found' });
 
-    Object.assign(addr, req.body);
+    Object.assign(addr, parsed.data);
     customer.markModified('addresses');
     await customer.save();
 

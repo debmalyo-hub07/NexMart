@@ -21,21 +21,27 @@ describe('additive starter catalog', () => {
     expect(first).toMatchObject({ added: 60, sampleProducts: 60, departments: 9 });
     expect(await Category.findOne({ slug: 'electronics' }).lean()).toMatchObject({ _id: category._id, name: 'Our electronics', description: 'Keep our editorial content', isActive: false, displayOrder: 99 });
     expect(await Product.findById(product._id).lean()).toEqual(before);
-    const ids = (await Product.find({ isDemo: true }).select('_id').lean()).map(item => String(item._id)).sort();
+    const ids = (await Product.find({ slug: /^demo-/ }).select('_id').lean()).map(item => String(item._id)).sort();
     const second = await seedDemoCatalog(author);
     expect(second).toMatchObject({ added: 0, preserved: 60 });
     expect(await Product.countDocuments()).toBe(61);
-    expect((await Product.find({ isDemo: true }).select('_id').lean()).map(item => String(item._id)).sort()).toEqual(ids);
-    const samples = await Product.find({ isDemo: true }).lean();
+    expect((await Product.find({ slug: /^demo-/ }).select('_id').lean()).map(item => String(item._id)).sort()).toEqual(ids);
+    // Audit 2026-09-22 §A2: seeded catalog is sellable, not "Sample · not for sale".
+    const samples = await Product.find({ slug: /^demo-/ }).lean();
+    expect(samples).toHaveLength(60);
     expect(new Set(samples.map(item => String(item.category))).size).toBe(9);
     for (const sample of samples) {
-      expect(sample.name).toMatch(/^Demo · /);
+      expect(sample.isDemo).toBe(false);
+      expect(sample.name).not.toMatch(/^Demo · /);
       expect(sample.images.length).toBeGreaterThan(0);
-      expect(sample.variants.every(option => option.stock === 0)).toBe(true);
+      expect(sample.variants.every(option => option.stock > 0 && !!option.comparePrice && option.comparePrice! > option.price)).toBe(true);
       expect(sample.reviews).toHaveLength(0);
       expect(sample.ratings.count).toBe(0);
       expect(Object.keys(sample.specifications).length).toBeGreaterThan(0);
       expect(sample.demoSource).toContain('nexmart-demo-2026-09');
     }
+    // A rerun must not re-flag or mutate the activated catalog.
+    const rerun = await seedDemoCatalog(author);
+    expect(rerun).toMatchObject({ added: 0, preserved: 60, activated: 0 });
   }, 60000);
 });

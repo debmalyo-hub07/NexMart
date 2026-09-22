@@ -2,12 +2,12 @@ import type { CartItem, ProductVariant } from '@/types';
 
 export const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-/** Mirrors the server's existing > ₹999 shipping rule and 18% GST. */
+/** Mirrors the server's > ₹999 shipping rule. Pricing is tax-INCLUSIVE (audit 2026-09-22 §C2): listed prices already contain 18% GST, so `tax` is the contained slice for display only and the total never adds it. */
 export function calculateTotals(items: { price: number; quantity: number }[]) {
   const subtotal = items.reduce((sum, item) => sum + Math.round((item.price + Number.EPSILON) * 100) * item.quantity, 0) / 100;
   const shippingFee = items.length === 0 || subtotal > 999 ? 0 : 49;
-  const tax = money(subtotal * 0.18);
-  return { subtotal, shippingFee, tax, discount: 0, total: money(subtotal + shippingFee + tax) };
+  const tax = money(subtotal * 18 / 118);
+  return { subtotal, shippingFee, tax, discount: 0, total: money(subtotal + shippingFee) };
 }
 
 export function selectVariant(variants: ProductVariant[] = [], sku?: string) {

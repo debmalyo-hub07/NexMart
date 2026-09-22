@@ -214,8 +214,11 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         });
       }
       const shippingPaise = subtotalPaise > 99900 ? 0 : 4900;
-      const taxPaise = Math.round(subtotalPaise * 0.18);
-      const totalPaise = subtotalPaise + shippingPaise + taxPaise;
+      // Tax-inclusive pricing (audit 2026-09-22 §C2): the listed price IS the
+      // final price. `taxPaise` records the 18% GST *contained* in the
+      // merchandise for invoices/ledger pass-through — it is never added on.
+      const taxPaise = Math.round((subtotalPaise * 18) / 118);
+      const totalPaise = subtotalPaise + shippingPaise;
       if (input.expectedTotal !== undefined && paise(input.expectedTotal) !== totalPaise) throw new CheckoutError('The order total changed. Review your cart and confirm the updated amount.', 'PRICE_CHANGED');
       if (input.paymentMethod === 'online' && !razorpayOrderId) {
         try { razorpayOrderId = (await createRazorpayOrder(totalPaise, 'INR', humanOrderId)).id; }
@@ -366,7 +369,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
             discountPaise: discount,
             shippingPaise: shipping,
             taxPaise: tax,
-            totalPaise: subtotal - discount + shipping + tax,
+            totalPaise: subtotal - discount + shipping,
           };
         }));
         const createdGroups = await FulfillmentGroup.create(groupDocs, { session: session!, ordered: true });

@@ -29,9 +29,10 @@ export interface ICustomer extends Document {
   isActive: boolean;
   authProviders: string[];   // ['email', 'google'] — can have both
   createdViaCustomerGoogleOverlap?: boolean;
-  // OTP flow
+  // OTP flow — code stored SHA-256 hashed; attempts burned at 5 (audit §B2)
   otp?: string;
   otpExpiry?: Date;
+  otpAttempts?: number;
   // Password reset — code stored hashed, never plaintext
   resetOtpHash?: string;
   resetOtpExpiry?: Date;
@@ -75,6 +76,7 @@ const CustomerSchema = new Schema<ICustomer>(
     // OTP
     otp: { type: String },
     otpExpiry: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     // Reset codes are select:false — they must never ride along on a profile read.
     resetOtpHash: { type: String, select: false },
     resetOtpExpiry: { type: Date, select: false },

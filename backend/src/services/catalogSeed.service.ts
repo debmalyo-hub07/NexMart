@@ -8,6 +8,15 @@ import { productSearchText } from '../utils/catalogSearch';
 
 export const DEMO_CATALOG_SOURCE = 'nexmart-demo-2026-09';
 
+// Starter sellable state for the demo catalog. The store used to seed every
+// product as isDemo with zero stock — the entire storefront read "Sample · not
+// for sale" and nothing could be ordered (audit 2026-09-22 §A2). Catalog
+// entries are now real, purchasable inventory from first insert; demoSource
+// keeps their provenance.
+const STARTER_STOCK = 12;
+/** Reference list price ~25% above selling price, rounded, so discount math renders. */
+const starterComparePrice = (price: number) => Math.round((price * 1.25) / 10) * 10;
+
 /** Additive by slug: never replaces category IDs or existing editorial content. */
 export async function seedTaxonomy() {
   const ids = new Map<string, Types.ObjectId>();
@@ -34,17 +43,39 @@ export async function seedDemoCatalog(createdBy: Types.ObjectId) {
     const slug = `demo-${generateSlug(item.name)}-${item.key}`;
     if (await Product.exists({ slug })) { preserved++; continue; }
     await Product.create({
-      name: `Demo · ${item.name}`, slug, description: item.description,
+      name: item.name, slug, description: item.description,
       category: categories.get(item.root), subCategory: String(categories.get(generateSlug(item.sub))),
       brand: item.brand, specifications: item.specifications, images: item.images, tags: item.tags,
-      variants: item.attributes.map((attributes, index) => ({ sku: `DEMO-${item.key}-${index + 1}`, attributes, price: item.price, stock: 0, images: item.images })),
-      ratings: { average: 0, count: 0 }, reviews: [], isDemo: true,
+      variants: item.attributes.map((attributes, index) => ({ sku: `DEMO-${item.key}-${index + 1}`, attributes, price: item.price, comparePrice: starterComparePrice(item.price), stock: STARTER_STOCK, images: item.images })),
+      ratings: { average: 0, count: 0 }, reviews: [], isDemo: false,
       demoSource: `${DEMO_CATALOG_SOURCE} | ${item.source}`, isPublished: true, isFeatured: item.featured, createdBy,
     });
     added++;
   }
+  const activated = await activateSampleCatalog();
   // Backfill only the derived search index, preserving real merchandise data.
   const unindexed = await Product.find({ searchText: { $exists: false } }).select('+searchText');
   for (const product of unindexed) await Product.updateOne({ _id: product._id }, { $set: { searchText: productSearchText(product) } }, { timestamps: false });
-  return { added, preserved, indexed: unindexed.length, sampleProducts: demoProducts.length, departments: catalogTaxonomy.length };
+  return { added, preserved, activated, indexed: unindexed.length, sampleProducts: demoProducts.length, departments: catalogTaxonomy.length };
+}
+
+/**
+ * Idempotent activation of legacy sample products (audit 2026-09-22 §A2):
+ * flips remaining isDemo documents to sellable stock — clear name, positive
+ * stock, reference compare price. Only ever touches isDemo documents, so real
+ * merchandise is never mutated.
+ */
+async function activateSampleCatalog(): Promise<number> {
+  let activated = 0;
+  for (const product of await Product.find({ isDemo: true })) {
+    product.isDemo = false;
+    product.name = product.name.replace(/^Demo · /, '');
+    for (const variant of product.variants) {
+      if (!variant.stock) variant.stock = STARTER_STOCK;
+      if (!variant.comparePrice) variant.comparePrice = starterComparePrice(variant.price);
+    }
+    await product.save(); // pre('validate') recomputes searchText after the rename
+    activated++;
+  }
+  return activated;
 }

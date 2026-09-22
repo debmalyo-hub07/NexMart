@@ -75,10 +75,17 @@ export async function registerAndVerify(
   password: string,
 ): Promise<{ cookie: string; customerId: string }> {
   const { Customer } = await import('../models/Customer');
+  const { hashResetCode } = await import('../utils/resetCode');
   await post(app, '/api/v1/customer/auth/register', { name: 'Test Customer', email, password });
-  // Read the code straight from the document — the email transport is mocked.
-  const pending = await Customer.findOne({ email });
-  await post(app, '/api/v1/customer/auth/verify-otp', { email, otp: pending?.otp });
+  // Codes are stored SHA-256 hashed (audit 2026-09-22 §B2), so the plaintext
+  // only ever exists inside the mocked email transport. Stamp a known code in
+  // exactly the shape production writes it, then verify with the plaintext.
+  const KNOWN_CODE = '123456';
+  await Customer.updateOne(
+    { email },
+    { $set: { otp: hashResetCode(KNOWN_CODE), otpExpiry: new Date(Date.now() + 10 * 60 * 1000), otpAttempts: 0 } },
+  );
+  await post(app, '/api/v1/customer/auth/verify-otp', { email, otp: KNOWN_CODE });
   const login = await post(app, '/api/v1/customer/auth/login', { email, password });
   const customer = await Customer.findOne({ email });
   return { cookie: sessionCookie(login), customerId: String(customer?._id) };

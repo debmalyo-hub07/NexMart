@@ -83,7 +83,7 @@ export async function generateInvoicePdf(order: IOrder & {
     doc.fontSize(10).fillColor('#666');
     doc.text('Subtotal:', 390, y); doc.text(`₹${order.subtotal.toFixed(2)}`, 480, y); y += 18;
     doc.text('Shipping:', 390, y); doc.text(`₹${order.shippingFee.toFixed(2)}`, 480, y); y += 18;
-    doc.text('Tax (GST):', 390, y); doc.text(`₹${order.tax.toFixed(2)}`, 480, y); y += 18;
+    doc.text('Incl. GST (18%):', 390, y); doc.text(`₹${order.tax.toFixed(2)}`, 480, y); y += 18;
     if (order.discount > 0) {
       doc.text('Discount:', 390, y); doc.text(`-₹${order.discount.toFixed(2)}`, 480, y); y += 18;
     }

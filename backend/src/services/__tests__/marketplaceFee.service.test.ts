@@ -33,16 +33,24 @@ describe('marketplace fee engine', () => {
 
     expect(result).toMatchObject({
       adjustedMerchandisePaise: 190_000,
-      customerChargePaise: 229_100,
+      // Inclusive pricing: charge = merchandise + shipping (tax already inside).
+      customerChargePaise: 194_900,
       commissionPaise: 9_500,
-      paymentCollectionFeePaise: 4_682,
+      paymentCollectionFeePaise: 3_998,
       platformRevenuePaise: 10_120,
-      sellerPayableBeforeHoldPaise: 179_298,
-      reservePaise: 17_929,
-      sellerPayableAfterHoldPaise: 161_369,
+      // Contained GST (34_200) is withheld from seller payable as tax pass-through.
+      sellerPayableBeforeHoldPaise: 145_782,
+      reservePaise: 14_578,
+      sellerPayableAfterHoldPaise: 131_204,
       taxPaise: 34_200,
     });
     expect(result.platformRevenuePaise).not.toBeGreaterThan(result.customerChargePaise - result.taxPaise);
+    // The capture ledger must balance: every component of the customer's
+    // actual charge is allocated exactly once.
+    expect(
+      result.sellerPayableAfterHoldPaise + result.reservePaise + result.platformRevenuePaise
+      + result.taxPaise + result.paymentCollectionFeePaise + result.shippingCostPaise,
+    ).toBe(result.customerChargePaise);
   });
 
   it('allows a negative seller payable when configured deductions exceed the sale', () => {

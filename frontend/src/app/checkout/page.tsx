@@ -74,7 +74,16 @@ export default function CheckoutPage() {
       sessionStorage.setItem(storageKey, checkoutId.current);
       const response = await api.post<ApiResponse<CheckoutReceipt>>('/orders', {
         checkoutId: checkoutId.current,
-        items: cart.items.map(item => ({ product: item.product!._id, variant: item.variant, quantity: item.quantity, expectedPrice: getCartItemState(item).price })),
+        items: cart.items.map(item => ({
+          product: item.product!._id,
+          // Seller-offer lines must keep their listing identity — dropping it made
+          // offer-priced carts fail PRICE_CHANGED (or worse, resolve against the
+          // canonical variant with the wrong seller, stock and fulfilment).
+          ...(item.listing ? { listing: String(item.listing) } : {}),
+          variant: item.variant,
+          quantity: item.quantity,
+          expectedPrice: getCartItemState(item).price,
+        })),
         shippingAddress: address, paymentMethod: method, expectedTotal: totals.total,
       });
       if (!response.data.data) throw new Error('Order response missing');

@@ -37,7 +37,7 @@ function response() {
   return { res: res as unknown as Response, status: res.status, payload: () => res.json.mock.calls[0]?.[0] };
 }
 function checkout(overrides: Record<string, unknown> = {}) {
-  return { checkoutId: randomUUID(), items: [{ product: productId, variant: 'phone', quantity: 1, expectedPrice: 19.99 }], shippingAddress: address, paymentMethod: 'online', expectedTotal: 72.59, ...overrides };
+  return { checkoutId: randomUUID(), items: [{ product: productId, variant: 'phone', quantity: 1, expectedPrice: 19.99 }], shippingAddress: address, paymentMethod: 'online', expectedTotal: 68.99, ...overrides };
 }
 async function place(body = checkout()) {
   const result = response();
@@ -166,7 +166,7 @@ describe('marketplace checkout allocation', () => {
     const sellerB = await offerFixture({ suffix: 'b', variant: 'other', pricePaise: 200_000, stock: 2, fulfillmentMode: 'nexmart' });
     const body = checkout({
       paymentMethod: 'cod',
-      expectedTotal: 61_360,
+      expectedTotal: 52_000,
       items: [
         { product: productId, listing: String(sellerA.listing._id), variant: 'phone', quantity: 1, expectedPrice: 50_000 },
         { product: productId, listing: String(sellerB.listing._id), variant: 'other', quantity: 1, expectedPrice: 2_000 },
@@ -180,8 +180,10 @@ describe('marketplace checkout allocation', () => {
     const order = await Order.findById(result.payload().data.orderId);
     expect(order?.items).toHaveLength(2);
     expect(order?.subtotalPaise).toBe(5_200_000);
-    expect(order?.taxPaise).toBe(936_000);
-    expect(order?.totalPaise).toBe(6_136_000);
+    // GST is included in the listed price: tax is the contained 18/118 slice,
+    // and the total never adds it (audit 2026-09-22 §C2).
+    expect(order?.taxPaise).toBe(793_220);
+    expect(order?.totalPaise).toBe(5_200_000);
     expect(order?.items.map((item) => String(item.seller))).toEqual([String(sellerA.seller._id), String(sellerB.seller._id)]);
     expect(order?.items.map((item) => item.sellerSku)).toEqual(['SKU-A', 'SKU-B']);
     expect(order?.items.every((item) => item.inventoryState === 'reserved')).toBe(true);
@@ -206,7 +208,7 @@ describe('marketplace checkout allocation', () => {
     const fixture = await offerFixture({ suffix: 'price', variant: 'phone', pricePaise: 10_000, stock: 2 });
     const tampered = await place(checkout({
       paymentMethod: 'cod',
-      expectedTotal: 167,
+      expectedTotal: 149,
       items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 99 }],
     }));
     expect(tampered.status).toHaveBeenCalledWith(409);
@@ -215,7 +217,7 @@ describe('marketplace checkout allocation', () => {
     await Seller.updateOne({ _id: fixture.seller._id }, { isActive: false });
     const unavailable = await place(checkout({
       paymentMethod: 'cod',
-      expectedTotal: 167,
+      expectedTotal: 149,
       items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
     }));
     expect(unavailable.status).toHaveBeenCalledWith(409);
@@ -228,8 +230,8 @@ describe('marketplace checkout allocation', () => {
     const fixture = await offerFixture({ suffix: 'race', variant: 'phone', pricePaise: 10_000, stock: 1 });
     const item = { product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 };
     const attempts = await Promise.all([
-      place(checkout({ paymentMethod: 'cod', expectedTotal: 167, items: [item] })),
-      place(checkout({ paymentMethod: 'cod', expectedTotal: 167, items: [item] })),
+      place(checkout({ paymentMethod: 'cod', expectedTotal: 149, items: [item] })),
+      place(checkout({ paymentMethod: 'cod', expectedTotal: 149, items: [item] })),
     ]);
     expect(attempts.filter((attempt) => attempt.status.mock.calls.some((call) => call[0] === 201))).toHaveLength(1);
     expect(await Order.countDocuments()).toBe(1);
@@ -241,7 +243,7 @@ describe('marketplace checkout allocation', () => {
   it('commits seller inventory once when an online payment is captured', async () => {
     const fixture = await offerFixture({ suffix: 'capture', variant: 'phone', pricePaise: 10_000, stock: 2 });
     const placed = await place(checkout({
-      expectedTotal: 167,
+      expectedTotal: 149,
       items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
     }));
     const receipt = placed.payload().data;
@@ -264,7 +266,7 @@ describe('marketplace checkout allocation', () => {
     const fixture = await offerFixture({ suffix: 'cancel', variant: 'phone', pricePaise: 10_000, stock: 1 });
     const placed = await place(checkout({
       paymentMethod: 'cod',
-      expectedTotal: 167,
+      expectedTotal: 149,
       items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
     }));
     const order = await Order.findById(placed.payload().data.orderId);
@@ -285,7 +287,7 @@ describe('marketplace checkout allocation', () => {
   it('moves a delivered seller return into inspection stock exactly once', async () => {
     const fixture = await offerFixture({ suffix: 'return', variant: 'phone', pricePaise: 10_000, stock: 1 });
     const placed = await place(checkout({
-      expectedTotal: 167,
+      expectedTotal: 149,
       items: [{ product: productId, listing: String(fixture.listing._id), variant: 'phone', quantity: 1, expectedPrice: 100 }],
     }));
     const receipt = placed.payload().data;

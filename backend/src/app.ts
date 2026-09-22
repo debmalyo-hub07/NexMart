@@ -30,6 +30,13 @@ import sellerRoutes from './routes/seller.routes';
 export function createApp(): express.Application {
   const app = express();
 
+  // Render sits behind exactly one trusted proxy hop. Without this, Express
+  // reports req.ip as the load balancer's address for EVERY caller, which
+  // collapses every rate-limit bucket and the failed-login lockout into one
+  // shared counter (audit 2026-09-22 §B1: a single visitor could 429 the
+  // whole platform, and per-IP brute-force protection stopped working).
+  app.set('trust proxy', 1);
+
   // Correlate every response and completion log, including failures handled by
   // the global error middleware.
   app.use(requestContext);

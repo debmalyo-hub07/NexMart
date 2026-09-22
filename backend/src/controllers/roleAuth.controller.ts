@@ -9,7 +9,7 @@ import { generateToken } from '../middleware/auth';
 import { env } from '../config/env';
 import { sendEmail, buildOtpEmail, buildResetEmail, buildGoogleOnlyResetEmail } from '../services/email.service';
 import { generateResetCode, hashResetCode, RESET_CODE_TTL_MS, RESET_CODE_MAX_ATTEMPTS } from '../utils/resetCode';
-import { forgotPasswordSchema, resetPasswordSchema } from '../utils/validation';
+import { forgotPasswordSchema, resetPasswordSchema, passwordSchema } from '../utils/validation';
 import {
   getFailedLoginAttempts,
   incrementFailedLoginAttempts,
@@ -42,13 +42,26 @@ export function sendEligibilityPending(res: Response, message: string, data?: Re
 export const registerAdmin = async (req: Request, res: Response) => {
   const { name, email, password, secretKey } = req.body;
 
-  // Phase 3: Admin Secret Key — server-side only validation
-  if (!secretKey || secretKey !== env.ADMIN_SECRET_KEY) {
+  // Phase 3: Admin Secret Key — server-side only validation. Compared in
+  // constant time, and registration stays CLOSED when no key is configured
+  // (audit §C7: raw !== let a timing oracle nibble the secret).
+  const provided = Buffer.from(typeof secretKey === 'string' ? secretKey : '');
+  const expected = Buffer.from(env.ADMIN_SECRET_KEY || '');
+  if (!expected.length || provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
     return res.status(403).json({
       success: false,
       message: 'Invalid or missing admin secret key. Registration denied.',
       data: null,
     });
+  }
+
+  // Credentials policy applies to admins too (audit §B3).
+  if (!name || typeof name !== 'string' || name.trim().length < 2 || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ success: false, message: 'Enter a name and a valid email address', data: null });
+  }
+  const passwordPolicy = passwordSchema.safeParse(password);
+  if (!passwordPolicy.success) {
+    return res.status(400).json({ success: false, message: passwordPolicy.error.issues[0].message, data: null });
   }
 
   const existing = await Admin.findOne({ email });
@@ -156,6 +169,15 @@ export const registerCustomer = async (req: Request, res: Response) => {
   // 1. Field validation FIRST — running it after the existence checks made
   // the 400-vs-202 divergence itself an enumeration oracle (invalid phone +
   // 400 ⇒ email was free; 202 ⇒ account exists).
+  if (!name || typeof name !== 'string' || name.trim().length < 2 || typeof email !== 'string' || !email.trim()) {
+    return res.status(400).json({ success: false, message: 'Enter your name and a valid email address', data: null });
+  }
+  // Server-side password policy (audit §B3): previously `password || ''` hashed
+  // a missing password into an empty-string credential.
+  const passwordPolicy = passwordSchema.safeParse(password);
+  if (!passwordPolicy.success) {
+    return res.status(400).json({ success: false, message: passwordPolicy.error.issues[0].message, data: null });
+  }
   if (phone && !/^[6-9]\d{9}$/.test(String(phone).trim())) {
     return res.status(400).json({ success: false, message: 'Enter a valid 10-digit Indian mobile number', data: null });
   }
@@ -168,8 +190,8 @@ export const registerCustomer = async (req: Request, res: Response) => {
 
   // 2. Timing parity: hash unconditionally so the bcrypt cost (~200ms) is
   // paid on every path — otherwise response latency alone reveals whether
-  // an email already has an account.
-  const hashedPassword = await bcrypt.hash(password || '', 12);
+  // an email already has an account. (password is policy-validated above.)
+  const hashedPassword = await bcrypt.hash(password, 12);
 
   // 3. Cross-role + duplicate check — all answered with the same opaque 202.
   const [isAdmin, isAgent, isSeller, existing] = await Promise.all([
@@ -191,7 +213,9 @@ export const registerCustomer = async (req: Request, res: Response) => {
     }
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    await Customer.findByIdAndUpdate(existing._id, { otp, otpExpiry });
+    // Stored SHA-256 hashed — a readable OTP on the document is one query
+    // away from account takeover (audit §B2).
+    await Customer.findByIdAndUpdate(existing._id, { otp: hashResetCode(otp), otpExpiry, otpAttempts: 0 });
     try {
       await sendEmail({
         to: email,
@@ -232,8 +256,9 @@ export const registerCustomer = async (req: Request, res: Response) => {
     emailVerified: false,
     isActive: true,
     authProviders: ['email'],
-    otp,
+    otp: hashResetCode(otp),
     otpExpiry,
+    otpAttempts: 0,
     addresses: address && city ? [{
       label: 'Home',
       fullName: name,
@@ -281,24 +306,39 @@ export const verifyOtp = async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: 'Email and OTP are required', data: null });
   }
 
-  // Anti-enumeration: unknown email, already-verified, and wrong-code must be
-  // indistinguishable. A wrong code on an existing unverified account (the
-  // dominant branch) must not prove the account exists — so every miss
-  // returns the same 400. The legitimate owner sees the same actionable copy.
+  // Anti-enumeration: unknown email, already-verified, exhausted guesses and
+  // wrong-code must all be indistinguishable — every miss returns the same 400
+  // (the legitimate owner sees the same actionable copy). Codes are stored
+  // SHA-256 hashed and die after RESET_CODE_MAX_ATTEMPTS wrong guesses,
+  // mirroring the seller flow: only the IP-wide otpLimit guarded this 6-digit
+  // space before, which a distributed guesser bypasses (audit §B2).
   const customer = await Customer.findOne({ email });
-  if (!customer || customer.emailVerified || !customer.otp || customer.otp !== otp.toString()) {
+  const pending = !!customer && !customer.emailVerified && !!customer.otp;
+  const matches = !!pending && customer!.otp === hashResetCode(String(otp));
+  const exhausted = !!pending && (customer!.otpAttempts ?? 0) >= RESET_CODE_MAX_ATTEMPTS;
+
+  if (!matches || exhausted) {
+    if (pending && !exhausted) {
+      const attempts = (customer!.otpAttempts ?? 0) + 1;
+      if (attempts >= RESET_CODE_MAX_ATTEMPTS) {
+        // Burn the code: exactly five guesses per code, per account.
+        await Customer.updateOne({ _id: customer!._id }, { $unset: { otp: 1, otpExpiry: 1, otpAttempts: 1 } });
+      } else {
+        await Customer.updateOne({ _id: customer!._id }, { $set: { otpAttempts: attempts } });
+      }
+    }
     return res.status(400).json({ success: false, message: 'Unable to verify that code. Please request a new one.', data: null });
   }
 
-  if (!customer.otpExpiry || customer.otpExpiry < new Date()) {
+  if (!customer!.otpExpiry || customer!.otpExpiry < new Date()) {
     return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.', data: null });
   }
 
   // Mark verified, clear OTP ($unset — $set with undefined is a mongoose
-  // no-op, which previously left the plaintext OTP on the document forever)
-  await Customer.findByIdAndUpdate(customer._id, {
+  // no-op, which previously left the OTP on the document forever)
+  await Customer.findByIdAndUpdate(customer!._id, {
     $set: { emailVerified: true },
-    $unset: { otp: 1, otpExpiry: 1 },
+    $unset: { otp: 1, otpExpiry: 1, otpAttempts: 1 },
   });
 
   res.json({
@@ -334,7 +374,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
   const otp = generateOTP();
   const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-  await Customer.findByIdAndUpdate(customer._id, { otp, otpExpiry });
+  await Customer.findByIdAndUpdate(customer._id, { otp: hashResetCode(otp), otpExpiry, otpAttempts: 0 });
 
   // Send OTP email
   try {
@@ -469,6 +509,19 @@ export const loginCustomer = async (req: Request, res: Response) => {
 
 export const registerAgent = async (req: Request, res: Response) => {
   const { name, email, password, vehicleType, vehicleModel, licensePlate, city, address, aadharNumber } = req.body;
+  // This path had NO validation at all (audit §B3): a missing password was
+  // hashed as-is and the identity number was stored unchecked.
+  if (!name || typeof name !== 'string' || name.trim().length < 2 || typeof email !== 'string' || !email.trim()) {
+    return res.status(400).json({ success: false, message: 'Enter your name and a valid email address', data: null });
+  }
+  const passwordPolicy = passwordSchema.safeParse(password);
+  if (!passwordPolicy.success) {
+    return res.status(400).json({ success: false, message: passwordPolicy.error.issues[0].message, data: null });
+  }
+  const aadharDigits = String(aadharNumber ?? '').replace(/[\s-]/g, '');
+  if (aadharDigits && !/^\d{12}$/.test(aadharDigits)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid 12-digit Aadhaar number', data: null });
+  }
   const existing = await DeliveryAgent.findOne({ email });
   const sellerExists = await Seller.findOne({ email }).select('_id').lean();
   if (existing || sellerExists) {
@@ -485,7 +538,7 @@ export const registerAgent = async (req: Request, res: Response) => {
     licensePlate,
     city,
     address,
-    aadharNumber,
+    aadharNumber: aadharDigits || undefined,
     status: 'pending',
     isApproved: false,
   });
