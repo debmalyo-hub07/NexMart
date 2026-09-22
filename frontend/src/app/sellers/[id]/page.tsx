@@ -59,13 +59,13 @@ export default function SellerStorefrontPage({ params }: { params: Promise<{ id:
     router.push('/sellers/' + encodeURIComponent(id) + (query.size ? '?' + query : ''), { scroll: false });
   }
 
-  const backLink = <Link href="/products" className="inline-flex min-h-11 items-center gap-2 text-sm text-secondary transition-colors hover:text-white"><ArrowLeft size={16} aria-hidden />Back to catalog</Link>;
+  const backLink = <Link href="/products" className="inline-flex min-h-11 items-center gap-2 text-sm text-secondary transition-colors hover:text-[var(--accent-violet)]"><ArrowLeft size={16} aria-hidden />Back to catalog</Link>;
 
   if (isPending) return <main id="main-content" className="store-page min-h-screen py-8">
     <div className="page-container space-y-6">
       {backLink}<p role="status" className="text-sm text-muted">Loading seller and product offers…</p>
-      <div aria-hidden className="h-44 animate-pulse rounded-2xl border border-white/15 bg-space-800" />
-      <div aria-hidden className="catalog-grid">{[0, 1, 2, 3].map(index => <div key={index} className="h-72 animate-pulse rounded-xl border border-white/15 bg-space-800" />)}</div>
+      <div aria-hidden className="h-44 animate-pulse rounded-2xl border border-[var(--border)] bg-white" />
+      <div aria-hidden className="catalog-grid">{[0, 1, 2, 3].map(index => <div key={index} className="h-72 animate-pulse rounded-xl border border-[var(--border)] bg-white" />)}</div>
     </div>
   </main>;
 
@@ -82,11 +82,11 @@ export default function SellerStorefrontPage({ params }: { params: Promise<{ id:
   return <main id="main-content" className="store-page min-h-screen py-8">
     <div className="page-container space-y-8">
       {backLink}
-      <section className="rounded-2xl border border-white/15 bg-space-900 p-5 sm:p-8">
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-5 sm:p-8">
         <p className="eyebrow mb-5">Meet the seller</p>
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-space-800"><Store size={26} aria-hidden /></div>
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--product-stage)]"><Store size={26} aria-hidden /></div>
             <div className="min-w-0">
               <h1 className="break-words text-2xl sm:text-4xl">{seller.storefrontName}</h1>
               <p className="mt-2 break-words text-sm text-secondary">{seller.legalBusinessName}</p>
@@ -97,19 +97,19 @@ export default function SellerStorefrontPage({ params }: { params: Promise<{ id:
               </div>
             </div>
           </div>
-          <div className="shrink-0 border-t border-white/15 pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+          <div className="shrink-0 border-t border-[var(--border)] pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
             <p className="font-mono text-3xl tabular-nums">{new Intl.NumberFormat('en-IN').format(pagination.total)}</p>
             <p className="mt-1 text-xs text-muted">Published {pagination.total === 1 ? 'offer' : 'offers'}</p>
           </div>
         </div>
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-white/15 pt-4">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-[var(--border)] pt-4">
           <p className="max-w-2xl text-sm leading-relaxed text-secondary">Compare the selected option, condition and seller-stated terms before you order. Delivery, returns and warranty can vary by offer.</p>
-          <Link href="/returns" className="inline-flex min-h-11 items-center gap-1.5 text-sm underline decoration-white/30 underline-offset-4 hover:text-white">Read return information<ArrowUpRight size={16} aria-hidden /></Link>
+          <Link href="/returns" className="inline-flex min-h-11 items-center gap-1.5 text-sm underline decoration-[var(--border-control)] underline-offset-4 hover:text-[var(--accent-violet)]">Read return information<ArrowUpRight size={16} aria-hidden /></Link>
         </div>
       </section>
 
       <section className="space-y-6" aria-busy={isFetching}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
           <div><h2 className="text-xl sm:text-2xl">Explore this store</h2><p className="mt-2 text-sm text-muted">Published offers, ordered by price. Availability is checked again in your cart.</p></div>
           {isFetching && <p role="status" className="inline-flex items-center gap-2 text-xs text-muted"><Loader2 size={14} className="animate-spin" aria-hidden />Updating offers…</p>}
         </div>
@@ -122,7 +122,7 @@ export default function SellerStorefrontPage({ params }: { params: Promise<{ id:
               <Link href={href} className="product-stage relative block aspect-square" aria-label={'View seller options for ' + product.name}><ProductImage src={product.images?.[0]} alt={product.name} sizes="(max-width: 639px) 46vw, (max-width: 1023px) 30vw, 320px" className="p-4 sm:p-6" /></Link>
               <div className="flex flex-1 flex-col p-3 sm:p-5">
                 <p className="text-xs capitalize text-muted">{item.condition} condition</p>
-                <h3 className="mt-2 min-h-11 text-sm leading-snug sm:text-base"><Link href={href} className="line-clamp-2 hover:text-violet-200">{product.name}</Link></h3>
+                <h3 className="mt-2 min-h-11 text-sm leading-snug sm:text-base"><Link href={href} className="line-clamp-2 hover:text-[var(--accent-violet-light)]">{product.name}</Link></h3>
                 <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="font-mono text-base font-medium sm:text-lg">{formatPrice(item.pricePaise / 100)}</span>
                   {item.compareAtPricePaise !== undefined && item.compareAtPricePaise > item.pricePaise && <del className="text-xs text-muted"><span className="sr-only">Seller compare-at price </span>{formatPrice(item.compareAtPricePaise / 100)}</del>}

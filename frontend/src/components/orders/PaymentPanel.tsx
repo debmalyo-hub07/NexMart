@@ -88,10 +88,10 @@ export function PaymentPanel({ order }: { order: Order }) {
   }
   if (order.paymentMethod !== 'online' || order.paymentStatus === 'paid' || order.paymentStatus === 'refunded' || order.orderStatus !== 'placed') return null;
   const busy = windowOpen || ['checking', 'loading', 'open', 'verifying'].includes(phase);
-  return <section aria-labelledby="payment-title" className="rounded-2xl border border-violet-300/40 bg-space-800 p-4 sm:p-6">
+  return <section aria-labelledby="payment-title" className="rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-4 sm:p-6">
     <h2 id="payment-title" className="flex items-center gap-2 text-xl"><CreditCard size={21} aria-hidden />Complete your payment</h2>
     <p role="status" aria-live="polite" className="mt-3 text-sm text-secondary">{messages[phase]}</p>
-    {message && <p className="mt-2 text-sm text-amber-200">{message}</p>}
+    {message && <p className="mt-2 text-sm text-amber-700">{message}</p>}
     <div className="mt-4 flex flex-wrap gap-3">
       <button type="button" className="btn-primary" disabled={!online || busy || phase === 'processing' || phase === 'success'} onClick={() => void start(true)}>{busy ? <Loader2 size={17} className="animate-spin" aria-hidden /> : <CreditCard size={17} aria-hidden />}{busy ? 'Payment in progress…' : `Pay ${formatPrice(order.total)}`}</button>
       <button type="button" className="btn-secondary" disabled={!online || busy} onClick={() => void start(false)}><RefreshCw size={17} aria-hidden />Check payment status</button>

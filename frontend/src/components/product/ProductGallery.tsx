@@ -25,12 +25,12 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
     return () => document.removeEventListener('keydown', navigate);
   }, [open, images, index]);
   const controls = images.length > 1 && <div className="flex items-center justify-between gap-4">
-    <button type="button" className="icon-button border border-white/25" aria-label="Previous product image" onClick={() => move(-1)}><ChevronLeft size={20} aria-hidden /></button>
+    <button type="button" className="icon-button border border-[var(--border-control)]" aria-label="Previous product image" onClick={() => move(-1)}><ChevronLeft size={20} aria-hidden /></button>
     <p role="status" className="text-sm text-secondary">Image {index + 1} of {images.length}</p>
-    <button type="button" className="icon-button border border-white/25" aria-label="Next product image" onClick={() => move(1)}><ChevronRight size={20} aria-hidden /></button>
+    <button type="button" className="icon-button border border-[var(--border-control)]" aria-label="Next product image" onClick={() => move(1)}><ChevronRight size={20} aria-hidden /></button>
   </div>;
   return <div className="space-y-3">
-    <button type="button" disabled={!active} onClick={() => { if (swiped.current) { swiped.current = false; return; } setOpen(true); }} aria-label={`Enlarge ${name}, image ${index + 1}`} className="product-stage relative block aspect-square w-full overflow-hidden rounded-2xl border border-white/15"
+    <button type="button" disabled={!active} onClick={() => { if (swiped.current) { swiped.current = false; return; } setOpen(true); }} aria-label={`Enlarge ${name}, image ${index + 1}`} className="product-stage relative block aspect-square w-full overflow-hidden rounded-2xl border border-[var(--border)]"
       onTouchStart={event => { touchStart.current = event.touches[0].clientX; swiped.current = false; }}
       onTouchEnd={event => { const distance = touchStart.current - event.changedTouches[0].clientX; if (images.length > 1 && Math.abs(distance) > 50) { swiped.current = true; move(distance > 0 ? 1 : -1); } }}>
       <ProductImage src={active} alt={`${name}, image ${index + 1}`} sizes="(max-width: 1023px) calc(100vw - 32px), 580px" priority className="p-4 sm:p-7" />

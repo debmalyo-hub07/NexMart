@@ -5,8 +5,8 @@ export default function NotFound() {
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center px-6 text-center">
       <div className="max-w-md space-y-5">
-        <p className="font-mono text-sm text-violet-400">404</p>
-        <h1 className="font-outfit text-4xl font-bold text-white">Lost in space</h1>
+        <p className="font-mono text-sm text-[var(--accent-violet-light)]">404</p>
+        <h1 className="font-outfit text-4xl font-bold text-[var(--text-primary)]">Lost in space</h1>
         <p className="text-sm text-secondary">
           The page you&apos;re looking for doesn&apos;t exist or has moved.
         </p>

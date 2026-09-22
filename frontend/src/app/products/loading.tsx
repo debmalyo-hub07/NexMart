@@ -4,13 +4,13 @@ import { ProductCardSkeleton } from '@/components/common/SkeletonLoader';
 
 export default function ProductsLoading() {
   return (
-    <div className="min-h-screen bg-space-900">
+    <div className="min-h-screen bg-[var(--bg-primary)]">
       {/* Navbar placeholder */}
-      <div className="fixed top-0 left-0 right-0 h-[72px] z-50 glass border-b border-white/5" />
+      <div className="fixed top-0 left-0 right-0 h-[72px] z-50 bg-[var(--bg-card)] border-b border-[var(--border)]" />
 
       <div className="pt-[72px]">
         {/* Header skeleton */}
-        <div className="border-b border-white/5 bg-space-800/50">
+        <div className="border-b border-[var(--border)] bg-[var(--bg-card)]">
           <div className="page-container py-8">
             <div className="h-8 w-40 rounded-xl skeleton mb-2" />
             <div className="h-4 w-28 rounded-lg skeleton" />

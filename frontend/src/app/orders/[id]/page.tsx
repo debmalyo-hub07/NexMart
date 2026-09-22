@@ -31,29 +31,29 @@ export default function OrderDetailPage() {
       {!order ? !query.isError && <EmptyState title="Order not found" description="This order is unavailable for your account." action={<Link href="/orders" className="btn-primary">Your orders</Link>} /> : <>
         <PageHeader title={`Order ${order.orderId}`} description={`Placed ${formatDate(order.createdAt)}. Payment and fulfillment are tracked separately.`} actions={<button type="button" className="btn-secondary" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={17} aria-hidden />Refresh</button>} />
         <dl className="mb-6 flex flex-wrap gap-x-8 gap-y-4"><div><dt className="mb-2 text-sm text-muted">Fulfillment</dt><dd><StatusBadge status={order.orderStatus} /></dd></div><div><dt className="mb-2 text-sm text-muted">Payment</dt><dd><StatusBadge status={order.paymentStatus} /></dd></div><div><dt className="mb-2 text-sm text-muted">Method</dt><dd className="text-sm">{order.paymentMethod === 'cod' ? 'Cash on delivery' : 'Online payment'}</dd></div></dl>
-        {['cancelled', 'returned'].includes(order.orderStatus) && order.paymentStatus === 'paid' && <p role="status" className="mb-6 rounded-xl border border-amber-400/30 p-4 text-sm text-amber-200">This order is {order.orderStatus}. Payment was received; a refund has not been recorded.</p>}
+        {['cancelled', 'returned'].includes(order.orderStatus) && order.paymentStatus === 'paid' && <p role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">This order is {order.orderStatus}. Payment was received; a refund has not been recorded.</p>}
         {order.paymentMethod === 'cod' && order.paymentStatus === 'pending' && !['cancelled', 'returned'].includes(order.orderStatus) && <p className="mb-6 text-sm text-secondary">Payment is due on delivery. A placed order awaits store confirmation.</p>}
         <div className="mb-6">{!query.isError && <PaymentPanel order={order} />}</div>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]"><div className="min-w-0 space-y-6">
           {!!order.fulfillmentGroups?.length && (
             <section className="card space-y-4">
               <h2 className="text-xl">Packages & Dispatch</h2>
-              <div className="divide-y divide-white/10">
+              <div className="divide-y divide-[var(--border)]">
                 {order.fulfillmentGroups.map((group) => (
                   <div key={group._id} className="py-4 first:pt-0 last:pb-0 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-white">{group.seller?.storefrontName || 'NexMart Retail'}</span>
+                        <span className="font-medium text-[var(--text-primary)]">{group.seller?.storefrontName || 'NexMart Retail'}</span>
                         <span className="text-xs text-muted font-mono">({group.groupId})</span>
                       </div>
                       <StatusBadge status={group.status} />
                     </div>
                     {group.shipment && (
                       <div className="flex flex-wrap items-center gap-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-secondary">
-                        <span>Shipment: <span className="font-mono text-white">{group.shipment.shipmentId}</span></span>
+                        <span>Shipment: <span className="font-mono text-[var(--text-primary)]">{group.shipment.shipmentId}</span></span>
                         <StatusBadge status={group.shipment.status} />
                         {group.shipment.trackingId && (
-                          <span>Tracking: <span className="font-mono text-white">{group.shipment.trackingId}</span></span>
+                          <span>Tracking: <span className="font-mono text-[var(--text-primary)]">{group.shipment.trackingId}</span></span>
                         )}
                       </div>
                     )}
@@ -70,9 +70,9 @@ export default function OrderDetailPage() {
             </section>
           )}
           <section className="card"><h2 className="mb-5 text-xl">Items ordered</h2><OrderItems items={order.items} /></section>
-          <section className="card"><h2 className="mb-5 text-xl">Order timeline</h2><ol className="space-y-5 border-l border-white/20 pl-4">{order.statusHistory.map((entry, index) => <li key={`${entry.timestamp}-${index}`}><div className="flex flex-wrap items-center gap-3"><StatusBadge status={entry.status} /><time dateTime={entry.timestamp} className="text-xs text-muted">{formatDate(entry.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>{entry.note && <p className="mt-2 break-words text-sm text-secondary">{entry.note}</p>}</li>)}</ol><p className="mt-5 text-xs text-muted">Updates refresh automatically while this page is open.</p></section>
+          <section className="card"><h2 className="mb-5 text-xl">Order timeline</h2><ol className="space-y-5 border-l border-[var(--border-control)] pl-4">{order.statusHistory.map((entry, index) => <li key={`${entry.timestamp}-${index}`}><div className="flex flex-wrap items-center gap-3"><StatusBadge status={entry.status} /><time dateTime={entry.timestamp} className="text-xs text-muted">{formatDate(entry.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>{entry.note && <p className="mt-2 break-words text-sm text-secondary">{entry.note}</p>}</li>)}</ol><p className="mt-5 text-xs text-muted">Updates refresh automatically while this page is open.</p></section>
         </div><aside className="min-w-0 space-y-6"><section className="card"><h2 className="mb-5 text-xl">Order total</h2><OrderTotals totals={order} />{(order.invoiceUrl || order.paymentStatus === 'paid' || order.orderStatus === 'delivered') && <div className="mt-5"><InvoiceButton orderId={order._id} invoiceUrl={order.invoiceUrl} /></div>}</section>
-          <section className="card"><h2 className="mb-4 flex items-center gap-2 text-xl"><MapPin size={20} aria-hidden />Delivery address</h2><address className="space-y-1 break-words text-sm not-italic text-secondary"><p className="font-medium text-white">{order.shippingAddress.fullName}</p><p>{order.shippingAddress.phone}</p><p>{order.shippingAddress.addressLine1}</p>{order.shippingAddress.addressLine2 && <p>{order.shippingAddress.addressLine2}</p>}<p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p></address>{order.deliveryAgent && <p className="mt-4 text-sm text-secondary">Assigned to {order.deliveryAgent.name}</p>}</section>
+          <section className="card"><h2 className="mb-4 flex items-center gap-2 text-xl"><MapPin size={20} aria-hidden />Delivery address</h2><address className="space-y-1 break-words text-sm not-italic text-secondary"><p className="font-medium text-[var(--text-primary)]">{order.shippingAddress.fullName}</p><p>{order.shippingAddress.phone}</p><p>{order.shippingAddress.addressLine1}</p>{order.shippingAddress.addressLine2 && <p>{order.shippingAddress.addressLine2}</p>}<p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p></address>{order.deliveryAgent && <p className="mt-4 text-sm text-secondary">Assigned to {order.deliveryAgent.name}</p>}</section>
         </aside></div>
       </>}
     </>}

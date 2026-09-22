@@ -9,7 +9,7 @@ export function VariantSelector({ variants, selectedSku, onSelect, sample = fals
   const id = useId();
   if (!variants.length) return null;
   return <fieldset><legend className="field-label">{variants.length > 1 ? 'Choose an option' : 'Product option'}</legend><div className="grid gap-2 sm:grid-cols-2">
-    {variants.map(variant => <label key={variant.sku} className={cn('relative flex min-h-12 cursor-pointer flex-col gap-1 rounded-xl border p-3 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-violet-300', selectedSku === variant.sku ? 'border-violet-300 bg-violet-500/10' : 'border-white/30')}>
+    {variants.map(variant => <label key={variant.sku} className={cn('relative flex min-h-12 cursor-pointer flex-col gap-1 rounded-xl border p-3 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2563EB]', selectedSku === variant.sku ? 'border-[var(--accent-violet)] bg-[rgba(18,62,117,0.08)]' : 'border-[var(--border-control)]')}>
       {/* The input covers the whole chip (visually transparent) instead of being
           sr-only: it must be the actual pointer target, otherwise the styled
           label text intercepts clicks and keyboard/AT activation differs from

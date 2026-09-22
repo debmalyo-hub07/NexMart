@@ -11,7 +11,7 @@ export function FullPageLoader({ show = true }: { show?: boolean }) {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="fixed inset-0 z-[200] bg-space-900 flex items-center justify-center"
+          className="fixed inset-0 z-[200] bg-[var(--bg-primary)] flex items-center justify-center"
         >
           <div className="flex flex-col items-center gap-6">
             {/* Animated logo */}

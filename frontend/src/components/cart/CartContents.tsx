@@ -13,8 +13,8 @@ export function CartContents({ onNavigate }: { onNavigate?: () => void }) {
   const { items, error, notice, ready, isLoading, fetchCart, updateItem, removeItem } = useCartStore();
   const online = useOnline();
   return <div aria-busy={isLoading}>
-    {error && <div role="alert" className="mb-4 rounded-xl border border-red-400/30 p-4 text-sm text-red-300"><p>{error}</p><p className="mt-1 text-secondary">Refresh to check the latest cart before continuing.</p><button type="button" className="btn-secondary mt-3" disabled={isLoading || !online} onClick={() => void fetchCart()}>Refresh cart</button></div>}
-    {notice && <p role="status" className="mb-4 rounded-xl border border-amber-400/30 p-3 text-sm text-amber-200">{notice}</p>}
+    {error && <div role="alert" className="mb-4 rounded-xl border border-red-400/50 bg-red-50 p-4 text-sm text-red-700"><p>{error}</p><p className="mt-1 text-secondary">Refresh to check the latest cart before continuing.</p><button type="button" className="btn-secondary mt-3" disabled={isLoading || !online} onClick={() => void fetchCart()}>Refresh cart</button></div>}
+    {notice && <p role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">{notice}</p>}
     {isLoading && <p role="status" className="mb-3 flex items-center gap-2 text-sm text-secondary"><Loader2 size={16} className="animate-spin" aria-hidden />Updating cart…</p>}
     {!ready && !error && !items.length ? <p className="py-6 text-sm text-secondary" role="status">Loading your cart…</p> : ready && !items.length && !error ? <EmptyState icon={ShoppingBag} title="Your cart is empty" description="Explore the catalog and add a product when you find the right option." action={<Link href="/products" onClick={onNavigate} className="btn-primary">Browse products</Link>} /> : <div className="space-y-6">{Object.entries(
       items.reduce((acc, item) => {
@@ -25,22 +25,22 @@ export function CartContents({ onNavigate }: { onNavigate?: () => void }) {
         return acc;
       }, {} as Record<string, { name: string, items: typeof items }>)
     ).map(([sellerId, group]) => (
-      <div key={sellerId} className="rounded-xl border border-white/10 bg-space-800 p-4">
-        <div className="mb-4 flex items-center gap-2 border-b border-white/10 pb-3 text-sm text-violet-300">
+      <div key={sellerId} className="rounded-xl border border-[var(--border)] bg-white p-4">
+        <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)] pb-3 text-sm font-medium text-[var(--accent-violet)]">
           <ShoppingBag size={16} />
           <span className="font-medium">Sold by {group.name}</span>
         </div>
-        <ul className="divide-y divide-white/10">{group.items.map(item => {
+        <ul className="divide-y divide-[var(--border)]">{group.items.map(item => {
       const state = getCartItemState(item);
       const name = item.product?.name || 'Unavailable product';
       const href = item.product?.slug ? `/products/${item.product.slug}?option=${encodeURIComponent(item.variant)}` : undefined;
       return <li key={item._id} className="flex gap-3 py-4 first:pt-0">
         <div className="product-stage relative h-16 w-16 shrink-0 overflow-hidden rounded-lg sm:h-20 sm:w-20"><ProductImage src={state.variant?.images?.[0] || item.product?.images?.[0]} alt="" sizes="80px" className="p-1" /></div>
-        <div className="min-w-0 flex-1"><h3 className="break-words text-sm leading-snug">{href ? <Link href={href} onClick={onNavigate} className="hover:text-violet-200">{name}</Link> : name}</h3><p className="mt-1 break-words text-xs text-muted">{state.variant ? variantLabel(state.variant) : item.variant}</p>
+        <div className="min-w-0 flex-1"><h3 className="break-words text-sm leading-snug">{href ? <Link href={href} onClick={onNavigate} className="hover:text-[var(--accent-violet)]">{name}</Link> : name}</h3><p className="mt-1 break-words text-xs text-muted">{state.variant ? variantLabel(state.variant) : item.variant}</p>
           <p className="mt-2 font-mono text-sm">{formatPrice(state.price)} <span className="font-inter text-xs text-muted">each</span></p>
-          {state.priceChanged && <p className="mt-1 text-sm text-amber-200">Price changed from {formatPrice(item.price)} to {formatPrice(state.price)}. Review the updated total.</p>}
-          {state.reason && <p className="mt-1 text-sm text-red-300">{state.reason}</p>}
-          <div className="mt-2 flex flex-wrap items-center gap-2"><div className="flex items-center rounded-xl border border-white/30"><button type="button" className="icon-button" aria-label={`Decrease quantity of ${name}`} disabled={isLoading || !online || item.quantity <= 1 || !state.variant || state.stock < 1} onClick={() => void updateItem(item._id, Math.min(item.quantity - 1, state.stock))}><Minus size={16} aria-hidden /></button><span className="min-w-6 text-center font-mono text-sm" aria-label={`Quantity ${item.quantity}`}>{item.quantity}</span><button type="button" className="icon-button" aria-label={`Increase quantity of ${name}`} disabled={isLoading || !online || item.quantity >= Math.min(10, state.stock)} onClick={() => void updateItem(item._id, item.quantity + 1)}><Plus size={16} aria-hidden /></button></div><button type="button" className="icon-button ml-auto text-red-300" aria-label={`Remove ${name} from cart`} disabled={isLoading || !online} onClick={() => void removeItem(item._id)}><Trash2 size={17} aria-hidden /></button></div>
+          {state.priceChanged && <p className="mt-1 text-sm text-amber-700">Price changed from {formatPrice(item.price)} to {formatPrice(state.price)}. Review the updated total.</p>}
+          {state.reason && <p className="mt-1 text-sm text-red-600">{state.reason}</p>}
+          <div className="mt-2 flex flex-wrap items-center gap-2"><div className="flex items-center rounded-xl border border-[var(--border-control)]"><button type="button" className="icon-button" aria-label={`Decrease quantity of ${name}`} disabled={isLoading || !online || item.quantity <= 1 || !state.variant || state.stock < 1} onClick={() => void updateItem(item._id, Math.min(item.quantity - 1, state.stock))}><Minus size={16} aria-hidden /></button><span className="min-w-6 text-center font-mono text-sm" aria-label={`Quantity ${item.quantity}`}>{item.quantity}</span><button type="button" className="icon-button" aria-label={`Increase quantity of ${name}`} disabled={isLoading || !online || item.quantity >= Math.min(10, state.stock)} onClick={() => void updateItem(item._id, item.quantity + 1)}><Plus size={16} aria-hidden /></button></div><button type="button" className="icon-button ml-auto text-red-600" aria-label={`Remove ${name} from cart`} disabled={isLoading || !online} onClick={() => void removeItem(item._id)}><Trash2 size={17} aria-hidden /></button></div>
         </div>
       </li>;
     })}</ul></div>))}</div>}

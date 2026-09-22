@@ -80,7 +80,7 @@ export function Overlay({ open, onClose, title, description, children, footer, v
           onEscapeKeyDown={(event) => { if (busy) event.preventDefault(); }}
           onInteractOutside={(event) => { if (busy) event.preventDefault(); }}
         >
-          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/15 p-4 sm:p-6">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border)] p-4 sm:p-6">
             <div className="min-w-0">
               <Dialog.Title className="text-xl font-semibold">{title}</Dialog.Title>
               {description && <Dialog.Description id={descriptionId} className="mt-2 text-sm text-secondary">{description}</Dialog.Description>}
@@ -88,7 +88,7 @@ export function Overlay({ open, onClose, title, description, children, footer, v
             <Dialog.Close asChild><button type="button" disabled={busy} className="icon-button -mr-2 -mt-2" aria-label={`Close ${title.toLowerCase()}`}><X size={20} aria-hidden /></button></Dialog.Close>
           </div>
           <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">{children}</div>
-          {footer && <div className="shrink-0 border-t border-white/15 p-4 sm:p-6">{footer}</div>}
+          {footer && <div className="shrink-0 border-t border-[var(--border)] p-4 sm:p-6">{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

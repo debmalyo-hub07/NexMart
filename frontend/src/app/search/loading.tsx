@@ -1,10 +1,10 @@
 export default function SearchLoading() {
   return (
-    <div className="min-h-screen bg-space-900">
-      <div className="fixed top-0 left-0 right-0 h-[72px] z-50 glass border-b border-white/5" />
+    <div className="min-h-screen bg-[var(--bg-primary)]">
+      <div className="fixed top-0 left-0 right-0 h-[72px] z-50 bg-[var(--bg-card)] border-b border-[var(--border)]" />
       <div className="pt-[72px]">
         {/* Search header skeleton */}
-        <div className="border-b border-white/5 bg-space-800/40 py-10">
+        <div className="border-b border-[var(--border)] bg-[var(--bg-card)] py-10">
           <div className="page-container">
             <div className="flex gap-3 max-w-2xl mx-auto">
               <div className="h-14 flex-1 rounded-xl skeleton" />

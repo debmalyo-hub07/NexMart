@@ -25,7 +25,7 @@ export function ProductCardSkeleton() {
 
 export function OrderRowSkeleton() {
   return (
-    <div className="flex flex-wrap items-center gap-4 p-4 border-b border-white/10">
+    <div className="flex flex-wrap items-center gap-4 p-4 border-b border-[var(--border)]">
       <Skeleton className="h-4 w-28" />
       <Skeleton className="h-4 w-20" />
       <Skeleton className="h-4 w-16" />

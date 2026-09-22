@@ -18,8 +18,8 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
   for (let p = windowStart; p <= windowEnd; p++) pages.push(p);
 
   const buttonBase = 'h-11 min-w-11 px-2 rounded-lg text-sm transition-colors flex items-center justify-center';
-  const active = 'bg-violet-500 text-white font-medium';
-  const idle = 'glass text-secondary hover:text-white hover:bg-white/[0.08]';
+  const active = 'bg-[var(--accent-violet)] text-white font-medium';
+  const idle = 'glass text-secondary hover:text-[var(--text-primary)] hover:bg-[var(--glow-violet)]';
   const disabled = 'opacity-30 pointer-events-none';
 
   return (

@@ -23,6 +23,6 @@ export function ConfirmDialog({ open, title, description, confirmLabel = 'Confir
         {isLoading && <Loader2 size={16} className="animate-spin" aria-hidden />}{isLoading ? 'Saving…' : confirmLabel}
       </button>
     </div>}>
-    <div className="flex items-start gap-3"><AlertTriangle size={22} className={variant === 'danger' ? 'shrink-0 text-red-300' : 'shrink-0 text-amber-300'} aria-hidden /><p className="text-sm text-secondary">{description}</p></div>
+    <div className="flex items-start gap-3"><AlertTriangle size={22} className={variant === 'danger' ? 'shrink-0 text-[var(--alert-danger)]' : 'shrink-0 text-[var(--alert-warn)]'} aria-hidden /><p className="text-sm text-secondary">{description}</p></div>
   </Overlay>;
 }
