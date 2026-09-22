@@ -29,8 +29,8 @@ Total: **₹0/month**, at `https://<site>.netlify.app` + `https://<name>.onrende
 1. **Render dashboard → New → Web Service**
 2. **Connect the GitHub repo** (`debmalyo-hub07/NexMart`)
 3. Settings — either fill the form manually or use the blueprint:
-   - *Blueprint route:* **New → Blueprint**, select the repo — `render.yaml` at the repo root defines everything (root dir `backend`, build `npm install && npm run build`, start `node dist/server.js`, health check `/health`, Singapore region).
-   - *Manual route:* use those same values in the form.
+   - *Blueprint route:* **New → Blueprint**, select the repo — `render.yaml` at the repo root defines everything (root dir `backend`, build `npm install --include=dev && npm run build`, start `node dist/server.js`, health check `/health`, Singapore region).
+   - *Manual route:* use those same values in the form — **the Build Command must match `render.yaml` exactly** (`npm install --include=dev && npm run build`). A dashboard service created before `render.yaml` gained that flag silently keeps its old command (`npm install && npm run build`), which is how the 2026-09-23 deploy failure happened: `NODE_ENV=production` made npm skip devDependencies. The production `tsc` no longer compiles test/QA sources (they're excluded in `backend/tsconfig.json`), so the build now also passes without devDeps — but keep the commands in sync anyway, and if the service was made via the form, double-check **Settings → Build Command** after pulling this change.
 4. **Environment variables** — the dashboard will prompt for each `sync: false` key from the blueprint (or add them under Environment). Copy values from your local `.env`, with these **changes**:
 
    | Variable | Local value | Production value |

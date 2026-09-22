@@ -17,5 +17,16 @@
     "emitDecoratorMetadata": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/**/__tests__", "src/**/*.test.ts"]
+  // Test/QA-only sources stay out of the production build: they import
+  // devDependencies (mongodb-memory-server, supertest), which are absent when
+  // NODE_ENV=production makes npm skip devDeps (the Render deploy failure).
+  // Full type-check of everything lives in tsconfig.test.json (`npm run typecheck`).
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/__tests__",
+    "src/**/*.test.ts",
+    "src/test/**",
+    "src/scripts/previewStorefront.ts"
+  ]
 }

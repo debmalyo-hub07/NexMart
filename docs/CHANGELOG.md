@@ -7,7 +7,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
-## 2026-09-23 (2) — Local-dev incident response, Atlas catalog activation, docs sync
+## 2026-09-23 (3) — Render deploy fix: prod build no longer compiles test/QA sources
+
+- **Render build failure fixed** (deploy of `252bf14` failed with 5 ×
+  `TS2307 Cannot find module 'mongodb-memory-server' / 'supertest'`).
+  Two layered causes:
+  1. **Code:** the production `tsc` compiled test/QA-only sources —
+     `src/test/helpers.ts` (integration harness) and
+     `src/scripts/previewStorefront.ts` — which import devDependencies.
+     `tsconfig.json` now also excludes `src/test/**` and
+     `src/scripts/previewStorefront.ts`. Tests/QA keep full coverage via
+     `tsconfig.test.json` (`npm run typecheck`); nothing in runtime code
+     imports the excluded files.
+  2. **Service config drift:** Render ran `npm install && npm run build`
+     (log), not `render.yaml`'s `npm install --include=dev && npm run build`,
+     so devDeps were absent (`audited 278 packages`). The live service is not
+     following the blueprint — align the dashboard build command (see
+     `docs/DEPLOYMENT.md`).
+- **Verified by reproducing Render locally:** temp dir + `npm install
+  --omit=dev` (no mongodb-memory-server/supertest, typescript present as a
+  regular dep) → `tsc` exit 0, `dist/server.js` emitted, no test artifacts.
+  Local gates green: typecheck, build, lint (pre-existing warnings only),
+  full test suite (the 2 suites that failed in the first run were mongod
+  resource-contention flakes; both pass on re-run — 191/191 accounted).
+
+---
+
 
 - **Local frontend hang diagnosed and fixed:** the dev server had been started
   twice (two `npm run dev` wrappers sharing one `.next`); page compilations
