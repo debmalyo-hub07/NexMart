@@ -7,7 +7,7 @@ This repo runs on a documented workflow. Follow it and every change stays verifi
 1. **Read [`CLAUDE.md`](../CLAUDE.md) first** — it is the single source of truth: the reality snapshot (§1, actual routes/collections/auth), the design law (§2), the interaction contracts (§5), and the living roadmap (§8). If code and CLAUDE.md disagree, the code wins and the doc gets updated in the same change.
 2. **No mock data, ever.** No hardcoded stats, fake deltas, fabricated logs. Real data or an honest empty state.
 3. **No silent failures.** Every request path has loading / error / empty states; server messages pass through (`getApiError`); status is icon + text + color.
-4. **Design tokens only** — no new hex values, no new violet steps, opacity only step-5 or bracket values. One brand gradient (violet→fuchsia). Acid green = action/success only.
+4. **Design tokens only** — no new hex values beyond the two registered themes, no new violet steps, opacity only step-5 or bracket values. Dark surfaces: one brand gradient (violet→fuchsia), acid green = action/success only. Storefront light surface: use the `.storefront-shell` tokens (warm paper / navy / marigold / emerald) — see CLAUDE.md §2 dual-theme scope; portals and auth stay dark.
 5. **Motion stays scoped**: storefront vocabulary never leaks into admin/delivery/checkout; `prefers-reduced-motion` is a hard gate; animate only `transform`/`opacity`/`filter`.
 6. **Mobile-first at 375px**; touch targets ≥44px (delivery ≥48px); WCAG 2.2 AA contrast floors.
 

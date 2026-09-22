@@ -213,7 +213,19 @@ payout schedule clarity (Flipkart 7-day, Amazon rolling 7-day).
 
 **Commits:** `8088da4` (P0–P2 audit fixes) · `61e4e6c` (light storefront
 restyle) · `7290dd5` (budget tool + recently viewed) · `3b98f6a` (preview
-password-hash fix).
+password-hash fix) · `0c779c5` (this record).
+
+**Addendum (2026-09-23, pre-push re-verification):** after the local-dev
+incident was resolved (duplicate dev-server instances wedged Turbopack so
+page compiles never finished; a backend instance running with a
+session-level `MONGODB_URI` override serving an empty catalog), the full
+gate suite was re-run clean: backend lint + typecheck + build +
+**191/191 tests (29 suites, single run)**; frontend lint + **49/49 tests
+(11 suites)** + isolated production build (60 routes). The P0-A2 activation
+was then applied to the live Atlas database
+(`seed:catalog --apply --database=nexmart`: 60 activated, 0 added, 0
+`isDemo` remaining) so the real storefront serves sellable stock. CI
+history on `main` is all green; Render/Redis keep-alive secrets present.
 
 **Automated gates — all green:**
 - Frontend: 49/49 tests (11 suites), `next lint` clean, `tsc --noEmit` clean,

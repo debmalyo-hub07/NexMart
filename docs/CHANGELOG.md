@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+---
+
+## 2026-09-23 (2) — Local-dev incident response, Atlas catalog activation, docs sync
+
+- **Local frontend hang diagnosed and fixed:** the dev server had been started
+  twice (two `npm run dev` wrappers sharing one `.next`); page compilations
+  never completed (`/` and `/products` hung >2 min with zero bytes while
+  `/favicon.ico` answered in 0.2s). All stale processes killed, `.next`
+  wiped, one clean instance started → Ready in 4.5s, subsequent pages 1.8–3.4s.
+  Rule reaffirmed: **never two dev servers on one `.next`** (same class of
+  incident as the 2026-09-19 `NEXT_DIST_DIR` finding).
+- **Backend serving an empty catalog diagnosed:** the running instance
+  returned `0 categories / 0 products` instantly while Atlas `nexmart` holds
+  54 categories / 61 products — a session-level `MONGODB_URI` override in that
+  shell (dotenv never overrides pre-set process env; no User/Machine-scope
+  vars exist). The instance also died mid-session. Restarted from a clean
+  shell → data served correctly.
+- **Atlas sample catalog activated (P0-A2 rolled out to the live DB):**
+  `npm run seed:catalog -- --apply --database=nexmart` → `added 0,
+  preserved 60, activated 60` — `Demo · ` prefixes stripped, stock 12,
+  compare prices set, 0 `isDemo` left. Storefront now shows real sellable
+  stock (61 published products, page cap 48).
+- **Repo hygiene:** removed the stale `.kilo/worktrees/olivine-tumbleweed`
+  Kilo Code agent worktree (detached at `b793599`, an ancestor of `main`,
+  clean — unregistered with `git worktree remove` first, then deleted) and a
+  temporary diagnostic script.
+- **Docs synced:** README (dual-theme design section, budget/recently-viewed/
+  trust-strip/GST features, 191-test counts, audit-report link, Netlify
+  deployment), CLAUDE.md v3.3 (§2 dual-theme scope note, §8 P11 entry),
+  DEPLOYMENT.md (frontend host corrected: Cloudflare Pages → **Netlify**,
+  verified live at `https://nexmart-in.netlify.app` → 200 / Netlify Edge;
+  `nexmart.pages.dev` → 404).
+- **Verification before push:** backend lint + typecheck + build + **191/191
+  tests (29 suites, one clean run)**; frontend lint + **49/49 tests (11
+  suites)** + isolated production build (60 routes, `NEXT_DIST_DIR=.next-verify`,
+  cleaned afterwards). CI (`ci.yml`) history all green; keep-alive secrets
+  present.
+
 ## 2026-09-23 — Rebuild wave: audit P0–P2 fixes, light storefront, discovery tools
 
 - **Audit (P0–P2):** fixed checkout `listing` identity (P0-A1), un-demo'd the

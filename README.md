@@ -1,6 +1,6 @@
 # NexMart 🛒
 
-> **Production-grade multi-vendor marketplace platform** — Next.js 15 + Express + MongoDB + Upstash Redis + Razorpay — featuring four distinct role portals (customer storefront, seller operations desk, admin governance panel, and delivery agent app), pure marketplace fee engine, double-entry balanced accounting ledger, and the **Deep-Space Kinetic Editorial** design system.
+> **Production-grade multi-vendor marketplace platform** — Next.js 15 + Express + MongoDB + Upstash Redis + Razorpay — featuring four distinct role portals (customer storefront, seller operations desk, admin governance panel, and delivery agent app), pure marketplace fee engine, double-entry balanced accounting ledger, and a dual-theme design system: a photo-led **light** customer storefront over dark, density-tuned operations portals (**Deep-Space Kinetic Editorial**).
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
@@ -90,7 +90,9 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 ## 🌟 Features (as built)
 
 ### 🛍️ Customer storefront (`/`, `/products`, `/categories`, `/search`, `/sellers/[id]`, `/terms`, `/privacy`, `/shipping`, `/returns`, `/contact`, `/help`)
-- Deep-Space Kinetic Editorial design: char-reveal headlines, magnetic CTAs, WebGL particle hero (desktop only, reduced-motion safe), and auto-advancing curated edit spotlight
+- **Photo-led light theme** scoped to `.storefront-shell` (warm paper base, navy actions, marigold promos, emerald savings) with char-reveal headlines, magnetic CTAs, WebGL particle hero (desktop only, reduced-motion safe), auto-advancing curated edit spotlight, and a PDP **trust strip** (pincode delivery ETA · returns · GST-inclusive note · payment trust)
+- **Budget-first discovery**: `/budget` six-band price tool (GST/shipping note, plain catalog links) plus a **recently viewed** rail (localStorage only, max 8, explicit clear control)
+- **Tax-inclusive pricing**: the listed price *is* the final price — the server reports the contained GST slice, so cart/checkout totals never surprise (audit C2)
 - **Unified Catalog & Search Engine**: Single aggregate-backed query service with normalized Unicode/unit matching, bounded typo fallback, descendant-category traversal, disjunctive facet counts, and stable sorting
 - **Faceted Discovery & Merchandising**: URL-backed multi-select filters (`CatalogFilters`), active filter chips, category breadcrumbs, SSR snapshot hydration (`CatalogSnapshot`), and visual category directory (`/categories`)
 - **Interactive Product Exploration**: Product cards with same-option price/stock matching, hover secondary preview, Quick View modal (`QuickView`), and side-by-side Product Comparison tray (`CompareTray`)
@@ -124,8 +126,8 @@ Health checks: `http://localhost:4000/health/live` (liveness) · `http://localho
 - **Balanced Double-Entry Ledger**: Every payment capture, commission split, reserve hold, and refund creates balanced credit/debit entries (`assertBalanced`)
 - **Upstash Redis**: Sliding-window rate limiters, JWT blacklist, login lockouts, and response caches
 - **Razorpay Integration**: Multi-seller capture reconciliation, HMAC signature verification, and automated stale-order reaper
-- **Integration Test Suite**: 29 test suites, 190 hermetic backend tests + 11 frontend test suites (49 tests) covering lifecycle, race conditions, fee snapshots, ledger consistency, and storefront catalog discovery/offers
-- **Additive Catalog Seeder**: Idempotent 60-product starter catalog across 9 departments with strict checkout/offer boundaries (`npm run seed:catalog`)
+- **Integration Test Suite**: 29 test suites, 191 hermetic backend tests + 11 frontend test suites (49 tests) covering lifecycle, race conditions, fee snapshots, ledger consistency, storefront catalog discovery/offers, and the 2026-09-22 audit fixes (security, pricing, checkout)
+- **Additive Catalog Seeder**: Idempotent 60-product starter catalog across 9 departments with strict checkout/offer boundaries; idempotently activates legacy `isDemo` samples into sellable stock (`npm run seed:catalog`)
 
 ---
 
@@ -172,8 +174,8 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 | Where | Command | What |
 |-------|---------|------|
 | `backend/` | `npm run dev` / `build` / `start` | nodemon / tsc / production server |
-| `backend/` | `npm test` | Vitest unit & integration tests (29 suites, 190 tests) |
-| `backend/` | `npm run seed:catalog` | Additive starter catalog seeder (guarded by `--apply --database=nexmart`) |
+| `backend/` | `npm test` | Vitest unit & integration tests (29 suites, 191 tests) |
+| `backend/` | `npm run seed:catalog` | Additive starter catalog seeder (guarded by `--apply --database=nexmart`); also activates legacy samples into sellable stock |
 | `backend/` | `npm run seed:categories` | Department & subcategory taxonomy seeder |
 | `frontend/` | `npm run dev` / `build` / `start` | dev server / production build / serve |
 | `frontend/` | `npm test` | Vitest unit tests (11 suites, 49 tests) |
@@ -183,11 +185,11 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 
 ## 📸 Design System
 
-**Deep-Space Kinetic Editorial** — governed by `CLAUDE.md` §2:
+**Two themes, one law** — governed by `CLAUDE.md` §2:
 
-- Surfaces: `space` ramp (`950→700`), elevation = lightness, never shadows
-- Accents: one violet ramp (600/500/400), acid green reserved for action/success, amber = warning, red = danger
-- One brand gradient: violet→fuchsia
+- **Customer storefront** — photo-led **light** theme scoped to `.storefront-shell`: warm paper `#F6F5F2` base, navy `#123E75` actions, marigold promos, emerald savings; navy utility strip over the white main nav.
+- **Admin / seller / delivery portals + auth** — **Deep-Space Kinetic Editorial** dark: `space` ramp (`950→700`), elevation = lightness, never shadows; one violet ramp (600/500/400); acid green = action/success only; amber = warning; red = danger; one brand gradient (violet→fuchsia).
+- Shared components (ConfirmDialog, QueryError, EmptyState, Pagination…) consume dual-theme tokens (`:root` dark defaults, overridden under `.storefront-shell`), so they read correctly on both surfaces.
 - Type: Outfit (display) · Inter (body) · JetBrains Mono (prices/IDs) — all via `next/font`
 - Motion: compositor-only properties; storefront vocabulary never leaks into admin/delivery/checkout; `prefers-reduced-motion` is a hard gate
 
@@ -205,7 +207,8 @@ See [.env.example](./.env.example) — every variable is documented inline. The 
 |-----|---------|
 | [CLAUDE.md](./CLAUDE.md) | **Read first.** Reality snapshot, design law, interaction contracts, P0–P10 roadmap with status |
 | [docs/STOREFRONT-AUDIT-2026-09-19.md](./docs/STOREFRONT-AUDIT-2026-09-19.md) | Storefront audit, data flow, research citations, catalog provenance, and browser QA results |
-| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Free-tier (₹0) deployment: Cloudflare Pages + Render with keep-alive |
+| [docs/AUDIT-REPORT-2026-09-22.md](./docs/AUDIT-REPORT-2026-09-22.md) | End-to-end audit: P0–P3 findings, competitive research, fix order, and the verification record |
+| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Free-tier (₹0) deployment: Netlify + Render with keep-alive |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | Dated record of every change wave |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | How to make changes (the plan → execute → verify → document workflow) |
 | [docs/superpowers/plans/](./docs/superpowers/plans/) | Implementation plans per wave (including `2026-09-17-storefront-discovery.md`) |

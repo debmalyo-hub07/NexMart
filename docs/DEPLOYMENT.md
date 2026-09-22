@@ -4,13 +4,15 @@ This guide deploys NexMart with **zero monthly cost**:
 
 | Piece | Platform | Free limits handled |
 |---|---|---|
-| Frontend (Next.js) | **Cloudflare Pages** | unlimited bandwidth; no commercial-use restriction (why not Vercel Hobby: it prohibits commercial use) |
+| Frontend (Next.js) | **Netlify** | generous bandwidth/build quota; no commercial-use restriction (why not Vercel Hobby: it prohibits commercial use) |
 | Backend (Express + Socket.IO) | **Render** (free web service) | sleeps after 15 min → kept warm by the GitHub keep-alive Action |
 | MongoDB | **Atlas M0** (existing) | — |
 | Redis | **Upstash** (existing, already kept alive) | — |
 | Media | **Cloudinary** (existing) | — |
 
-Total: **₹0/month**, at `https://<name>.pages.dev` + `https://<name>.onrender.com`.
+Total: **₹0/month**, at `https://<site>.netlify.app` + `https://<name>.onrender.com`.
+
+> The frontend build config lives in `netlify.toml` at the repo root (`base = "frontend"`, publish `.next`, `@netlify/plugin-nextjs` forced on — Netlify's auto-detection published a raw `.next` folder as static files and 404'd everything before that). Verified live: `https://nexmart-in.netlify.app`.
 
 ---
 
@@ -18,7 +20,7 @@ Total: **₹0/month**, at `https://<name>.pages.dev` + `https://<name>.onrender.
 
 - The GitHub repo pushed and current (`origin/main`)
 - Your existing Atlas / Upstash / Cloudinary / Brevo / Razorpay credentials handy
-- Accounts: [Cloudflare](https://dash.cloudflare.com) (free) and [Render](https://render.com) (free)
+- Accounts: [Netlify](https://app.netlify.com) (free) and [Render](https://render.com) (free)
 
 ---
 
@@ -34,11 +36,11 @@ Total: **₹0/month**, at `https://<name>.pages.dev` + `https://<name>.onrender.
    | Variable | Local value | Production value |
    |---|---|---|
    | `NODE_ENV` | development | `production` (blueprint sets this) |
-   | `CORS_ORIGIN` / `SOCKET_CORS_ORIGIN` / `APP_URL` | `http://localhost:3000` | your Cloudflare URL from Step 2, e.g. `https://nexmart.pages.dev` |
+   | `CORS_ORIGIN` / `SOCKET_CORS_ORIGIN` / `APP_URL` | `http://localhost:3000` | your Netlify URL from Step 2, e.g. `https://nexmart-in.netlify.app` |
    | `API_URL` | `http://localhost:4000/api/v1` | `https://<render-service>.onrender.com/api/v1` |
    | everything else | same | same |
 
-   > **Chicken-and-egg note:** the Cloudflare URL isn't known until Step 2. Deploy with a placeholder for the three URL vars, get the Render URL, do Step 2, then come back and set the real values + redeploy. First deploy's URL-dependent features (CSRF on POST) won't work until the placeholder is replaced — that's expected.
+   > **Chicken-and-egg note:** the Netlify URL isn't known until Step 2. Deploy with a placeholder for the three URL vars, get the Render URL, do Step 2, then come back and set the real values + redeploy. First deploy's URL-dependent features (CSRF on POST) won't work until the placeholder is replaced — that's expected.
 5. **First deploy** — watch the logs. The server boots, connects to Atlas, and logs the reaper + invoice worker. `RAZORPAY_WEBHOOK_SECRET` **must** be set: production boot aborts without it.
 6. **Verify:** `https://<render-service>.onrender.com/health` → `{"status":"ok",...,"env":"production"}`. For a dependency-aware probe, `GET /health/ready` returns 200 only when MongoDB is connected (503 otherwise); `/health/live` is the cheap liveness check. `/health` remains as a compatibility alias for the Render blueprint's health check.
 
@@ -69,20 +71,16 @@ If your cluster's IP list isn't `0.0.0.0/0`, add Render's egress IPs (Render das
 
 ---
 
-## Step 2 — Frontend on Cloudflare Pages (~5 min)
+## Step 2 — Frontend on Netlify (~5 min)
 
-Cloudflare's wizard needs the **Render URL** from Step 1 for the env var, so do this after the first backend deploy (placeholder backend URL is fine — you can edit env vars and redeploy).
+Netlify's build needs the **Render URL** from Step 1 for the env var, so do this after the first backend deploy (placeholder backend URL is fine — you can edit env vars and redeploy).
 
-1. **Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git**
+1. **Netlify dashboard → Add new site → Import an existing repo**
 2. Select the repo. Configuration:
-   - **Project name:** `nexmart` (becomes `nexmart.pages.dev`)
-   - **Production branch:** `main`
-   - **Build settings:**
-     - Framework preset: **Next.js**
-     - **Root directory:** `frontend`
-     - Build command: `npx next build` (preset default)
-     - Output directory: preset default
-   - **Environment variables (Production):**
+   - **Site name:** `nexmart` (becomes `nexmart.netlify.app`, renameable)
+   - **Branch to deploy:** `main`
+   - **Build settings:** taken from `netlify.toml` at the repo root — base directory `frontend`, build command `npm run build`, publish directory `.next`, Node 22, `@netlify/plugin-nextjs` forced. Do not override them in the UI.
+   - **Site configuration → Environment variables (Production):**
 
      | Variable | Value |
      |---|---|
@@ -91,26 +89,26 @@ Cloudflare's wizard needs the **Render URL** from Step 1 for the env var, so do 
      | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | your cloud name |
      | `API_URL` | same as `NEXT_PUBLIC_API_URL` (server-side NextAuth calls use it) |
      | `AUTH_SECRET` | a fresh 64-char random string (generate: `openssl rand -base64 48`) |
-     | `NEXTAUTH_URL` | `https://nexmart.pages.dev` — fallback Origin for server-side auth calls (`lib/serverApi.ts` derives it from the live request first; this covers direct-start cases) |
+     | `NEXTAUTH_URL` | `https://<site>.netlify.app` — fallback Origin for server-side auth calls (`lib/serverApi.ts` derives it from the live request first; this covers direct-start cases). Must match the real host or middleware redirects go to the wrong origin. |
      | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from Google Cloud console |
 
 3. **Deploy.** First build takes a few minutes.
-4. **Verify:** open `https://nexmart.pages.dev` — the storefront loads, the logo renders, and products appear (the API is warm from Step 1's keep-alive).
+4. **Verify:** open `https://<site>.netlify.app` — the storefront loads, the logo renders, and products appear (the API is warm from Step 1's keep-alive).
 
 ### Google OAuth callback (if using Google sign-in)
 
 Google Cloud Console → Credentials → your OAuth client:
-- **Authorized JavaScript origins:** add `https://nexmart.pages.dev`
-- **Authorized redirect URI:** add `https://nexmart.pages.dev/api/auth/callback/google`
+- **Authorized JavaScript origins:** add `https://<site>.netlify.app`
+- **Authorized redirect URI:** add `https://<site>.netlify.app/api/auth/callback/google`
 
 ---
 
 ## Step 3 — Final wiring (5 min)
 
 1. Back on **Render** → Environment: replace the placeholder URL vars with the real values:
-   - `APP_URL`, `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` → `https://nexmart.pages.dev`
+   - `APP_URL`, `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` → `https://<site>.netlify.app`
 2. Trigger a redeploy (Render → Manual Deploy → Deploy latest commit). POST requests (login/register/checkout) now pass the CSRF origin check.
-3. End-to-end smoke test from `https://nexmart.pages.dev`:
+3. End-to-end smoke test from `https://<site>.netlify.app`:
    - Register a customer → OTP email arrives → verify
    - Browse → add to cart → checkout (Razorpay **test mode** cards work against the live deployment)
    - Admin login → the order appears → confirm → assign
@@ -132,7 +130,7 @@ Google Cloud Console → Credentials → your OAuth client:
 ## Cost when you outgrow free
 
 - Render Starter: ~$7/mo → always-on, no pings needed
-- Cloudflare Pages stays free effectively forever
+- Netlify paid tiers only if you outgrow the free build/bandwidth quotas (the current site sits far below them)
 - Everything else (Atlas/Upstash/Cloudinary/Brevo) has its own free tier headroom
 
 Upgrade triggers: you see "service suspended" on Render, or real customers hitting cold starts during traffic spikes.

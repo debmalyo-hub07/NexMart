@@ -84,7 +84,9 @@ The full ranked list with `file:line` evidence is §8. **P0–P4 were fixed 2026
 ## 2. DESIGN LANGUAGE — "Deep-Space Kinetic Editorial"
 ## ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Award-caliber dark identity, evolved from the existing palette with **one** set of rules. The aesthetic direction: Vercel/Linear/Awwwards lineage — cinematic scroll storytelling, oversized display type, magnetic micro-interactions — with commerce conversion guardrails baked in.
+Award-caliber identity, evolved from the existing palette with **one** set of rules. The aesthetic direction: Vercel/Linear/Awwwards lineage — cinematic scroll storytelling, oversized display type, magnetic micro-interactions — with commerce conversion guardrails baked in.
+
+> **Dual-theme scope (since 2026-09-23):** the **customer storefront is light** — a photo-led theme scoped to `.storefront-shell` (warm paper `#F6F5F2`, navy `#123E75` actions, marigold promos, emerald savings). The **admin, seller, delivery portals and all auth pages keep the dark Deep-Space identity below**. This section's color law governs the dark surfaces; shared components must use the dual-theme tokens (`:root` dark defaults, `.storefront-shell` overrides) so they read correctly on both.
 
 ### 2.1 Color — the law
 
@@ -528,6 +530,14 @@ Storefront surfaces now include URL-backed filters and history, visual categorie
 
 **Known-open after P10:** Playwright runtime QA executed and verified (14/14 scenarios passed across desktop 1440px and mobile 375px); no field LCP/INP/CLS measurements; legal identity/support/grievance details and third-party image rights require approval; existing flat 18% GST behavior remains unvalidated. Full evidence and sources: `docs/STOREFRONT-AUDIT-2026-09-19.md`.
 
+### P11 — marketplace rebuild: audit P0–P2, light storefront, discovery tools — ✅ DONE 2026-09-23
+
+Full report with verification record: `docs/AUDIT-REPORT-2026-09-22.md` (§A–C fixes, §E research, §G verification). The wave fixed checkout `listing` identity (P0-A1), activated the demo catalog into sellable stock (P0-A2), `trust proxy` (B1), hashed OTPs + attempt burn (B2), server-side password policy (B3), session invalidation on password change (B4), address validation (C1), tax-inclusive GST (C2), escaped admin search (C4), order rate limit (C5), logout fail-open confirmed (C6), constant-time admin secret (C7).
+
+The customer storefront moved to the photo-led light theme scoped to `.storefront-shell` (see §2 dual-theme scope) — every storefront component migrated off dark literals; portals and auth stay dark. New: `/budget` price-band tool, locally-stored recently-viewed rail, PDP trust strip, itemized GST-inclusive totals. Money contract: variant `price` is in rupees; paise conversion happens only at server/checkout boundaries; frontend totals must match the server exactly or checkout throws `PRICE_CHANGED` 409.
+
+**Known-open after P11:** interactive browser pass (desktop/mobile journeys, keyboard, reduced motion, screenshots) pending — §G lists it as a release requirement; auth pages restyle to light is a deliberate follow-up; differentiators still to build: make-an-offer engine (backend model on `SellerListing`) and the full itemized price-transparency breakdown on PDP/checkout.
+
 ### Done-definitions (apply per item)
 - Build passes (`npm run build` in `frontend/`).
 - The acceptance criterion in the row is demonstrably true in the running app.
@@ -554,6 +564,6 @@ Storefront surfaces now include URL-backed filters and history, visual categorie
 
 ---
 
-*NexMart CLAUDE.md v3.2 — "Deep-Space Kinetic Editorial"*
-*Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09. P10 storefront audit-verified 2026-09-19.*
+*NexMart CLAUDE.md v3.3 — "Deep-Space Kinetic Editorial" + light storefront scope (§2)*
+*Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09. P10 storefront audit-verified 2026-09-19. P11 rebuild-wave verified 2026-09-23 (§G).*
 *Seed admin: admin@nexmart.in (configured via ADMIN_SEED_EMAIL) · Admin secret: ADMIN_SECRET_KEY in .env*
