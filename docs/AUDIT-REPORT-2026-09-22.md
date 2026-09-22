@@ -206,3 +206,78 @@ payout schedule clarity (Flipkart 7-day, Amazon rolling 7-day).
    COD/secure-pay), ratings on cards, recently viewed, budget-first tool.
 5. **Differentiators:** make-an-offer engine, all-offers comparison, price
    transparency layer.
+
+---
+
+## G. Verification record (2026-09-23, plan stream 7)
+
+**Commits:** `8088da4` (P0–P2 audit fixes) · `61e4e6c` (light storefront
+restyle) · `7290dd5` (budget tool + recently viewed) · `3b98f6a` (preview
+password-hash fix).
+
+**Automated gates — all green:**
+- Frontend: 49/49 tests (11 suites), `next lint` clean, `tsc --noEmit` clean,
+  production build OK (run with `NEXT_DIST_DIR=.next-verify` so the QA dev
+  server's cache was never clobbered).
+- Backend: typecheck clean; 191/191 tests. Two replica-set suites
+  (`checkout.test`, `cartOffers.integration.test`) hit `Hook timed out in
+  10000ms` on one full run while the QA servers were also spawning
+  mongodb-memory-server instances — re-ran green in isolation (35/35).
+  Contention, not code.
+
+**Isolated QA stack:** `previewStorefront.ts --isolated` (API :4100, disposable
+memory replica set,60 seeded products, CORS pinned to :3100) + Next dev on
+:3100 with process-level `NEXT_PUBLIC_API_URL`/`NEXTAUTH_URL` overrides — no
+`.env` / `.env.local` values were changed.
+
+**HTTP-level journey results** (desktop browser tool was disconnected from the
+session, so these are curl/SSR checks rather than pixel/interaction checks):
+- `/` 200: `.storefront-shell` light tokens, trust strip, budget chips,
+  `/budget` entry point, fixed `?sort=price` link (old dead `price-asc`
+  confirmed gone).
+- `/budget?maxPrice=1999` 200: six bands, GST/shipping note, SEO metadata.
+- `/products`, `/products/preview-galaxy-s25` 200: PDP trust strip
+  (pincode/returns/GST/payments) present in SSR HTML.
+- `/cart`, `/help`, `/terms`, `/sellers/*` 200; unknown route →404 with the
+  restyled light "Lost in space" page.
+- Auth guards: `/orders` `/profile` `/wishlist` `/checkout` →307 to
+  `/customer/login?redirect=<path>` **on the request origin**, and the login
+  page renders200.
+- CORS: API accepts `Origin: http://localhost:3100`.
+- **Live end-to-end:** customer login → `POST /cart/items` (2× PREVIEW-256) →
+  server totals matched the inclusive-GST contract (subtotal ₹1,00,000 + free
+  shipping → `totalPaise`10,000,000) → price-parity guard accepted
+  `expectedTotal` → COD order **ORD-MUD1RQGK-87GJ** placed → visible in
+  `GET /orders`.
+
+**Defects found and fixed during verification:**
+- `previewStorefront.ts` seeded the QA customer's password in plaintext (the
+  Customer model has no pre-save hash hook — controllers hash explicitly), so
+  `bcrypt.compare` rejected it on every QA login. Fixed in `3b98f6a`.
+- Homepage "Lowest price first" linked to `?sort=price-asc`, which
+  `catalogParams` silently drops (not a valid sort value) — navigation was a
+  no-op. Fixed in `7290dd5`.
+
+**Environment findings (documented, not code defects):**
+- Auth middleware redirects to the **canonical `NEXTAUTH_URL` origin**, not the
+  incoming Host header — that is the host-header-safe behavior, but it means
+  `NEXTAUTH_URL` must match the real deployment host. Locally it is pinned to
+  `http://localhost:3000`, so any dev/preview run on another port must
+  override `NEXTAUTH_URL` at process level (verified working: redirects then
+  resolve to `localhost:3100` with correct `?redirect=` return paths).
+- A preview/dev run shares the `.next` Turbopack cache unless
+  `NEXT_DIST_DIR` is set (rule from2026-09-19 changelog). The QA run on :3100
+  baked `NEXT_PUBLIC_API_URL=:4100` into client chunks — `.next` was cleaned
+  after the session.
+
+**Unresolved release requirements:**
+1. **Interactive browser pass still pending** — desktop browser was not
+   connected to this session. Needed: desktop + mobile journeys, keyboard
+   navigation, reduced-motion behavior, screenshots. Static a11y checks are in
+   place (skip link, `aria-label`/`aria-expanded` on nav controls,
+   `prefers-reduced-motion` CSS block, focus-visible outlines).
+2. **Differentiators (F5):** make-an-offer engine needs backend work
+   (offer/counter/floor model on `SellerListing`); price-transparency layer is
+   partially shipped (inclusive GST everywhere) but lacks the itemised
+   "what you pay is what's shown" invoice-style breakdown on the PDP/checkout.
+3. Auth pages remain on the dark theme (deliberate follow-up, see plan).

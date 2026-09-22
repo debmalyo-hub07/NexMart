@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## 2026-09-23 — Rebuild wave: audit P0–P2 fixes, light storefront, discovery tools
+
+- **Audit (P0–P2):** fixed checkout `listing` identity (P0-A1), un-demo'd the
+  seed catalog into real sellable stock (P0-A2), `trust proxy` (B1), hashed OTPs
+  with5-attempt burn (B2), server-side password policy on all registrations
+  (B3), session invalidation + cookie reissue on password change (B4),
+  zod-validated address routes (C1), tax-inclusive GST as the differentiator
+  (C2 — listed price IS the final price; `taxPaise` is the contained18/118
+  slice), escaped admin search regex (C4), order-endpoint rate limit (C5),
+  logout fail-open confirmed (C6), constant-time admin secret compare (C7).
+  Full detail: `docs/AUDIT-REPORT-2026-09-22.md` §A–C.
+- **Storefront restyle (plan stream5):** photo-led **light** theme scoped to
+  `.storefront-shell` (warm paper base, navy actions, marigold promos, emerald
+  savings) — admin/seller/delivery portals and auth keep their dark density.
+  Navy utility strip over white main nav; every storefront page/component
+  migrated off dark literals; shared components (ConfirmDialog, QueryError,
+  ConnectivityNotice, Overlay, EmptyState, Pagination) now use dual-theme
+  tokens so they read correctly in both themes. New PDP trust strip:
+  pincode delivery estimate, returns, GST-inclusive note, payment trust.
+- **Discovery tools (plan stream6):** `/budget` budget-first shopping aid —
+  six price ceilings, live in-stock results cheapest-first, every band a plain
+  link to the catalog for no-JS navigation; locally stored **recently viewed**
+  (localStorage only, max8, explicit clear control + on-device privacy note)
+  rendered as a homepage rail. Fixed the dead homepage `?sort=price-asc` link.
+- **Verification:** frontend49/49 tests + lint + typecheck + isolated
+  production build; backend191/191 tests + typecheck (two replica-set suites
+  re-ran green in isolation after in-memory-Mongo startup contention under QA
+  load). Isolated QA stack (disposable preview API :4100 + dev :3100):
+  SSR checks across home/budget/catalog/PDP/cart/policies/404, auth-guard
+  redirects on the correct origin with `?redirect=` return paths, CORS, and a
+  **live end-to-end** login → cart → inclusive-GST total parity → COD order
+  `ORD-MUD1RQGK-87GJ` placed and listed. Two defects found and fixed during
+  verification: preview QA customer password seeded in plaintext (`3b98f6a`),
+  dead homepage sort link (`7290dd5`). Full record incl. pending interactive
+  browser pass: `docs/AUDIT-REPORT-2026-09-22.md` §G.
+
 ## 2026-09-19 — Storefront discovery, catalog reliability & policy foundation
 
 - Rebuilt public catalog/search around one aggregate-backed service with normalized Unicode/unit matching, bounded typo fallback, descendant-category filters, disjunctive facets, same-option price/stock matching, stable sorting, compact list payloads, and explicit approximate-result metadata.
