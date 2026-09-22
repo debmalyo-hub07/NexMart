@@ -33,7 +33,10 @@ async function main() {
       { sku: 'PREVIEW-512', attributes: { Storage: '512 GB' }, price: 62000, stock: 2 },
     ],
   });
-  await Customer.create({ name: 'Preview Customer', email: 'preview@example.test', password: 'PreviewOnly123', emailVerified: true });
+  // Passwords are hashed by the calling controller in this codebase (the
+  // Customer model has no pre-save hook) — hash here or login can never match.
+  const previewBcrypt = (await import('bcryptjs')).default;
+  await Customer.create({ name: 'Preview Customer', email: 'preview@example.test', password: await previewBcrypt.hash('PreviewOnly123', 12), emailVerified: true });
   // Only this disposable process replaces rate-limit calls. Production is untouched.
   const redis = await import('../config/redis');
   for (const limiter of [redis.generalRateLimiter, redis.authRateLimiter, redis.paymentRateLimiter, redis.otpRateLimiter, redis.registrationRateLimiter]) {
