@@ -1,8 +1,8 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import { env } from './env';
 import { logger } from '../utils/logger';
+import { resolveSessionIdentity } from '../services/sessionIdentity.service';
 
 let io: SocketIOServer;
 
@@ -15,10 +15,11 @@ export function initializeSocket(httpServer: HttpServer): SocketIOServer {
     },
     pingTimeout: 60000,
     pingInterval: 25000,
+    maxHttpBufferSize: 65536,
   });
 
   // Auth middleware for socket connections
-  io.use((socket: Socket, next) => {
+  io.use(async (socket: Socket, next) => {
     const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
 
     if (!token) {
@@ -29,14 +30,12 @@ export function initializeSocket(httpServer: HttpServer): SocketIOServer {
     }
 
     try {
-      const decodedUnverified = jwt.decode(token) as any;
-      let secret = env.JWT_SECRET_CUSTOMER;
-      if (decodedUnverified?.role === 'admin') secret = env.JWT_SECRET_ADMIN;
-      else if (decodedUnverified?.role === 'agent') secret = env.JWT_SECRET_AGENT;
-
-      const decoded = jwt.verify(token, secret) as { id: string; role: string };
+      if (typeof token !== 'string') throw new Error('Invalid token');
+      const decoded = await resolveSessionIdentity(token);
       socket.data.userId = decoded.id;
-      socket.data.role = decoded.role || decodedUnverified?.role || 'customer';
+      socket.data.role = decoded.role;
+      socket.data.token = token;
+      socket.data.expiresAt = decoded.exp * 1000;
       next();
     } catch {
       // A token WAS presented but is invalid/expired — reject the connection
@@ -54,6 +53,9 @@ export function initializeSocket(httpServer: HttpServer): SocketIOServer {
       // Join role room
       socket.join(`role:${role}`);
       logger.debug(`Socket connected: user=${userId} role=${role}`);
+      const expiry = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(socket.data.expiresAt - Date.now(), 2147483647)));
+      expiry.unref();
+      socket.once('disconnect', () => clearTimeout(expiry));
     }
 
     socket.on('disconnect', () => {
@@ -70,6 +72,20 @@ export function getIO(): SocketIOServer {
   return io;
 }
 
+/** Re-check before every private push: a connected socket cannot outlive
+ * logout, suspension, or a credential change and keep receiving account data. */
+function emitPrivate(rooms: string[], event: string, payload: object): void {
+  if (!io) return;
+  const targets = [...io.sockets.sockets.values()].filter(socket => rooms.some(room => socket.rooms.has(room)));
+  void Promise.all(targets.map(async socket => {
+    try {
+      const identity = await resolveSessionIdentity(socket.data.token);
+      if (identity.id !== socket.data.userId || identity.role !== socket.data.role) { socket.disconnect(true); return; }
+      if (socket.connected) socket.emit(event, payload);
+    } catch { socket.disconnect(true); }
+  })).catch(error => logger.error('Private socket delivery failed', error));
+}
+
 // ── Event Emitters ───────────────────────────────────────────
 
 export function emitOrderStatusUpdate(
@@ -78,9 +94,8 @@ export function emitOrderStatusUpdate(
   status: string,
   data: object = {}
 ): void {
-  const ioInstance = getIO();
-  ioInstance.to(`user:${customerId}`).emit('order:status_updated', { orderId, status, ...data });
-  ioInstance.to('role:admin').emit('order:status_updated', { orderId, status, customerId, ...data });
+  emitPrivate([`user:${customerId}`], 'order:status_updated', { orderId, status, ...data });
+  emitPrivate(['role:admin'], 'order:status_updated', { orderId, status, customerId, ...data });
 }
 
 export function emitNewOrder(orderId: string, data: object = {}): void {
@@ -89,7 +104,7 @@ export function emitNewOrder(orderId: string, data: object = {}): void {
   // notification failure must never turn a committed checkout into a retry
   // response or cause a second order attempt.
   try {
-    getIO().to('role:admin').emit('order:new', { orderId, ...data });
+    emitPrivate(['role:admin'], 'order:new', { orderId, ...data });
   } catch (err) {
     logger.warn('Socket emitNewOrder skipped:', err instanceof Error ? err.message : err);
   }
@@ -100,13 +115,12 @@ export function emitStockUpdate(productId: string, variantSku: string, stock: nu
 }
 
 export function emitDashboardStats(stats: object): void {
-  getIO().to('role:admin').emit('dashboard:stats_updated', stats);
+  emitPrivate(['role:admin'], 'dashboard:stats_updated', stats);
 }
 
 export function emitAgentStatusUpdate(agentId: string, status: string): void {
   try {
-    const ioInstance = getIO();
-    ioInstance.to(`user:${agentId}`).emit('agent:status_updated', { agentId, status });
+    emitPrivate([`user:${agentId}`], 'agent:status_updated', { agentId, status });
   } catch (err) {
     logger.error('Socket emitAgentStatusUpdate failed:', err);
   }
@@ -116,7 +130,7 @@ export function emitAgentStatusUpdate(agentId: string, status: string): void {
 // is the durable channel; this makes the agent's dashboard update instantly.
 export function emitDeliveryAssigned(agentId: string, orderId: string, data: object = {}): void {
   try {
-    getIO().to(`user:${agentId}`).emit('delivery:assigned', { orderId, ...data });
+    emitPrivate([`user:${agentId}`], 'delivery:assigned', { orderId, ...data });
   } catch (err) {
     logger.error('Socket emitDeliveryAssigned failed:', err);
   }

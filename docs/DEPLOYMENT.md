@@ -29,8 +29,8 @@ Total: **₹0/month**, at `https://<site>.netlify.app` + `https://<name>.onrende
 1. **Render dashboard → New → Web Service**
 2. **Connect the GitHub repo** (`debmalyo-hub07/NexMart`)
 3. Settings — either fill the form manually or use the blueprint:
-   - *Blueprint route:* **New → Blueprint**, select the repo — `render.yaml` at the repo root defines everything (root dir `backend`, build `npm install --include=dev && npm run build`, start `node dist/server.js`, health check `/health`, Singapore region).
-   - *Manual route:* use those same values in the form — **the Build Command must match `render.yaml` exactly** (`npm install --include=dev && npm run build`). A dashboard service created before `render.yaml` gained that flag silently keeps its old command (`npm install && npm run build`), which is how the 2026-09-23 deploy failure happened: `NODE_ENV=production` made npm skip devDependencies. The production `tsc` no longer compiles test/QA sources (they're excluded in `backend/tsconfig.json`), so the build now also passes without devDeps — but keep the commands in sync anyway, and if the service was made via the form, double-check **Settings → Build Command** after pulling this change.
+   - *Blueprint route:* **New → Blueprint**, select the repo — `render.yaml` at the repo root defines everything (root dir `backend`, build `npm ci --include=dev && npm run build`, start `node dist/server.js`, health check `/health/ready`, Singapore region, `NODE_VERSION 24.19.0`).
+   - *Manual route:* use those same values in the form — **the Build Command must match `render.yaml` exactly** (`npm ci --include=dev && npm run build`). A dashboard service created before `render.yaml` gained that flag silently keeps its old command (`npm install && npm run build`), which is how the 2026-09-23 deploy failure happened: `NODE_ENV=production` made npm skip devDependencies. The production `tsc` no longer compiles test/QA sources (they're excluded in `backend/tsconfig.json`), so the build now also passes without devDeps — but keep the commands in sync anyway, and if the service was made via the form, double-check **Settings → Build Command** after pulling this change.
 4. **Environment variables** — the dashboard will prompt for each `sync: false` key from the blueprint (or add them under Environment). Copy values from your local `.env`, with these **changes**:
 
    | Variable | Local value | Production value |
@@ -41,8 +41,8 @@ Total: **₹0/month**, at `https://<site>.netlify.app` + `https://<name>.onrende
    | everything else | same | same |
 
    > **Chicken-and-egg note:** the Netlify URL isn't known until Step 2. Deploy with a placeholder for the three URL vars, get the Render URL, do Step 2, then come back and set the real values + redeploy. First deploy's URL-dependent features (CSRF on POST) won't work until the placeholder is replaced — that's expected.
-5. **First deploy** — watch the logs. The server boots, connects to Atlas, and logs the reaper + invoice worker. `RAZORPAY_WEBHOOK_SECRET` **must** be set: production boot aborts without it.
-6. **Verify:** `https://<render-service>.onrender.com/health` → `{"status":"ok",...,"env":"production"}`. For a dependency-aware probe, `GET /health/ready` returns 200 only when MongoDB is connected (503 otherwise); `/health/live` is the cheap liveness check. `/health` remains as a compatibility alias for the Render blueprint's health check.
+5. **First deploy** — watch the logs. The server boots, connects to Atlas, and logs the reaper + invoice worker + refund reconciler. `RAZORPAY_WEBHOOK_SECRET` **must** be set: production boot aborts without it.
+6. **Verify:** `https://<render-service>.onrender.com/health/ready` → `{"success":true,"status":"ready",...}` (200 only when MongoDB is connected, 503 otherwise). `/health/live` is the cheap liveness check; `/health` remains as a compatibility alias.
 
 ### Razorpay webhook (after first deploy)
 
@@ -61,7 +61,7 @@ Razorpay Dashboard → Settings → Webhooks → Add:
 
 1. GitHub repo → **Settings → Secrets and variables → Actions → New secret**
    - Name: `RENDER_HEALTH_URL`
-   - Value: `https://<render-service>.onrender.com/health`
+   - Value: `https://<render-service>.onrender.com/health/ready`
 2. **Actions → Render keep-alive → Run workflow** once to test (should go green and print `200`).
 3. From now on it runs every 10 minutes automatically, keeping the service warm 24/7 (~730 of 750 free instance-hours — inside the cap).
 

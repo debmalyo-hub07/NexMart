@@ -8,14 +8,14 @@ import { DeliveryAgent } from '../models/DeliveryAgent';
 import { Admin } from '../models/Admin';
 import { sendSuccess, sendNotFound, sendBadRequest, sendError, sendPaginated } from '../utils/response';
 import { parsePagination, parseSortField, escapeRegExp } from '../utils/helpers';
-import { sendAgentAssignmentEmail, sendOrderStatusEmail } from '../services/email.service';
+import { sendAgentAssignmentEmail } from '../services/email.service';
 import { emitOrderStatusUpdate, emitDeliveryAssigned } from '../config/socket';
-import { refundPayment } from '../services/razorpay.service';
+import { persistOrderLifecycle } from '../services/orderLifecycle.service';
+import { requestFullRefund, RefundError } from '../services/refund.service';
 import { upstashRedis } from '../config/redis';
 import { logger } from '../utils/logger';
 import { isTransitionAllowed } from '../utils/orderTransitions';
 import { z } from 'zod';
-import { recordFullRefundLedger } from '../services/marketplaceLedger.service';
 import { MarketplaceLedgerEntry } from '../models/MarketplaceLedgerEntry';
 import { MarketplaceFeeRule, FEE_RULE_STATUSES, type FeeRuleStatus } from '../models/MarketplaceFeeRule';
 
@@ -188,21 +188,18 @@ export async function assignDeliveryAgent(req: Request, res: Response): Promise<
     return;
   }
 
-  // The assignment is written first. If this write fails the order still reads
-  // exactly as it did and the operator can retry; the reverse order could
-  // leave an order marked shipped that no agent has been given.
-  await DeliveryAssignment.findOneAndUpdate(
-    { order: orderId },
-    { order: orderId, agent: agentId, assignedAt: new Date(), status: 'assigned' },
-    { upsert: true, new: true }
-  );
-
   order.deliveryAgent = agent._id;
   if (!alreadyDispatched) {
     order.orderStatus = 'shipped';
     order.statusHistory.push({ status: 'shipped', timestamp: new Date(), updatedBy: agent._id } as typeof order.statusHistory[0]);
   }
-  await order.save();
+  await persistOrderLifecycle(order, async session => {
+    await DeliveryAssignment.findOneAndUpdate(
+      { order: orderId },
+      { $set: { order: orderId, agent: agentId, assignedAt: new Date(), status: 'assigned' }, $inc: { __v: 1 } },
+      { upsert: true, new: true, session },
+    );
+  });
 
   try {
     await sendAgentAssignmentEmail(agent.email, agent.name, order.orderId);
@@ -223,72 +220,18 @@ export async function assignDeliveryAgent(req: Request, res: Response): Promise<
 
 // ── Refund a paid order (full refund via Razorpay) ─────────────
 export async function refundOrder(req: Request, res: Response): Promise<void> {
-  const adminId = (req as any).user?.userId as string | undefined;
-
-  const order = await Order.findById(req.params.id).populate('customer', 'name email');
-  if (!order) { sendNotFound(res, 'Order not found'); return; }
-
-  if (order.paymentMethod !== 'online') {
-    sendBadRequest(res, 'Only online payments can be refunded. COD orders have no payment to refund.');
-    return;
-  }
-  if (order.paymentStatus !== 'paid') {
-    sendBadRequest(res, `Only paid orders can be refunded (current payment status: ${order.paymentStatus}).`);
-    return;
-  }
-  if (!order.razorpayPaymentId) {
-    sendBadRequest(res, 'This order has no Razorpay payment ID on file — refund it from the Razorpay dashboard.');
-    return;
-  }
-
+  if (!mongoose.isValidObjectId(req.params.id)) { sendNotFound(res, 'Order not found'); return; }
   try {
-    const refund = await refundPayment(order.razorpayPaymentId);
-
-    order.paymentStatus = 'refunded';
-    order.statusHistory.push({
-      status: order.orderStatus, // the fulfilment status is unchanged; the PAYMENT is refunded
-      timestamp: new Date(),
-      updatedBy: adminId,
-      note: `Payment refunded via Razorpay (refund ${refund.id}, ₹${(refund.amount / 100).toFixed(2)})`,
-    } as any);
-    await order.save();
-
-    // New money-versioned orders also receive an immutable reversal event.
-    // Legacy test/records without a total remain compatible with the existing
-    // provider-only path until their money migration is complete.
-    if (Number.isSafeInteger(order.totalPaise) || (typeof order.total === 'number' && Number.isFinite(order.total))) {
-      const session = await mongoose.startSession();
-      try {
-        await session.withTransaction(async () => {
-          await recordFullRefundLedger(
-            order,
-            String(refund.id),
-            'admin',
-            session,
-            (req as Request & { requestId?: string }).requestId,
-          );
-        });
-      } finally {
-        await session.endSession();
-      }
-    }
-
-    const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
-    emitOrderStatusUpdate(customer._id.toString(), order.orderId, order.orderStatus);
-    // Audit §3.6: the PAYMENT is refunded — the fulfilment status is unchanged.
-    // Say "refunded", not "cancelled" (a delivered order that got its money
-    // back is not cancelled).
-    if (customer?.email) {
-      void sendOrderStatusEmail(customer.email, customer.name || 'Customer', order.orderId, 'refunded')
-        .catch((err) => console.error('Refund email failed:', err));
-    }
-
-    logger.info(`Refund: order ${order.orderId} refunded (refund ${refund.id}, status ${refund.status}).`);
-    sendSuccess(res, { refundId: refund.id, refundStatus: refund.status, orderStatus: order.orderStatus }, 'Refund initiated successfully');
-  } catch (err: any) {
-    // SDK detail to the server log only — the admin gets a clean message
-    console.error('Razorpay refund failed:', err?.error?.description || err?.message || err);
-    sendError(res, 'The refund could not be processed. Please try again or use the Razorpay dashboard.', 503);
+    const result = await requestFullRefund(req.params.id, (req as any).user?.id || (req as any).user?.userId);
+    const message = result.refundStatus === 'processed' ? 'Refund processed by Razorpay.'
+      : result.refundStatus === 'failed' ? 'Razorpay reports that this refund failed. Review the payment with Razorpay support.'
+      : result.refundStatus === 'needs_review' ? 'Refund outcome is being reconciled. Repeated requests use the same refund reference.'
+      : 'Refund requested. Payment status will update when Razorpay confirms processing.';
+    sendSuccess(res, result, message, result.refundStatus === 'processed' ? 200 : 202);
+  } catch (error) {
+    if (error instanceof RefundError) { sendError(res, error.message, error.statusCode); return; }
+    logger.error('Refund request could not be saved', { message: (error as Error).message });
+    sendError(res, 'Refund status could not be confirmed. Retry to check the same request.', 503);
   }
 }
 

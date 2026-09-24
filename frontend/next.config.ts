@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
+import { backendApiBase } from './src/lib/apiUrl';
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   // Verification builds (CI, pre-commit checks) can target a separate directory
   // so they never clobber the dev server's .next cache mid-session:
   //   NEXT_DIST_DIR=.next-verify npm run build
@@ -60,6 +62,19 @@ const nextConfig: NextConfig = {
   // Enable gzip compression on dev server responses
   compress: true,
 
+  poweredByHeader: false,
+  async headers() {
+    return [{
+      source: '/:path*',
+      headers: [
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
+      ],
+    }];
+  },
+
   // Reduce client JS by externalising heavy server-only packages
   serverExternalPackages: [],
 
@@ -67,7 +82,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/backend/:path*',
-        destination: `${process.env.API_URL || 'http://localhost:4000'}/api/v1/:path*`,
+        destination: `${backendApiBase()}/:path*`,
       },
     ];
   },

@@ -1,20 +1,19 @@
 import Link from 'next/link';
-import { ArrowUpRight, CreditCard, Search, ShoppingBag } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 import { policyLinks } from '@/lib/businessDetails';
 
 const groups = {
-  Discover: [{ label: 'All products', href: '/products' }, { label: 'Shop by category', href: '/categories' }, { label: 'The curated edit', href: '/products?featured=true' }, { label: 'Available to buy', href: '/products?inStock=true' }],
-  'Your NexMart': [{ label: 'Orders & tracking', href: '/orders' }, { label: 'Saved products', href: '/wishlist' }, { label: 'Profile & addresses', href: '/profile' }, { label: 'Shopping help', href: '/help' }],
-  'Good to know': policyLinks,
+  'Find your everyday': [{ label: 'Explore all products', href: '/products' }, { label: 'Shop by department', href: '/categories' }, { label: 'Shop by budget', href: '/budget' }, { label: 'Build a shopping plan', href: '/planner' }],
+  'Make yourself at home': [{ label: 'Your orders & tracking', href: '/orders' }, { label: 'Your wishlist', href: '/wishlist' }, { label: 'Account & addresses', href: '/profile' }, { label: 'Help & support', href: '/help' }, { label: 'Sell on NexMart', href: '/seller/register' }],
+  'The useful details': policyLinks,
 };
 export function Footer() {
-  return <footer className="mt-8 border-t border-[var(--border)] bg-white">
-    <div className="page-container grid gap-7 border-b border-[var(--border)] py-7 md:grid-cols-3">{[{ Icon: Search, title: 'A clearer choice', copy: 'Useful specifications, options, and side-by-side comparison.' }, { Icon: CreditCard, title: 'Review before you pay', copy: 'Item prices include GST · shipping and totals shown before ordering.' }, { Icon: ShoppingBag, title: 'Keep it all together', copy: 'Saved finds, order details, and delivery updates.' }].map(({ Icon, title, copy }) => <div key={title} className="flex items-start gap-3"><Icon size={23} className="mt-1 shrink-0 text-orange-500" aria-hidden /><div><p className="text-sm font-medium">{title}</p><p className="mt-1 text-xs leading-relaxed text-muted">{copy}</p></div></div>)}</div>
-    <div className="page-container grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr] lg:py-12">
-      <div><Link href="/" className="inline-flex min-h-11 items-center gap-2" aria-label="NexMart home"><Logo size={30} /><span className="font-outfit text-2xl font-semibold">NexMart</span></Link><p className="mt-4 max-w-xs text-sm leading-relaxed text-muted">Good finds. Thoughtful details.<br />A little more your kind of everyday.</p><Link href="/about" className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm text-secondary">Get to know NexMart <ArrowUpRight size={15} aria-hidden /></Link></div>
-      {Object.entries(groups).map(([title, items]) => <nav key={title} aria-label={title}><h2 className="mb-3 text-sm font-semibold">{title}</h2><ul>{items.map(item => <li key={item.href}><Link href={item.href} className="inline-flex min-h-11 items-center text-sm text-muted hover:text-[var(--text-primary)]">{item.label}</Link></li>)}</ul></nav>)}
+  return <footer className="market-footer mt-8">
+    <div className="page-container grid gap-9 py-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1.1fr_1fr]">
+      <div><Link href="/" className="brand-wordmark" aria-label="NexMart home"><Logo size={36} />NexMart<small>.</small></Link><p className="mt-5 max-w-xs text-sm leading-relaxed">Good finds for a life that’s yours.<br />A little more thoughtful. A little more everyday.</p><Link href="/about" className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm">Get to know us <ArrowUpRight size={15} aria-hidden /></Link><div className="mt-5 flex flex-wrap gap-2" aria-label="Payment methods"><span className="payment-wordmark">UPI</span><span className="payment-wordmark">CARDS</span><span className="payment-wordmark">NETBANKING</span><span className="payment-wordmark">COD</span></div><p className="mt-3 text-xs">Online payments via Razorpay.</p></div>
+      {Object.entries(groups).map(([title, items]) => <nav key={title} aria-label={title}><h2 className="mb-3 font-semibold">{title}</h2><ul>{items.map(item => <li key={item.href}><Link href={item.href} className="inline-flex min-h-11 items-center text-xs">{item.label}</Link></li>)}</ul></nav>)}
     </div>
-    <div className="border-t border-[var(--border)]"><div className="page-container flex flex-wrap items-center justify-between gap-3 py-5 text-xs text-muted"><p>© {new Date().getFullYear()} NexMart</p><p>INR · Prices include GST · Online payments via Razorpay · COD where available</p></div></div>
+    <div className="footer-rule border-t"><div className="page-container flex flex-wrap items-center justify-between gap-3 py-5 text-xs"><p>© {new Date().getFullYear()} NexMart. Made for your everyday.</p><p>India · INR ₹ · Applicable taxes included</p></div></div>
   </footer>;
 }

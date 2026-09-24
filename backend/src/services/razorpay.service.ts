@@ -67,15 +67,33 @@ export async function fetchPayment(paymentId: string): Promise<{
   };
 }
 
-/**
- * Full refund of a captured payment. Returns the Razorpay refund record.
- * (An empty params object = refund the entire amount.)
- */
-export async function refundPayment(paymentId: string): Promise<{ id: string; status: string; amount: number }> {
-  const refund = await razorpay.payments.refund(paymentId, {});
-  return {
-    id: refund.id as string,
-    status: refund.status as string,
-    amount: refund.amount as number,
-  };
+export interface ProviderRefund {
+  id: string;
+  status: string;
+  amount: number;
+  payment_id: string;
+  currency: string;
+  receipt?: string | null;
+}
+
+/** Razorpay treats receipt as the refund idempotency key. Always submit the
+ * stored receipt and exact captured amount, including after ambiguous errors. */
+export async function refundPayment(paymentId: string, amountPaise: number, receipt: string): Promise<ProviderRefund> {
+  return await razorpay.payments.refund(paymentId, { amount: amountPaise, receipt }) as ProviderRefund;
+}
+
+export async function fetchRefund(refundId: string): Promise<ProviderRefund> {
+  return await razorpay.refunds.fetch(refundId) as ProviderRefund;
+}
+
+export async function findRefundByReceipt(paymentId: string, receipt: string): Promise<ProviderRefund | undefined> {
+  // A full-refund request should normally have zero or one provider record.
+  // Paginate so earlier partial/dashboard refunds cannot hide our receipt.
+  for (let skip = 0; skip < 1000; skip += 100) {
+    const page = await razorpay.payments.fetchMultipleRefund(paymentId, { count: 100, skip });
+    const match = page.items.find(item => item.receipt === receipt);
+    if (match) return match as ProviderRefund;
+    if (page.items.length < 100) return undefined;
+  }
+  throw new Error('Refund history requires manual reconciliation.');
 }

@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard, Package, ShoppingBag, Users, Truck, Store,
   BarChart3, LogOut, X, ChevronRight, FolderTree, User, ClipboardList,
-  Percent, Scale,
+  Percent, Scale, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -19,6 +19,7 @@ const navItems = [
   { icon: Package,         label: 'Products',   href: '/admin/products' },
   { icon: FolderTree,      label: 'Categories', href: '/admin/categories' },
   { icon: ShoppingBag,     label: 'Orders',     href: '/admin/orders' },
+  { icon: MessageSquare,   label: 'Customer care', href: '/admin/support' },
   { icon: Users,           label: 'Customers',  href: '/admin/users' },
   { icon: Store,           label: 'Sellers',    href: '/admin/sellers' },
   { icon: ClipboardList,   label: 'Listings',   href: '/admin/listings' },
@@ -65,7 +66,7 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
       <div className="flex items-center justify-between p-6 border-b border-white/5 shrink-0">
         <Link href="/" className="flex items-center gap-2.5">
           <Logo size={26} />
-          <span className="font-outfit font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">NexMart</span>
+          <span className="font-outfit font-bold text-lg text-[var(--brand)]">NexMart</span>
         </Link>
         <div className="flex items-center gap-2 ml-auto">
           <LiveSyncBadge />
@@ -85,7 +86,7 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
 
       {/* Nav */}
       <nav className="flex-1 p-4 space-y-0.5 overflow-y-auto">
-        <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-3 mb-3">
+        <p className="text-xs font-semibold text-muted uppercase tracking-wider px-3 mb-3">
           Navigation
         </p>
         {navItems.map(({ icon: Icon, label, href }) => {
@@ -96,9 +97,9 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
               href={href}
               onClick={onClose}
               className={cn(
-                'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200',
+                'flex min-h-11 items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200',
                 isActive
-                  ? 'text-white bg-violet-600/20 border border-violet-500/30'
+                  ? 'text-[var(--brand)] bg-[#EAF0F5] border border-[#CBD8E4]'
                   : 'text-secondary hover:text-white hover:bg-white/[0.06]',
               )}
             >
@@ -123,7 +124,7 @@ export const AdminSidebar = memo(function AdminSidebar({ onClose }: AdminSidebar
                 <p className="text-sm font-medium text-white truncate leading-tight">
                   {displayName || <span className="text-muted italic text-xs">Loading…</span>}
                 </p>
-                <p className="text-[10px] text-muted truncate mt-0.5">
+                <p className="text-xs text-muted truncate mt-0.5">
                   {displayEmail}
                 </p>
               </>

@@ -42,8 +42,31 @@ describe('cart mutation consistency', () => {
     const adding = store.getState().addItem('product', 'sku');
     await new Promise(resolve => setTimeout(resolve, 0));
     store.getState().reset();
-    change.resolve(payload([item])); await adding;
+    change.resolve(payload([item])); await expect(adding).rejects.toThrow('cart session changed');
     expect(store.getState().items).toEqual([]);
     expect(store.getState().isOpen).toBe(false);
+  });
+  it('rejects a quiet planner add when the response is lost, even after cart reconciliation', async () => {
+    const { useCartStore: store } = await import('./cartStore');
+    store.setState({ owner: 'guest', ready: true });
+    api.post.mockRejectedValue(new Error('response lost'));
+    api.get.mockResolvedValue(payload([item]));
+    await expect(store.getState().addItem('product', 'sku', 1, undefined, false)).rejects.toThrow('response lost');
+    expect(store.getState().items).toEqual([item]);
+    expect(store.getState().isOpen).toBe(false);
+  });
+
+  it('rejects a queued add that was skipped by an account change', async () => {
+    const { useCartStore: store } = await import('./cartStore');
+    const loading = deferred<ReturnType<typeof payload>>();
+    api.get.mockReturnValue(loading.promise);
+    const fetching = store.getState().fetchCart();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const adding = store.getState().addItem('product', 'sku', 1, undefined, false);
+    store.getState().reset();
+    loading.resolve(payload([]));
+    await fetching;
+    await expect(adding).rejects.toThrow('cart session changed');
+    expect(api.post).not.toHaveBeenCalled();
   });
 });

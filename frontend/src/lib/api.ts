@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { backendApiBase } from './apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+const API_URL = typeof window === 'undefined' ? backendApiBase() : '/api/backend';
 let memoryAccessToken: string | null = null;
 let expiringSession = false;
 
@@ -11,7 +12,7 @@ function createRequestId(): string {
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 8000, // 8s — fail fast; 30s was hiding real network issues
+  timeout: 20000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // critical: allows sending cookies cross-origin
 });

@@ -32,6 +32,10 @@ import { SellerInventory } from '../models/SellerInventory';
 import { Product } from '../models/Product';
 import { FulfillmentGroup } from '../models/FulfillmentGroup';
 import { Shipment } from '../models/Shipment';
+import { Order } from '../models/Order';
+import { DeliveryAssignment } from '../models/DeliveryAssignment';
+import { MarketplaceLedgerEntry } from '../models/MarketplaceLedgerEntry';
+import { persistOrderLifecycle } from '../services/orderLifecycle.service';
 
 let app: Application;
 const sellerPassword = 'SellerPass1';
@@ -104,6 +108,82 @@ afterAll(async () => { await stopTestDb(); });
 beforeEach(async () => { await clearCollections(); });
 
 describe('seller fulfillment isolation and shipment idempotency', () => {
+  it('rolls back the order, seller stock and delivery assignment together', async () => {
+    const data = await fixture();
+    const order = (await Order.findById(data.groups[0].order))!;
+    order.orderStatus = 'cancelled';
+    await expect(persistOrderLifecycle(order, async session => {
+      await DeliveryAssignment.create([{ order: order._id, agent: new mongoose.Types.ObjectId() }], { session });
+      throw new Error('Simulated assignment failure');
+    })).rejects.toThrow('Simulated assignment failure');
+    expect((await Order.findById(order._id))?.orderStatus).toBe('placed');
+    expect(await DeliveryAssignment.countDocuments()).toBe(0);
+    expect(await FulfillmentGroup.countDocuments({ status: 'placed' })).toBe(2);
+    const stock = await SellerInventory.findById(data.sellerA.inventory._id);
+    expect(stock?.toObject()).toMatchObject({ available: 1, reserved: 1 });
+  });
+
+  it('requires prepared packages, synchronizes delivery, and records COD once', async () => {
+    const data = await fixture();
+    const early = (await Order.findById(data.groups[0].order))!;
+    early.orderStatus = 'shipped';
+    await expect(persistOrderLifecycle(early)).rejects.toThrow('ready for pickup');
+    expect((await Order.findById(early._id))?.orderStatus).toBe('placed');
+    for (const group of data.groups) {
+      const cookie = String(group.seller) === data.sellerA.id ? data.sellerA.cookie : data.sellerB.cookie;
+      for (const status of ['confirmed', 'processing', 'ready_for_pickup']) {
+        expect((await patch(app, `/api/v1/seller/fulfillment-groups/${group._id}/status`, { status }, cookie)).status).toBe(200);
+      }
+      expect((await post(app, `/api/v1/seller/fulfillment-groups/${group._id}/shipment`, {}, cookie)).status).toBe(201);
+    }
+    let order = (await Order.findById(early._id))!;
+    order.orderStatus = 'shipped';
+    await persistOrderLifecycle(order);
+    expect(await FulfillmentGroup.countDocuments({ order: order._id, status: 'shipped' })).toBe(2);
+    expect(await Shipment.countDocuments({ order: order._id, status: 'in_transit' })).toBe(2);
+    order.orderStatus = 'delivered'; order.paymentStatus = 'paid';
+    await persistOrderLifecycle(order);
+    const entries = await MarketplaceLedgerEntry.find({ order: order._id });
+    expect(entries.length).toBeGreaterThan(1);
+    expect(entries.reduce((sum, entry) => sum + (entry.direction === 'debit' ? entry.amountPaise : -entry.amountPaise), 0)).toBe(0);
+    order = (await Order.findById(order._id))!;
+    await persistOrderLifecycle(order);
+    expect(await MarketplaceLedgerEntry.countDocuments({ order: order._id })).toBe(entries.length);
+    order.orderStatus = 'returned';
+    await persistOrderLifecycle(order);
+    expect((await SellerInventory.findById(data.sellerA.inventory._id))?.toObject()).toMatchObject({ available: 1, committed: 0, returned: 1 });
+    expect(await Shipment.countDocuments({ order: order._id, status: 'returned' })).toBe(2);
+  });
+
+  it('rejects a stale order update after cancellation and releases stock only once', async () => {
+    const data = await fixture();
+    const order = (await Order.findById(data.groups[0].order))!;
+    const stale = (await Order.findById(order._id))!;
+    order.orderStatus = 'cancelled';
+    await persistOrderLifecycle(order);
+    stale.orderStatus = 'confirmed';
+    await expect(persistOrderLifecycle(stale)).rejects.toMatchObject({ name: 'VersionError' });
+    await persistOrderLifecycle((await Order.findById(order._id))!);
+    expect((await Order.findById(order._id))?.orderStatus).toBe('cancelled');
+    expect((await SellerInventory.findById(data.sellerA.inventory._id))?.toObject()).toMatchObject({ available: 2, reserved: 0 });
+    expect(await FulfillmentGroup.countDocuments({ status: 'cancelled' })).toBe(2);
+  });
+
+  it('scopes dashboard workload to the seller and excludes unpaid online orders', async () => {
+    const data = await fixture();
+    const dashboard = await get(app, '/api/v1/seller/dashboard', data.sellerA.cookie);
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.body.data.listings.published).toBe(1);
+    expect(dashboard.body.data.lowStockCount).toBe(1);
+    expect(dashboard.body.data.lowStock[0].listingId).toBe(String(data.sellerA.listing._id));
+    expect(dashboard.body.data.actionQueue).toHaveLength(1);
+    expect(dashboard.body.data.actionQueue[0]._id).toBe(String(data.groups.find(group => String(group.seller) === data.sellerA.id)!._id));
+    await Order.updateOne({ _id: data.groups[0].order }, { paymentMethod: 'online', paymentStatus: 'pending' });
+    expect((await get(app, '/api/v1/seller/dashboard', data.sellerA.cookie)).body.data.actionQueue).toHaveLength(0);
+    const blocked = await patch(app, `/api/v1/seller/fulfillment-groups/${data.groups.find(group => String(group.seller) === data.sellerA.id)!._id}/status`, { status: 'confirmed' }, data.sellerA.cookie);
+    expect(blocked.status).toBe(409);
+  });
+
   it('denies cross-seller reads and writes, and releases only the cancelled group', async () => {
     const data = await fixture();
     const groupA = data.groups.find((group) => String(group.seller) === data.sellerA.id)!;
@@ -133,6 +213,9 @@ describe('seller fulfillment isolation and shipment idempotency', () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(200);
     expect(String(first.body.data._id)).toBe(String(second.body.data._id));
+    const detail = await get(app, `/api/v1/seller/fulfillment-groups/${groupB._id}`, data.sellerB.cookie);
+    expect(detail.body.data.shipment.shipmentId).toBe(first.body.data.shipmentId);
+    expect(detail.body.data.shippingAddress).toMatchObject({ fullName: address.fullName, pincode: address.pincode });
     expect(await Shipment.countDocuments({ fulfillmentGroup: groupB._id })).toBe(1);
     expect((await SellerInventory.findById(data.sellerB.inventory._id))?.toObject()).toMatchObject({ available: 1, reserved: 0, committed: 1 });
   });

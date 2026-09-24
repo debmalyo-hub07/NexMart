@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { useUIStore } from '@/store/uiStore';
 import { Overlay } from '@/components/common/Overlay';
 import { formatPrice, formatDate } from '@/lib/utils';
+import { ProductImage } from '@/components/product/ProductImage';
 
 type FulfillmentGroupStatus = 'placed' | 'confirmed' | 'processing' | 'ready_for_pickup' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
 
@@ -18,16 +19,16 @@ type FulfillmentGroupDetail = {
   id: string;
   groupId: string;
   status: FulfillmentGroupStatus;
-  items: { name: string; variant: string; quantity: number; unitPricePaise: number }[];
+  items: { name: string; image?: string; variant: string; quantity: number; unitPricePaise: number }[];
   totalPaise: number;
   subtotalPaise: number;
   discountPaise: number;
   shippingPaise: number;
   taxPaise: number;
-  orderSummary?: { orderId: string; paymentStatus: string; createdAt: string };
-  shippingAddress?: { name: string; addressLine1: string; addressLine2?: string; city: string; state: string; pinCode: string; phone: string };
+  orderSummary?: { orderId: string; orderStatus: string; paymentStatus: string; paymentMethod: string; taxStatus?: string; createdAt: string };
+  shippingAddress?: { fullName: string; addressLine1: string; addressLine2?: string; city: string; state: string; pincode: string; phone: string };
   statusHistory?: { status: string; timestamp: string; note?: string }[];
-  shipment?: any; // The ID is passed if populated, wait... it might be an object if populated in getSellerFulfillmentGroup
+  shipment?: string | { shipmentId: string; trackingId?: string; status: string };
 };
 
 const actions: Partial<Record<FulfillmentGroupStatus, { next: FulfillmentGroupStatus; label: string; tone: 'primary' | 'danger' }[]>> = {
@@ -110,8 +111,9 @@ export default function SellerOrderDetailPage() {
             <h2 className="mb-4 text-lg font-semibold text-white">Items</h2>
             <div className="divide-y divide-white/10">
               {group.items.map((item, i) => (
-                <div key={i} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                  <div>
+                <div key={i} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="product-stage relative h-16 w-16 shrink-0 rounded-lg"><ProductImage src={item.image} alt="" sizes="64px" className="p-1" /></div>
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-white">{item.name}</p>
                     {item.variant && <p className="text-sm text-secondary">Variant: {item.variant}</p>}
                     <p className="text-sm text-secondary">Qty: {item.quantity}</p>
@@ -164,10 +166,10 @@ export default function SellerOrderDetailPage() {
             <h2 className="mb-4 text-lg font-semibold text-white">Customer & Shipping</h2>
             {group.shippingAddress ? (
               <div className="text-sm text-secondary">
-                <p className="font-medium text-white">{group.shippingAddress.name}</p>
+                <p className="font-medium text-white">{group.shippingAddress.fullName}</p>
                 <p className="mt-1">{group.shippingAddress.addressLine1}</p>
                 {group.shippingAddress.addressLine2 && <p>{group.shippingAddress.addressLine2}</p>}
-                <p>{group.shippingAddress.city}, {group.shippingAddress.state} {group.shippingAddress.pinCode}</p>
+                <p>{group.shippingAddress.city}, {group.shippingAddress.state} {group.shippingAddress.pincode}</p>
                 <p className="mt-2">Phone: {group.shippingAddress.phone}</p>
               </div>
             ) : (
@@ -186,10 +188,10 @@ export default function SellerOrderDetailPage() {
                 <span className="text-secondary">Shipping</span>
                 <span className="text-white">{formatPrice(group.shippingPaise / 100)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-secondary">Tax</span>
+              {group.orderSummary?.taxStatus === 'complete' && <div className="flex justify-between">
+                <span className="text-secondary">Included GST</span>
                 <span className="text-white">{formatPrice(group.taxPaise / 100)}</span>
-              </div>
+              </div>}
               {group.discountPaise > 0 && (
                 <div className="flex justify-between text-acid-400">
                   <span>Discount</span>

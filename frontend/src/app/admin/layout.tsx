@@ -52,11 +52,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [on, queryClient, showToast, isAuthPage]);
 
   if (isAuthPage) {
-    return <div className="min-h-screen bg-space-900">{children}</div>;
+    return <div className="auth-shell">{children}</div>;
   }
 
   return (
-    <div className="min-h-screen bg-space-900">
+    <div className="workspace-shell min-h-screen">
       {/* Desktop sidebar — fixed to the viewport so it keeps a stable height;
           its internal nav scrolls independently if it ever overflows */}
       <div className="hidden lg:flex fixed inset-y-0 left-0 z-30">
@@ -105,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <Menu size={20} />
         </button>
-        <span className="font-outfit font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 flex-1">Admin Panel</span>
+        <span className="font-outfit font-bold text-[var(--brand)] flex-1">Admin Panel</span>
         <LiveSyncBadge />
       </div>
 

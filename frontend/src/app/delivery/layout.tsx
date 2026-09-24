@@ -15,11 +15,11 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
   const isAuthPage = pathname?.startsWith('/delivery/login') || pathname?.startsWith('/delivery/register');
 
   if (isAuthPage) {
-    return <div className="min-h-screen bg-space-900">{children}</div>;
+    return <div className="auth-shell">{children}</div>;
   }
 
   return (
-    <div className="min-h-[100svh] bg-space-900 flex flex-col">
+    <div className="workspace-shell min-h-[100svh] flex flex-col">
       {/* Persistent Header */}
       <div className="glass border-b border-white/5 sticky top-0 z-10">
         <div className="page-container flex min-h-16 items-center gap-3 py-2">
@@ -27,7 +27,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
             <Logo size={30} />
           </Link>
           <div className="flex-1">
-            <h1 className="font-outfit text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 leading-none">
+            <h1 className="font-outfit text-lg font-bold text-[var(--brand)] leading-none">
               {pathname?.includes('/profile') ? 'Agent Profile' : 'Delivery Dashboard'}
             </h1>
           </div>

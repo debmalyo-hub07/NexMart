@@ -61,8 +61,8 @@ export const SellerSidebar = memo(function SellerSidebar({ onClose }: SellerSide
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b border-white/5 shrink-0">
         <Link href="/seller/dashboard" className="flex items-center gap-2.5">
-          <Store size={26} className="text-violet-400" />
-          <span className="font-outfit font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">Seller Hub</span>
+          <Logo size={30} />
+          <span className="font-outfit font-bold text-lg text-[var(--brand)]">NexMart seller</span>
         </Link>
         <div className="flex items-center gap-2 ml-auto">
           {onClose && (
@@ -81,7 +81,7 @@ export const SellerSidebar = memo(function SellerSidebar({ onClose }: SellerSide
 
       {/* Nav */}
       <nav className="flex-1 p-4 space-y-0.5 overflow-y-auto">
-        <p className="text-[10px] font-semibold text-muted uppercase tracking-wider px-3 mb-3">
+        <p className="text-xs font-semibold text-muted uppercase tracking-wider px-3 mb-3">
           Navigation
         </p>
         {navItems.map(({ icon: Icon, label, href }) => {
@@ -92,9 +92,9 @@ export const SellerSidebar = memo(function SellerSidebar({ onClose }: SellerSide
               href={href}
               onClick={onClose}
               className={cn(
-                'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200',
+                'flex min-h-11 items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200',
                 isActive
-                  ? 'text-white bg-violet-600/20 border border-violet-500/30'
+                  ? 'text-[var(--brand)] bg-[#EAF0F5] border border-[#CBD8E4]'
                   : 'text-secondary hover:text-white hover:bg-white/[0.06]',
               )}
             >

@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+// bcrypt only uses the first 72 UTF-8 bytes. Reject longer new passwords so
+// two different suffixes can never silently become the same credential.
+export const passwordSchema = z.string()
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number')
+  .refine(value => Buffer.byteLength(value, 'utf8') <= 72, 'Password must fit within 72 UTF-8 bytes; use fewer characters.');
+
 // POST /cart/merge body — MUST match the payload authStore.ts sends:
 // { items: [{ product, variant, quantity }] }. (The original schema expected a
 // bare array, which the frontend never sends — every login merge 400'd.)
@@ -17,9 +24,7 @@ export const cartMergeSchema = z.object({
 // the frontend PasswordModal enforces (min 8, upper + lower + digit).
 export const passwordChangeSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number'),
+  password: passwordSchema,
 });
 
 // Password reset. The email is the only input on request; the code plus the
@@ -33,9 +38,7 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   otp: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number'),
+  password: passwordSchema,
 });
 
 // POST /customer/set-password — for accounts created through Google, which
@@ -43,19 +46,13 @@ export const resetPasswordSchema = z.object({
 // proof instead.
 export const setPasswordSchema = z.object({
   otp: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number'),
+  password: passwordSchema,
 });
 
 // The single server-side password policy for EVERY registration path
 // (customer / agent / admin). Frontend-only rules are not validation: an API
 // caller could previously create an account whose password was the empty
 // string (audit 2026-09-22 §B3).
-export const passwordSchema = z.string()
-  .min(8, 'Password must be at least 8 characters')
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number');
-
 // POST/PUT /customer/address — previously `push(req.body)` and
 // `Object.assign(addr, req.body)`: unvalidated mass assignment into the
 // subdocument (audit §C1). Mirrors frontend lib/address.ts; unknown keys

@@ -17,6 +17,7 @@ test-results/
 .next-before/
 .next-verify/
 .next-final/
+.next-rebuild/
 
 # Environment files — NEVER commit these
 .env

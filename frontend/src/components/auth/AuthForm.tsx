@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { safeReturnPath } from '@/lib/apiUrl';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -10,9 +12,10 @@ import { Logo } from '@/components/common/Logo';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
-import { Loader2, Eye, EyeOff, ArrowUpRight, Bookmark, GitCompareArrows, Package } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ArrowLeft, ArrowRight } from 'lucide-react';
 import { businessDetails } from '@/lib/businessDetails';
 import { signIn } from 'next-auth/react';
+import { passwordSchema } from '@/lib/password';
 
 interface Field {
   name: string;
@@ -47,7 +50,7 @@ function autocompleteForField(field: Field, formType: AuthFormProps['type']): st
 }
 
 // Validation rules per field, derived from the fields prop
-const fieldSchema = (field: Field, formType: AuthFormProps['type']): z.ZodString => {
+const fieldSchema = (field: Field, formType: AuthFormProps['type']): z.ZodType<string> => {
   if (field.name === 'email') return z.string().min(1, 'Enter your email').email('Enter a valid email address');
   if (field.type === 'password') {
     if (field.name === 'confirmPassword') return z.string().min(1, 'Confirm your password');
@@ -57,9 +60,7 @@ const fieldSchema = (field: Field, formType: AuthFormProps['type']): z.ZodString
     if (formType === 'login') return z.string().min(1, 'Enter your password');
     // Same policy the backend enforces (utils/validation.ts) — a weaker rule
     // here would let a signup fail server-side after the form said it was fine.
-    return z.string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number');
+    return passwordSchema;
   }
   if (field.name === 'phone') return z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number');
   if (field.name === 'pincode') return z.string().regex(/^\d{6}$/, 'Enter a valid 6-digit pincode');
@@ -68,6 +69,7 @@ const fieldSchema = (field: Field, formType: AuthFormProps['type']): z.ZodString
 
 export function AuthForm({ type, portal, title, fields, submitText, linkText, linkHref, redirectUrl, note, showGoogle }: AuthFormProps) {
   const router = useRouter();
+  const returnDestination = () => safeReturnPath(new URLSearchParams(window.location.search).get('redirect'), redirectUrl);
   const { showToast } = useUIStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,7 +77,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
 
   // Build the zod schema dynamically from the fields prop
   const schema = useMemo(() => {
-    const shape = Object.fromEntries(fields.map((f) => [f.name, fieldSchema(f, type)] as [string, z.ZodString]));
+    const shape = Object.fromEntries(fields.map((f) => [f.name, fieldSchema(f, type)] as [string, z.ZodType<string>]));
     const base = z.object(shape);
     return type === 'register'
       ? base.refine((values) => values.password === values.confirmPassword, {
@@ -146,7 +148,7 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
 
         // Push to dashboard — no router.refresh() to avoid race condition
         // The session is already updated by NextAuth after signIn resolves
-        router.push(redirectUrl);
+        router.push(returnDestination());
       }
     } catch (err: any) {
       // Extract server error message from response if available
@@ -166,136 +168,70 @@ export function AuthForm({ type, portal, title, fields, submitText, linkText, li
     }
   };
 
+  const isSeller = portal === 'seller';
   return (
-    <main id="main-content" className="relative flex min-h-[100svh] items-center justify-center gap-16 overflow-hidden bg-space-950 p-4 py-8 lg:px-12">
-      <div className="absolute inset-0 z-0 pointer-events-none bg-hero-gradient opacity-50" aria-hidden="true" />
-
-      {portal === 'customer' && <aside className="relative z-10 hidden w-full max-w-md lg:block"><Link href="/" className="mb-14 inline-flex min-h-11 items-center gap-3"><Logo size={36} /><span className="font-outfit text-2xl font-semibold">NexMart</span></Link><p className="eyebrow mb-5 text-violet-200">A little more your kind of everyday</p><h2 className="text-5xl font-medium leading-[1.08]">Good finds.<br />All in one place.</h2><p className="mt-6 max-w-sm text-sm leading-relaxed text-secondary">Your account brings the things you love a little closer. Pick up where you left off.</p><ul className="mt-9 space-y-5">{[{ Icon: Bookmark, copy: 'Keep your favourite finds for later.' }, { Icon: GitCompareArrows, copy: 'Compare the details that matter.' }, { Icon: Package, copy: 'Follow every order, from one place.' }].map(({ Icon, copy }) => <li key={copy} className="flex items-center gap-3 text-sm text-secondary"><Icon size={20} className="text-violet-200" aria-hidden />{copy}</li>)}</ul><Link href="/products" className="mt-10 inline-flex min-h-11 items-center gap-2 text-sm text-muted">Just browsing? Explore the collection <ArrowUpRight size={16} aria-hidden /></Link></aside>}
-      <div className="relative z-10 w-full max-w-[440px] rounded-2xl border border-white/20 bg-space-800 p-6 sm:p-8">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-3 mb-8 group">
-            <Logo size={38} className="transition-transform group-hover:scale-105" />
-            <span className="font-outfit font-bold text-2xl text-white tracking-tight">NexMart</span>
-          </Link>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2 font-outfit">{title}</h1>
-          <p className="text-sm text-muted font-inter">{type === 'login'
-            ? portal === 'seller' ? 'Sign in to your NexMart seller account' : 'Sign in to your NexMart account'
-            : portal === 'seller' ? 'Apply to sell on NexMart' : 'Create your NexMart account'}</p>
+    <main id="main-content" className="auth-page">
+      <aside className="auth-story">
+        <Image src={`/images/collections/${isSeller ? 'workspace' : 'living-room'}.webp`} alt="" fill sizes="50vw" priority />
+        <div className="auth-story-shade" aria-hidden="true" />
+        <Link href="/" className="brand-wordmark"><Logo size={36} /><span>NexMart</span></Link>
+        <div className="auth-story-copy">
+          <span className="eyebrow">{isSeller ? 'Room for your business to grow' : 'For the way you live'}</span>
+          <h2>{isSeller ? <>Your products.<br />Their next great find.</> : <>Good finds.<br />Everyday possibilities.</>}</h2>
+          <p>{isSeller ? 'Manage your catalogue, prepare orders and understand your earnings in one focused workspace.' : 'Save the things you love, compare the details and follow your orders. A little more organised. A lot more you.'}</p>
+          <div className="auth-story-points" aria-label="Account features">
+            {(isSeller ? ['Catalogue & inventory', 'Order management', 'Fee breakdowns'] : ['Saved favourites', 'Useful comparisons', 'Order updates']).map(point => <span key={point}>{point}</span>)}
+          </div>
         </div>
+      </aside>
+      <section className="auth-panel" aria-labelledby="auth-title">
+        <div className="auth-panel-inner">
+          <Link href="/" className="auth-back"><ArrowLeft size={16} aria-hidden /> Back to the store</Link>
+          <Link href="/" className="brand-wordmark auth-mobile-brand mb-8 mt-5"><Logo size={32} /><span>NexMart</span></Link>
+          <p className="eyebrow mt-8">{isSeller ? 'NexMart seller' : portal === 'customer' ? 'Your NexMart account' : `${portal} access`}</p>
+          <h1 id="auth-title">{title}</h1>
+          <p className="auth-intro">{type === 'login' ? 'Welcome back. Pick up where you left off.' : isSeller ? 'Start with your details. We will guide you through store setup.' : 'Make your next shopping trip a little easier.'}</p>
 
-        {error && (
-          <div role="alert" aria-live="polite" className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm text-center font-inter">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" suppressHydrationWarning>
-          {fields.map((field) => (
-            <div key={field.name} className="space-y-1.5">
-              <label htmlFor={`auth-${field.name}`} className="block text-xs font-medium text-secondary ml-1 uppercase tracking-wider font-inter">{field.label}</label>
-              <div className="relative">
-                {field.type === 'select' ? (
-                  <select
-                    id={`auth-${field.name}`}
-                    suppressHydrationWarning
-                    {...register(field.name)}
-                    aria-invalid={errors[field.name] ? 'true' : 'false'}
-                    aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined}
-                    className="input min-h-12 appearance-none"
-                  >
-                    <option value="">Select {field.label.toLowerCase()}</option>
-                    {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                ) : <input
-                  id={`auth-${field.name}`}
-                  suppressHydrationWarning
-                  type={field.type === 'password' && visibleFields[field.name] ? 'text' : field.type}
-                  {...register(field.name)}
-                  autoComplete={autocompleteForField(field, type)}
-                  aria-invalid={errors[field.name] ? 'true' : 'false'}
-                  aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined}
-                  className="input min-h-12 pr-14"
-                  placeholder={`Enter your ${field.label.toLowerCase()}…`}
-                />}
-                {field.type === 'password' && (
-                  <button
-                    type="button"
-                    onClick={() => setVisibleFields((prev) => ({ ...prev, [field.name]: !prev[field.name] }))}
-                    aria-label={visibleFields[field.name] ? `Hide ${field.label.toLowerCase()}` : `Show ${field.label.toLowerCase()}`}
-                    aria-pressed={!!visibleFields[field.name]}
-                    className="absolute right-2 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-muted transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
-                  >
-                    {visibleFields[field.name] ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
-                  </button>
-                )}
+          {error && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+            {fields.map(field => (
+              <div key={field.name}>
+                <label htmlFor={`auth-${field.name}`} className="field-label mb-2 block font-semibold">{field.label}</label>
+                <div className="relative">
+                  {field.type === 'select' ? (
+                    <select id={`auth-${field.name}`} {...register(field.name)} aria-invalid={!!errors[field.name]} aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined} className="input">
+                      <option value="">Select {field.label.toLowerCase()}</option>
+                      {field.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  ) : (
+                    <input id={`auth-${field.name}`} type={field.type === 'password' && visibleFields[field.name] ? 'text' : field.type} {...register(field.name)} autoComplete={autocompleteForField(field, type)} aria-invalid={!!errors[field.name]} aria-describedby={errors[field.name] ? `auth-${field.name}-error` : undefined} className={`input ${field.type === 'password' ? 'pr-14' : ''}`} placeholder={field.name === 'email' ? 'you@example.com' : undefined} />
+                  )}
+                  {field.type === 'password' && <button type="button" onClick={() => setVisibleFields(previous => ({ ...previous, [field.name]: !previous[field.name] }))} aria-label={`${visibleFields[field.name] ? 'Hide' : 'Show'} ${field.label.toLowerCase()}`} aria-pressed={!!visibleFields[field.name]} className="absolute right-1 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-muted hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">{visibleFields[field.name] ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}</button>}
+                </div>
+                {errors[field.name] && <p id={`auth-${field.name}-error`} role="alert" className="mt-2 text-xs text-red-800">{errors[field.name]?.message}</p>}
               </div>
-              {errors[field.name] && (
-                <p id={`auth-${field.name}-error`} role="alert" className="text-xs text-red-300 mt-1">{errors[field.name]?.message}</p>
-              )}
-            </div>
-          ))}
+            ))}
+            <button type="submit" disabled={loading} className="btn-primary w-full gap-2 py-3.5">{loading ? <><Loader2 size={18} className="animate-spin" aria-hidden /> Signing {type === 'login' ? 'in' : 'up'}…</> : <>{submitText}<ArrowRight size={16} aria-hidden /></>}</button>
+            {loading && <p role="status" className="text-xs leading-5 text-muted">Connecting to your account. The first request can take a little longer.</p>}
+          </form>
 
-          <button
-            suppressHydrationWarning
-            type="submit"
-            disabled={loading}
-            className="w-full relative overflow-hidden group bg-white text-black hover:text-white font-semibold rounded-xl py-3.5 mt-4 transition-[color,opacity] flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed font-outfit"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <span className="relative z-10 flex items-center gap-2">
-              {loading ? <Loader2 size={18} className="animate-spin" /> : submitText}
-            </span>
-          </button>
-        </form>
-
-        {type === 'login' && portal === 'customer' && (
-          <div className="mt-4 text-center">
-            <Link href="/customer/forgot-password" className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 font-inter text-sm text-secondary transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60">
-              Forgot your password?
-            </Link>
-          </div>
-        )}
-
-        {showGoogle && (
-          <>
-            <div className="flex items-center gap-3 mt-5">
-              <div className="flex-1 h-px bg-white/[0.08]" />
-              <span className="text-xs text-muted font-inter">or</span>
-              <div className="flex-1 h-px bg-white/[0.08]" />
-            </div>
-            <button
-              type="button"
-              onClick={() => signIn('google', { callbackUrl: redirectUrl })}
-              className="w-full mt-4 flex items-center justify-center gap-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 rounded-xl py-3.5 text-sm font-medium text-white transition-colors font-inter"
-            >
+          {type === 'login' && portal === 'customer' && <div className="mt-2 text-center"><Link href="/customer/forgot-password" className="text-link text-sm">Forgot your password?</Link></div>}
+          {showGoogle && <>
+            <div className="my-5 flex items-center gap-3"><span className="h-px flex-1 bg-[var(--border)]" /><span className="text-xs text-muted">or continue with</span><span className="h-px flex-1 bg-[var(--border)]" /></div>
+            <button type="button" onClick={() => void signIn('google', { callbackUrl: returnDestination() })} className="btn-secondary w-full gap-3 py-3">
               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.6-1.2 2.9-2.5 3.8v3.1h4c2.4-2.2 3.5-5.4 3.5-9.1z"/>
                 <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-4-3.1c-1.1.7-2.5 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.3v3.2C3.3 21.3 7.3 24 12 24z"/>
                 <path fill="#FBBC05" d="M5.4 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3V6.5H1.3C.5 8.1 0 10 0 12s.5 3.9 1.3 5.5l4.1-3.2z"/>
                 <path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4C18 1.2 15.2 0 12 0 7.3 0 3.3 2.7 1.3 6.5l4.1 3.2c.9-2.8 3.5-4.9 6.6-4.9z"/>
-              </svg>
-              Continue with Google
+              </svg>Google
             </button>
-          </>
-        )}
-
-        {portal === 'customer' && <p className="mt-5 text-center text-xs leading-relaxed text-muted"><Link href="/terms" className="inline-flex min-h-11 items-center underline underline-offset-4">Terms & conditions</Link><span aria-hidden> · </span><Link href="/privacy" className="inline-flex min-h-11 items-center underline underline-offset-4">Privacy notice</Link>{!businessDetails.policiesApproved && <span className="block">Policies are drafts pending business approval.</span>}</p>}
-        {note && (
-          <p className="mt-5 text-xs text-amber-400/80 text-center bg-amber-400/10 p-3 rounded-xl border border-amber-400/20 font-inter">
-            {note}
-          </p>
-        )}
-
-        {linkText && (
-          <div className="mt-8 text-center pt-6 border-t border-white/[0.05]">
-            {/* Switching between sign in and register is a primary action on
-                these pages, so it gets a real 44px target, not a 17px line. */}
-            <Link href={linkHref} className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 font-inter text-sm text-secondary transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60">
-              {linkText}
-            </Link>
-          </div>
-        )}
-      </div>
+          </>}
+          {portal === 'customer' && <p className="mt-5 text-center text-xs leading-relaxed text-muted"><Link href="/terms" className="inline-flex min-h-11 items-center underline underline-offset-4">Terms & conditions</Link><span aria-hidden> · </span><Link href="/privacy" className="inline-flex min-h-11 items-center underline underline-offset-4">Privacy notice</Link>{!businessDetails.policiesApproved && <span className="block">Policies are drafts pending business approval.</span>}</p>}
+          {note && <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900">{note}</p>}
+          {linkText && <div className="mt-7 border-t border-[var(--border)] pt-4 text-center"><Link href={linkHref} className="text-link text-sm">{linkText}<ArrowRight size={15} aria-hidden /></Link></div>}
+        </div>
+      </section>
     </main>
   );
 }

@@ -46,13 +46,14 @@ export const useAuthStore = create<AuthState>()(
         try {
           // Call direct login API to set the httpOnly cookie on the browser
           const endpointRole = role === 'agent' ? 'delivery' : role;
-          await api.post(`/auth/${endpointRole}/login`, { email, password });
+          const login = await api.post(`/auth/${endpointRole}/login`, { email, password }, { timeout: 75000 });
+          const accessToken = login.data?.data?.token;
+          if (typeof accessToken !== 'string') throw new Error('Sign-in could not be completed. Please try again.');
 
           const { signIn, getSession } = await import('next-auth/react');
           const result = await signIn('credentials', {
-            email,
-            password,
-            role, // ← critical: tells auth.ts which /api/v1/{role}/auth/login to call
+            accessToken,
+            role,
             redirect: false,
           });
 
@@ -70,6 +71,8 @@ export const useAuthStore = create<AuthState>()(
             // Set state IMMEDIATELY using session data to make login instant and prevent UI glitches
             set({
               user: {
+                _id: session.user.id,
+                id: session.user.id,
                 name: session.user?.name || 'User',
                 email: session.user?.email || email,
                 role: resolvedRole,
@@ -97,6 +100,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         const currentRole = get().user?.role || 'customer';
+        const currentToken = get().token;
         try {
           // Set cookie for persistence before logging out
           document.cookie = `last_role=${currentRole}; path=/; max-age=31536000`; // 1 year
@@ -111,11 +115,10 @@ export const useAuthStore = create<AuthState>()(
             console.error('Error clearing query cache:', e);
           }
 
-          // Reset Zustand state
+          // Finish revocation before navigation can abort the request. Preserve
+          // the bearer token until OAuth sessions have also been revoked.
+          await api.post('/auth/logout', {}, currentToken ? { headers: { Authorization: `Bearer ${currentToken}` } } : undefined);
           get().reset();
-
-          // Fire and forget the backend logout so it doesn't block the UI
-          api.post('/auth/logout').catch(() => {});
           
           let cbUrl = '/';
           if (currentRole === 'admin') cbUrl = '/admin/login';
@@ -130,8 +133,8 @@ export const useAuthStore = create<AuthState>()(
           
           await signOut({ callbackUrl: cbUrl });
         } catch {
-          clearToken();
-          get().reset();
+          const { useUIStore } = await import('@/store/uiStore');
+          useUIStore.getState().showToast('Sign-out could not be confirmed. Check your connection and try again.', 'error');
         }
       },
 

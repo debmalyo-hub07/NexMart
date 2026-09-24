@@ -111,7 +111,7 @@ beforeEach(async () => {
     status: 'captured',
     currency: 'INR',
   }));
-  const product = await Product.create({ name: 'Test phone', slug: 'test-phone', description: 'Isolated test fixture', category: new mongoose.Types.ObjectId(), createdBy: new mongoose.Types.ObjectId(), isPublished: true, variants: [{ sku: 'phone', price: 19.99, stock: 5 }, { sku: 'other', price: 200, stock: 100 }] });
+  const product = await Product.create({ name: 'Test phone', slug: 'test-phone', description: 'Isolated test fixture', taxRateBps: 1800, hsnCode: '8517', returnWindowDays: 7, category: new mongoose.Types.ObjectId(), createdBy: new mongoose.Types.ObjectId(), isPublished: true, variants: [{ sku: 'phone', price: 19.99, stock: 5 }, { sku: 'other', price: 200, stock: 100 }] });
   productId = String(product._id);
 });
 
@@ -161,6 +161,42 @@ describe('checkout identity, reviewed amounts and inventory', () => {
 });
 
 describe('marketplace checkout allocation', () => {
+  it('preserves purchase-time tax and return terms after catalog settings change', async () => {
+    const result = await place(checkout({ paymentMethod: 'cod' }));
+    expect(result.status).toHaveBeenCalledWith(201);
+    await Product.updateOne({ _id: productId }, { taxRateBps: 500, returnWindowDays: 0 });
+    const order = (await Order.findById(result.payload().data.orderId))!;
+    expect(order.taxStatus).toBe('complete');
+    expect(order.items[0]).toMatchObject({ taxRateBps: 1800, hsnCode: '8517', purchaseTerms: { returnWindowDays: 7 } });
+    expect(order.taxPaise).toBe(305);
+    expect(order.totalPaise).toBe(6899);
+  });
+
+  it('distinguishes unconfigured tax from a zero rate without inflating prices', async () => {
+    await Product.updateOne({ _id: productId }, { $unset: { taxRateBps: 1 } });
+    const result = await place(checkout({ paymentMethod: 'cod' }));
+    const order = (await Order.findById(result.payload().data.orderId))!;
+    expect(order.taxStatus).toBe('incomplete');
+    expect(order.items[0].taxRateBps).toBeUndefined();
+    expect(order.taxPaise).toBe(0);
+    expect(order.totalPaise).toBe(6899);
+  });
+
+  it('allocates mixed product tax rates and preserves cart tax settings', async () => {
+    const second = await Product.create({ name: 'Tax fixture', slug: 'tax-fixture', description: 'Test', category: new mongoose.Types.ObjectId(), createdBy: new mongoose.Types.ObjectId(), isPublished: true, taxRateBps: 500, variants: [{ sku: 'BOOK', price: 105, stock: 2 }] });
+    const result = await place(checkout({ paymentMethod: 'cod', expectedTotal: 173.99, items: [
+      { product: productId, variant: 'phone', quantity: 1, expectedPrice: 19.99 },
+      { product: String(second._id), variant: 'BOOK', quantity: 1, expectedPrice: 105 },
+    ] }));
+    expect(result.status).toHaveBeenCalledWith(201);
+    const order = (await Order.findById(result.payload().data.orderId))!;
+    expect(order.taxPaise).toBe(805);
+    expect(order.taxStatus).toBe('complete');
+    const cartResponse = response();
+    await addToCart(request({ productId, variant: 'phone', quantity: 1 }), cartResponse.res);
+    expect(cartResponse.payload().data.items[0].product.taxRateBps).toBe(1800);
+  });
+
   it('creates one parent order with isolated seller groups and inventory reservations', async () => {
     const sellerA = await offerFixture({ suffix: 'a', variant: 'phone', pricePaise: 5_000_000, stock: 1 });
     const sellerB = await offerFixture({ suffix: 'b', variant: 'other', pricePaise: 200_000, stock: 2, fulfillmentMode: 'nexmart' });

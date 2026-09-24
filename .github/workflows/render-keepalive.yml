@@ -7,7 +7,7 @@
 # cadence stays just under the cap.
 #
 # Required repository secret:
-#   RENDER_HEALTH_URL   e.g. https://nexmart-api.onrender.com/health
+#   RENDER_HEALTH_URL   e.g. https://nexmart-api.onrender.com/health/ready
 #
 # Manual run: Actions → "Render keep-alive" → Run workflow.
 
@@ -29,7 +29,7 @@ jobs:
             exit 1
           fi
           CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "${{ secrets.RENDER_HEALTH_URL }}")
-          echo "Render /health responded: $CODE"
+          echo "Render /health/ready responded: $CODE"
           # 200 = warm and healthy. Any other code (including 000 on timeout)
           # is surfaced but non-fatal: Render may be mid-redeploy. Two
           # consecutive failures would show as red runs in the Actions tab —

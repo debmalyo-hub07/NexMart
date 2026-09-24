@@ -7,7 +7,7 @@ export interface IDeliveryAssignment extends Document {
   pickedAt?: Date;
   deliveredAt?: Date;
   attemptedAt?: Date;
-  status: 'assigned' | 'picked' | 'delivered' | 'attempted' | 'returned';
+  status: 'assigned' | 'picked' | 'out_for_delivery' | 'delivered' | 'attempted' | 'returned';
 }
 
 const DeliveryAssignmentSchema = new Schema<IDeliveryAssignment>(
@@ -26,7 +26,7 @@ const DeliveryAssignmentSchema = new Schema<IDeliveryAssignment>(
       default: 'assigned',
     },
   },
-  { timestamps: true }
+  { timestamps: true, optimisticConcurrency: true }
 );
 
 DeliveryAssignmentSchema.index({ agent: 1, status: 1 });

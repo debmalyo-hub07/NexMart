@@ -26,6 +26,7 @@ import { registerAdmin, loginAdmin } from '../controllers/roleAuth.controller';
 import { sendAgentStatusEmail } from '../services/email.service';
 import { getSellerAudit, getSellerById, getSellers, updateSellerStatus } from '../controllers/seller.controller';
 import { getAllListings, getListingAudit, updateListingStatus } from '../controllers/listing.controller';
+import { getAdminOrderRequests, updateOrderRequest } from '../controllers/orderRequest.controller';
 
 const router = Router();
 
@@ -132,6 +133,8 @@ router.get('/ledger/summary', getLedgerSummary);
 // ── Orders / Products ─────────────────────────────────────────────────────────
 router.get('/products', getAllProducts);
 router.get('/orders', getAllOrders);
+router.get('/order-requests', getAdminOrderRequests);
+router.patch('/order-requests/:id', updateOrderRequest);
 router.post('/orders/:orderId/assign/:agentId', assignDeliveryAgent);
 router.post('/orders/:id/refund', refundOrder);
 

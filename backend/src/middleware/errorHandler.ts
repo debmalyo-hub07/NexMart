@@ -59,6 +59,11 @@ export function globalErrorHandler(
   }
 
   // Mongoose validation error
+  if (err.name === 'VersionError') {
+    sendError(res, 'This record changed while you were updating it. Refresh and try again.', 409, 'VERSION_CONFLICT');
+    return;
+  }
+
   if (err.name === 'ValidationError') {
     sendError(res, 'Validation error', 422, 'VALIDATION_ERROR');
     return;

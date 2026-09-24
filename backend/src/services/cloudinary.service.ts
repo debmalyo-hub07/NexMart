@@ -54,6 +54,7 @@ export async function uploadPdfBuffer(
       {
         folder: `nexmart/${folder}`,
         resource_type: 'raw',
+        type: 'authenticated',
         public_id: filename,
         format: 'pdf',
       },

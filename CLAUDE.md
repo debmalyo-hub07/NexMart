@@ -538,6 +538,21 @@ The customer storefront moved to the photo-led light theme scoped to `.storefron
 
 **Known-open after P11:** interactive browser pass (desktop/mobile journeys, keyboard, reduced motion, screenshots) pending — §G lists it as a release requirement; auth pages restyle to light is a deliberate follow-up; differentiators still to build: make-an-offer engine (backend model on `SellerListing`) and the full itemized price-transparency breakdown on PDP/checkout.
 
+### P12 — trust, marketplace depth & information premium — ✅ DONE 2026-09-24 (uncommitted: verify + commit pending)
+
+Plan: `docs/superpowers/plans/2026-09-23-trust-and-marketplace-rebuild.md`. Full list in `docs/CHANGELOG.md` (Unreleased).
+
+- **Session identity plane:** one `sessionIdentity.service` (`verifySessionClaims` + `resolveSessionIdentity`) guards HTTP, optional-cart, and Socket.IO sessions alike — role-pinned HS256 secrets, `jti` caps, per-request suspension/approval/lifecycle + `credentialsChangedAt`. Auth middleware collapsed to `protect(role)`; bearer wins over cookie; DB outages bubble as errors, never false 401s. Sockets re-verify identity before every private push and disconnect on expiry/revocation. `RevokedSession` (MongoDB TTL) is authoritative with Redis as cache, so logout survives outages. Login counters are atomic Lua `INCR+EXPIRE`; rate limiters fall back to a bounded in-process `LocalRateLimit` with `Retry-After` headers.
+- **Single sign-in:** NextAuth credentials carry the API-issued `accessToken` and verify it against `GET /{role}/profile` instead of minting a second backend token; Google is customer-only with timeouts; `jwt update` can rotate a token but never change identity/role. Same-origin `/api/backend` transport (`backendApiBase()` accepts origin or `/api/v1` without double prefixes); browser timeout 20s for cold starts; security headers (`nosniff`, `DENY`, `frame-ancestors 'none'`).
+- **Money:** leased full-refund pipeline (`RefundAttempt` 120s lease, receipt recovery, atomic ledger+order commit, `needs_review` never double-reverses, 60s reconciler); `persistOrderLifecycle` commits order+stock+packages+ledger+assignment atomically with optimistic concurrency; `pricing.service` is the one tested totals contract (free delivery above ₹999, else ₹49; contained-tax slices; mirrored boundary tests with storefront `commerce.test.ts`).
+- **After-sales:** idempotent `OrderRequest` cancel/return/help with purchase-terms eligibility and version-guarded admin queue (`/admin/support`); requests never move money/stock. Every order line snapshots seller terms + tax + fee; order page joins receipt, shipments, eligibility, and support history.
+- **Seller ops:** real dashboard aggregates (listing status, ≤5-unit low stock, paid/COD-only fulfillment queue, ledger balances); shopping planner (`/planner`) with budget meter, local persistence, and exact-quantity add-to-cart.
+- **Information premium:** true Outfit + Inter fonts; one `PolicyLayout` system (progress, scrollspy, copy-links, print) over unchanged honest drafts; About with live catalog stats; Contact with publication-status chips; Help photo hero. `Reveal` scroll motion (IO-once, compositor-only, reduced-motion instant) on below-fold homepage sections. PDP no longer claims a universal return window; last orange literals unified to brand tokens.
+- **Deploy:** `render.yaml` (`npm ci --include=dev`, `/health/ready`, `NODE_VERSION 24.19.0`); keep-alive + `DEPLOYMENT.md` target `/health/ready`.
+- **Verification:** backend 34 suites (223 passed; replica-set suites flake on mongod startup contention under parallel load — green solo and in isolation); frontend 13 suites (56 tests); lint + typecheck clean; production build 62/62 routes.
+
+**Known-open after P12:** same standing items — no live E2E for newest flows in this environment (isolated `marketplace.spec.ts` exists for preview-stack runs); Chromium-only QA; no field LCP/INP data; agent-register "already exists" oracle; offer negotiation / coupons / watches remain scoped future work.
+
 ### Done-definitions (apply per item)
 - Build passes (`npm run build` in `frontend/`).
 - The acceptance criterion in the row is demonstrably true in the running app.
@@ -564,6 +579,6 @@ The customer storefront moved to the photo-led light theme scoped to `.storefron
 
 ---
 
-*NexMart CLAUDE.md v3.3 — "Deep-Space Kinetic Editorial" + light storefront scope (§2)*
+*NexMart CLAUDE.md v3.4 — "Deep-Space Kinetic Editorial" + light storefront scope (§2) + P12 trust/marketplace/information wave (§8)*
 *Grounded in a full-code audit (frontend 89 components, backend 4.6k LOC) and Baymard / WCAG 2.2 / web.dev research, 2026-09. P10 storefront audit-verified 2026-09-19. P11 rebuild-wave verified 2026-09-23 (§G).*
 *Seed admin: admin@nexmart.in (configured via ADMIN_SEED_EMAIL) · Admin secret: ADMIN_SECRET_KEY in .env*

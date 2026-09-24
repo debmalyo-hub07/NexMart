@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
+import { AppError } from '../middleware/errorHandler';
+import { emitOrderStatusUpdate } from '../config/socket';
 import { FulfillmentGroup, FULFILLMENT_GROUP_STATUSES, type FulfillmentGroupStatus } from '../models/FulfillmentGroup';
 import { Shipment, SHIPMENT_STATUSES, type ShipmentStatus } from '../models/Shipment';
 import { Seller } from '../models/Seller';
@@ -52,12 +54,17 @@ function publicGroup(group: InstanceType<typeof FulfillmentGroup>): Record<strin
     shippingPaise: value.shippingPaise,
     taxPaise: value.taxPaise,
     totalPaise: value.totalPaise,
-    shipment: value.shipment ? String(value.shipment._id || value.shipment) : undefined,
+    shipment: value.shipment?.shipmentId ? {
+      _id: String(value.shipment._id), shipmentId: value.shipment.shipmentId,
+      status: value.shipment.status, trackingId: value.shipment.trackingId,
+    } : value.shipment ? String(value.shipment._id || value.shipment) : undefined,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     orderSummary: value.order && typeof value.order === 'object' ? {
       orderId: value.order.orderId,
       paymentStatus: value.order.paymentStatus,
+      paymentMethod: value.order.paymentMethod,
+      taxStatus: value.order.taxStatus,
       orderStatus: value.order.orderStatus,
       createdAt: value.order.createdAt,
     } : undefined,
@@ -75,7 +82,7 @@ export async function getSellerFulfillmentGroups(req: Request, res: Response): P
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
-      .populate('order', 'orderId paymentStatus orderStatus createdAt')
+      .populate('order', 'orderId paymentStatus paymentMethod orderStatus taxStatus createdAt')
       .lean(),
     FulfillmentGroup.countDocuments(filter),
   ]);
@@ -85,7 +92,7 @@ export async function getSellerFulfillmentGroups(req: Request, res: Response): P
 export async function getSellerFulfillmentGroup(req: Request, res: Response): Promise<void> {
   if (!mongoose.isValidObjectId(req.params.id)) { sendNotFound(res, 'Fulfillment group not found'); return; }
   const group = await FulfillmentGroup.findOne({ _id: req.params.id, seller: sellerId(req) })
-    .populate('order', 'orderId paymentStatus orderStatus createdAt')
+    .populate('order', 'orderId paymentStatus paymentMethod orderStatus taxStatus createdAt')
     .populate('shipment');
   if (!group) { sendNotFound(res, 'Fulfillment group not found'); return; }
   sendSuccess(res, publicGroup(group));
@@ -97,7 +104,9 @@ export async function updateSellerFulfillmentStatus(req: Request, res: Response)
   const session = await mongoose.startSession();
   try {
     let group: InstanceType<typeof FulfillmentGroup> | null = null;
+    let notification: { customer: string; orderId: string; status: string } | undefined;
     await session.withTransaction(async () => {
+      notification = undefined;
       group = await FulfillmentGroup.findOne({ _id: req.params.id, seller: sellerId(req) }).session(session);
       if (!group) return;
       if (group.status === input.status) return;
@@ -106,6 +115,7 @@ export async function updateSellerFulfillmentStatus(req: Request, res: Response)
       }
       const order = await Order.findById(group.order).session(session);
       if (!order) throw new Error('Parent order not found for this fulfillment group.');
+      if (input.status !== 'cancelled' && (['cancelled', 'returned'].includes(order.orderStatus) || (order.paymentMethod === 'online' && order.paymentStatus !== 'paid'))) throw new AppError('This order is closed or its online payment is not captured.', 409, true, 'ORDER_NOT_READY');
       if (input.status === 'ready_for_pickup') {
         await commitSellerInventoryForGroup(order, group, session);
       }
@@ -115,8 +125,22 @@ export async function updateSellerFulfillmentStatus(req: Request, res: Response)
       group.status = input.status;
       group.statusHistory.push({ status: input.status, timestamp: new Date(), updatedBy: new mongoose.Types.ObjectId(sellerId(req)), note: input.note });
       await group.save({ session });
+      const siblings = await FulfillmentGroup.find({ order: order._id }).session(session);
+      if (order.items.every(item => item.listing) && siblings.length && siblings.every(item => item.status === 'cancelled') && order.orderStatus !== 'cancelled') {
+        order.orderStatus = 'cancelled';
+        order.statusHistory.push({ status: 'cancelled', timestamp: new Date(), updatedBy: new mongoose.Types.ObjectId(sellerId(req)), note: 'All seller packages were cancelled. Payment and any refund are tracked separately.' });
+      }
+      // Participate in the parent version check even for confirmation and
+      // preparation. An unchanged save alone would not write or check __v.
+      order.markModified('orderStatus');
+      await order.save({ session });
+      notification = { customer: String(order.customer), orderId: order.orderId, status: order.orderStatus };
     });
     if (!group) { sendNotFound(res, 'Fulfillment group not found'); return; }
+    if (notification) {
+      const event = notification as { customer: string; orderId: string; status: string };
+      emitOrderStatusUpdate(event.customer, event.orderId, event.status);
+    }
     sendSuccess(res, publicGroup(group), 'Fulfillment group updated');
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Fulfillment group cannot move')) {
@@ -140,8 +164,11 @@ export async function createSellerShipment(req: Request, res: Response): Promise
     let shipment: InstanceType<typeof Shipment> | null = null;
     let created = false;
     await session.withTransaction(async () => {
+      created = false;
       const group = await FulfillmentGroup.findOne({ _id: req.params.id, seller: sellerId(req) }).session(session);
       if (!group) return;
+      const order = await Order.findById(group.order).session(session);
+      if (!order || ['cancelled', 'returned'].includes(order.orderStatus) || (order.paymentMethod === 'online' && order.paymentStatus !== 'paid')) throw new AppError('This order is closed or its online payment is not captured.', 409, true, 'ORDER_NOT_READY');
       if (group.shipment) {
         shipment = await Shipment.findOne({ _id: group.shipment, seller: sellerId(req) }).session(session);
         return;
@@ -168,6 +195,8 @@ export async function createSellerShipment(req: Request, res: Response): Promise
       shipment = createdShipments[0];
       group.shipment = shipment._id;
       await group.save({ session });
+      order.markModified('orderStatus');
+      await order.save({ session });
       created = true;
     });
     if (!shipment) { sendNotFound(res, 'Fulfillment group not found'); return; }

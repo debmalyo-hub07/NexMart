@@ -5,7 +5,7 @@ import type { CartItem, ProductVariant } from '@/types';
 
 describe('purchase information', () => {
   it('preserves paise from item prices through GST and the final amount', () => {
-    expect(calculateTotals([{ price: 19.99, quantity: 3 }])).toEqual({ subtotal: 59.97, shippingFee: 49, tax: 9.15, discount: 0, total: 108.97 });
+    expect(calculateTotals([{ price: 19.99, quantity: 3, taxRateBps: 1800 }])).toEqual({ subtotal: 59.97, shippingFee: 49, tax: 9.15, taxStatus: 'complete', discount: 0, total: 108.97 });
     expect(formatPrice(119.76)).toContain('119.76');
   });
   it('matches the server shipping threshold, including the boundary and an empty cart', () => {

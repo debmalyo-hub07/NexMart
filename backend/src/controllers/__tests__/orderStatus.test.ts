@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // helper and side effects mocked.
 
 const orderFindById = vi.hoisted(() => vi.fn());
-const restockSpy = vi.hoisted(() => vi.fn());
+const lifecycleSpy = vi.hoisted(() => vi.fn());
 const emitSpy = vi.hoisted(() => vi.fn());
 const invoiceSpy = vi.hoisted(() => vi.fn());
 
@@ -13,8 +13,8 @@ vi.mock('../../models/Order', () => ({
   Order: { findById: (id: any) => orderFindById(id) },
 }));
 vi.mock('../../models/Product', () => ({ Product: {} }));
-vi.mock('../../utils/orderRestock', () => ({
-  restockOrderItems: (...args: any[]) => restockSpy(...args),
+vi.mock('../../services/orderLifecycle.service', () => ({
+  persistOrderLifecycle: (...args: any[]) => lifecycleSpy(...args),
 }));
 vi.mock('../../config/socket', () => ({
   emitOrderStatusUpdate: (...args: any[]) => emitSpy(...args),
@@ -71,7 +71,7 @@ describe('updateOrderStatus (audit §3.3/§3.5)', () => {
     await updateOrderStatus(makeReq('cancelled'), makeRes());
 
     expect(order.orderStatus).toBe('cancelled');
-    expect(restockSpy).toHaveBeenCalledWith(order);
+    expect(lifecycleSpy).toHaveBeenCalledWith(order);
   });
 
   it('restocks when cancelling a confirmed order (mid-pipeline cancel)', async () => {
@@ -84,10 +84,10 @@ describe('updateOrderStatus (audit §3.3/§3.5)', () => {
     await updateOrderStatus(makeReq('cancelled'), makeRes());
 
     expect(order.orderStatus).toBe('cancelled');
-    expect(restockSpy).toHaveBeenCalledTimes(1);
+    expect(lifecycleSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('restocks on returned orders (goods come back to sellable stock)', async () => {
+  it('delegates returned inventory to the transactional lifecycle service', async () => {
     const order = makeOrderDoc({ orderStatus: 'delivered' });
     orderFindById.mockReturnValue((() => {
       const doc: any = order;
@@ -97,10 +97,10 @@ describe('updateOrderStatus (audit §3.3/§3.5)', () => {
     await updateOrderStatus(makeReq('returned'), makeRes());
 
     expect(order.orderStatus).toBe('returned');
-    expect(restockSpy).toHaveBeenCalledWith(order);
+    expect(lifecycleSpy).toHaveBeenCalledWith(order);
   });
 
-  it('does NOT restock on fulfilment transitions (confirmed/shipped/delivered)', async () => {
+  it('persists forward transitions through the lifecycle service', async () => {
     const order = makeOrderDoc({ orderStatus: 'placed' });
     orderFindById.mockReturnValue((() => {
       const doc: any = order;
@@ -109,7 +109,7 @@ describe('updateOrderStatus (audit §3.3/§3.5)', () => {
 
     await updateOrderStatus(makeReq('confirmed'), makeRes());
 
-    expect(restockSpy).not.toHaveBeenCalled();
+    expect(lifecycleSpy).toHaveBeenCalledWith(order);
   });
 
   it('marks COD orders as paymentStatus=paid when delivered (§3.5)', async () => {

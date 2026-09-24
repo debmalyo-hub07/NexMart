@@ -2,10 +2,11 @@ import mongoose, { ClientSession } from 'mongoose';
 import { Product } from '../models/Product';
 import { receiveReturnedSellerInventory, releaseSellerInventory } from '../services/marketplaceInventory.service';
 import { logger } from './logger';
+import { synchronizeFulfillmentGroups } from '../services/fulfillmentState.service';
 
 // Every cancellation/failed-payment path returns reserved stock. A delivered
 // return moves marketplace stock into the returned bucket until inspection;
-// legacy catalog stock keeps the existing sellable-stock behavior.
+// retail returns also stay unavailable until inspection.
 
 export interface RestockableItem {
   product: unknown;
@@ -36,6 +37,13 @@ async function updateLegacyStock(order: RestockableOrder, session: ClientSession
     // The item state is persisted with the order. This makes retries after a
     // successful stock update harmless, including reaper retries.
     if (item.inventoryState === 'released' || item.inventoryState === 'returned') continue;
+    if (order.orderStatus === 'returned') {
+      // Physical returns need inspection. Never put them straight back into
+      // sellable retail inventory; an operator can restock after inspection.
+      item.inventoryState = 'returned';
+      changed = true;
+      continue;
+    }
     try {
       const update = await Product.updateOne(
         { _id: item.product, 'variants.sku': item.variant },
@@ -43,18 +51,19 @@ async function updateLegacyStock(order: RestockableOrder, session: ClientSession
         { session },
       );
       if (update.modifiedCount === 1) {
-        item.inventoryState = order.orderStatus === 'returned' ? 'returned' : 'released';
+        item.inventoryState = 'released';
         changed = true;
       } else {
         logger.error(`Legacy restock target missing for product ${String(item.product)} (sku ${item.variant}).`);
       }
     } catch (err) {
-      // A removed legacy product must not strand the rest of the order's
-      // inventory, but the failed line remains unmarked for reconciliation.
+      // Database failures must abort the order transition, allowing a safe
+      // retry. A removed product is handled by modifiedCount above.
       logger.error(
         `Legacy restock failed for product ${String(item.product)} (sku ${item.variant}):`,
         err instanceof Error ? err.message : err,
       );
+      throw err;
     }
   }
   return changed;
@@ -66,12 +75,11 @@ async function updateLegacyStock(order: RestockableOrder, session: ClientSession
  * product stock. A deleted product/variant is logged and does not abort the
  * rest of the order's cleanup.
  */
-export async function restockOrderItems(order: RestockableOrder): Promise<void> {
+export async function restockOrderItems(order: RestockableOrder, existingSession?: ClientSession): Promise<void> {
   const hasMarketplaceItems = (order.items || []).some((item) => Boolean(item.listing && item.seller));
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
+  const restore = async (session: ClientSession) => {
       if (hasMarketplaceItems) {
+        await synchronizeFulfillmentGroups(order, session);
         // A returned delivered parcel is no longer sellable by default. Its
         // committed quantity is recorded as returned pending inspection.
         if (order.orderStatus === 'returned') {
@@ -82,8 +90,7 @@ export async function restockOrderItems(order: RestockableOrder): Promise<void> 
       await updateLegacyStock(order, session);
       // The terminal status/history and inventory item states commit together.
       if (order.save) await order.save({ session });
-    });
-  } finally {
-    await session.endSession();
-  }
+  };
+  if (existingSession) await restore(existingSession);
+  else await mongoose.connection.transaction(restore);
 }

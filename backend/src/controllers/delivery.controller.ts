@@ -9,7 +9,7 @@ import { sendSuccess, sendNotFound, sendBadRequest, sendPaginated } from '../uti
 import { AuthenticatedRequest, OrderStatus } from '../types';
 import { parsePagination } from '../utils/helpers';
 import { isTransitionAllowed, ALLOWED_ORDER_TRANSITIONS } from '../utils/orderTransitions';
-import { restockOrderItems } from '../utils/orderRestock';
+import { persistOrderLifecycle } from '../services/orderLifecycle.service';
 
 export async function getMyDeliveries(req: Request, res: Response): Promise<void> {
   const { userId } = (req as AuthenticatedRequest).user!;
@@ -49,7 +49,7 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
   const { userId } = (req as AuthenticatedRequest).user!;
   const { status, note } = z.object({
     status: z.enum(['picked', 'out_for_delivery', 'delivered', 'attempted', 'returned']),
-    note: z.string().optional(),
+    note: z.string().trim().max(1000).optional(),
   }).parse(req.body);
 
   const assignment = await DeliveryAssignment.findOne({ agent: userId, order: req.params.id });
@@ -86,7 +86,9 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
   if (status === 'delivered' && !assignment.deliveredAt) assignment.deliveredAt = new Date();
   if (status === 'attempted') assignment.attemptedAt = new Date();
   assignment.status = status as typeof assignment.status;
-  await assignment.save();
+  // Persist the assignment with a changed order below. Same-status delivery
+  // events may update their own milestone without rewriting the order.
+  if (order.orderStatus === orderStatus) await assignment.save();
 
   if (orderStatus) {
     // Same-status repeats (e.g. 'picked' once the admin's assignment already
@@ -103,8 +105,7 @@ export async function updateDeliveryStatus(req: Request, res: Response): Promise
       }
 
       // A returned shipment and its inventory transition commit together.
-      if (orderStatus === 'returned') await restockOrderItems(order);
-      else await order.save();
+      await persistOrderLifecycle(order, session => assignment.save({ session }));
 
       const customer = order.customer as unknown as { name?: string; email?: string; _id: { toString(): string } };
       // Fire-and-forget — SMTP latency never sits in the agent's request path

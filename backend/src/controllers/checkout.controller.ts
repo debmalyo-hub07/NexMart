@@ -18,6 +18,8 @@ import { generateFulfillmentGroupId, generateOrderId, verifyRazorpaySignature } 
 import { sendSuccess, sendCreated, sendError, sendNotFound } from '../utils/response';
 import { emitNewOrder } from '../config/socket';
 import { env } from '../config/env';
+import { includedProductTax } from '../utils/productTax';
+import { sumOrderTotals } from '../services/pricing.service';
 import { logger } from '../utils/logger';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
@@ -66,8 +68,12 @@ type ValidatedCheckoutItem = {
   quantity: number;
   unitPricePaise: number;
   totalPricePaise: number;
+  taxRateBps?: number;
+  taxPaise: number;
+  hsnCode?: string;
   discountPaise: number;
   inventoryState?: 'reserved' | 'committed' | 'released';
+  purchaseTerms?: { sellerName?: string; returnWindowDays?: number; handlingTimeDays?: number; warrantyText?: string };
 };
 
 /** Allocate a minor-unit amount without losing a paise to rounding. */
@@ -130,7 +136,6 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         const existing = await saved().session(session!);
         if (existing) { assertSame(existing); result = existing; created = false; return; }
       }
-      let subtotalPaise = 0;
       const validatedItems: ValidatedCheckoutItem[] = [];
 
       // Resolve every line against server state. A listing line uses the
@@ -141,7 +146,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
           const listing = await SellerListing.findOne({ _id: item.listing, status: 'published' }).session(session!);
           if (!listing) throw new CheckoutError('An item or offer is no longer available. Review your cart before ordering.', 'ITEM_UNAVAILABLE');
 
-          const seller = await Seller.findOne({ _id: listing.seller, isActive: true, lifecycleStatus: 'active' }).select('_id').session(session!);
+          const seller = await Seller.findOne({ _id: listing.seller, isActive: true, lifecycleStatus: 'active' }).select('_id storefrontName').session(session!);
           if (!seller) throw new CheckoutError('This seller is temporarily unavailable. Review your cart before ordering.', 'SELLER_UNAVAILABLE');
 
           if (item.product && String(item.product) !== String(listing.canonicalProduct)) {
@@ -166,7 +171,6 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
           }
 
           const totalPricePaise = unitPricePaise * item.quantity;
-          subtotalPaise += totalPricePaise;
           validatedItems.push({
             product: product._id,
             category: product.category,
@@ -174,6 +178,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
             seller: seller._id,
             sellerSku: listing.sellerSku,
             fulfillmentMode: listing.fulfillmentMode,
+            purchaseTerms: { sellerName: seller.storefrontName, returnWindowDays: listing.returnWindowDays, handlingTimeDays: listing.handlingTimeDays, warrantyText: listing.warrantyText },
             inventory: inventory._id,
             name: product.name,
             image: variant.images?.[0] || product.images?.[0],
@@ -181,6 +186,9 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
             quantity: item.quantity,
             unitPricePaise,
             totalPricePaise,
+            taxRateBps: product.taxRateBps,
+            taxPaise: includedProductTax(totalPricePaise, product.taxRateBps),
+            hsnCode: product.hsnCode,
             discountPaise: 0,
             inventoryState: 'reserved',
           });
@@ -200,25 +208,23 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
           throw new CheckoutError('A product price changed. Review the updated cart before ordering.', 'PRICE_CHANGED');
         }
         const totalPricePaise = unitPricePaise * item.quantity;
-        subtotalPaise += totalPricePaise;
         validatedItems.push({
           product: product._id,
           category: product.category,
+          purchaseTerms: { sellerName: 'NexMart', returnWindowDays: product.returnWindowDays },
           name: product.name,
           image: variant.images?.[0] || product.images?.[0],
           variant: item.variant,
           quantity: item.quantity,
           unitPricePaise,
           totalPricePaise,
+          taxRateBps: product.taxRateBps,
+          taxPaise: includedProductTax(totalPricePaise, product.taxRateBps),
+          hsnCode: product.hsnCode,
           discountPaise: 0,
         });
       }
-      const shippingPaise = subtotalPaise > 99900 ? 0 : 4900;
-      // Tax-inclusive pricing (audit 2026-09-22 §C2): the listed price IS the
-      // final price. `taxPaise` records the 18% GST *contained* in the
-      // merchandise for invoices/ledger pass-through — it is never added on.
-      const taxPaise = Math.round((subtotalPaise * 18) / 118);
-      const totalPaise = subtotalPaise + shippingPaise;
+      const { subtotalPaise, shippingPaise, taxPaise, taxStatus, totalPaise } = sumOrderTotals(validatedItems);
       if (input.expectedTotal !== undefined && paise(input.expectedTotal) !== totalPaise) throw new CheckoutError('The order total changed. Review your cart and confirm the updated amount.', 'PRICE_CHANGED');
       if (input.paymentMethod === 'online' && !razorpayOrderId) {
         try { razorpayOrderId = (await createRazorpayOrder(totalPaise, 'INR', humanOrderId)).id; }
@@ -240,13 +246,15 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
           totalPrice: item.totalPricePaise / 100,
           unitPricePaise: item.unitPricePaise,
           totalPricePaise: item.totalPricePaise,
+          taxRateBps: item.taxRateBps, taxPaise: item.taxPaise, hsnCode: item.hsnCode,
           discountPaise: item.discountPaise,
           inventoryState: item.inventoryState || 'reserved',
+          purchaseTerms: item.purchaseTerms,
         })), shippingAddress: input.shippingAddress, paymentMethod: input.paymentMethod,
         paymentStatus: 'pending', razorpayOrderId, orderStatus: 'placed',
         statusHistory: [{ status: 'placed', timestamp: new Date(), updatedBy: userId }],
         subtotal: subtotalPaise / 100, shippingFee: shippingPaise / 100, tax: taxPaise / 100, total: totalPaise / 100, discount: 0,
-        subtotalPaise, shippingFeePaise: shippingPaise, taxPaise, discountPaise: 0, totalPaise, moneyVersion: 1,
+        subtotalPaise, shippingFeePaise: shippingPaise, taxPaise, taxStatus, discountPaise: 0, totalPaise, moneyVersion: 1,
         notes: input.notes,
       }], { session });
 
@@ -296,20 +304,20 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 
       // A single customer order can contain several seller groups. Shipping
       // and tax are allocated in minor units so group totals add up exactly.
-      const groupsBySeller = new Map<string, { seller: mongoose.Types.ObjectId; fulfillmentMode: 'seller' | 'nexmart'; items: Array<{ item: ValidatedCheckoutItem; orderItemId: mongoose.Types.ObjectId }>; }>();
+      const shippingByItem = allocateMinorUnits(shippingPaise, validatedItems.map(item => item.totalPricePaise - item.discountPaise));
+      const groupsBySeller = new Map<string, { seller: mongoose.Types.ObjectId; fulfillmentMode: 'seller' | 'nexmart'; items: Array<{ item: ValidatedCheckoutItem; orderItemId: mongoose.Types.ObjectId; shippingPaise: number }>; }>();
       validatedItems.forEach((item, index) => {
         if (!item.seller || !item.listing) return;
         const fulfillmentMode = item.fulfillmentMode || 'seller';
         const key = `${String(item.seller)}:${fulfillmentMode}`;
         const group = groupsBySeller.get(key) || { seller: item.seller, fulfillmentMode, items: [] };
-        group.items.push({ item, orderItemId: order.items[index]._id! });
+        group.items.push({ item, orderItemId: order.items[index]._id!, shippingPaise: shippingByItem[index] });
         groupsBySeller.set(key, group);
       });
       const groups = Array.from(groupsBySeller.values());
       if (groups.length > 0) {
-        const groupBases = groups.map((group) => group.items.reduce((sum, line) => sum + line.item.totalPricePaise - line.item.discountPaise, 0));
-        const groupShipping = allocateMinorUnits(shippingPaise, groupBases);
-        const groupTax = allocateMinorUnits(taxPaise, groupBases);
+        const groupShipping = groups.map(group => group.items.reduce((sum, line) => sum + line.shippingPaise, 0));
+        const groupTax = groups.map(group => group.items.reduce((sum, line) => sum + line.item.taxPaise, 0));
         const feeRuleCache = new Map<string, FeeRuleSnapshot>();
         const getFeeRule = async (item: ValidatedCheckoutItem, fulfillmentMode: 'seller' | 'nexmart'): Promise<FeeRuleSnapshot> => {
           const key = `${String(item.category || '')}:${fulfillmentMode}`;
@@ -324,9 +332,8 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
           const discount = group.items.reduce((sum, line) => sum + line.item.discountPaise, 0);
           const shipping = groupShipping[groupIndex] || 0;
           const tax = groupTax[groupIndex] || 0;
-          const itemBases = group.items.map((line) => line.item.totalPricePaise - line.item.discountPaise);
-          const itemShipping = allocateMinorUnits(shipping, itemBases);
-          const itemTax = allocateMinorUnits(tax, itemBases);
+          const itemShipping = group.items.map(line => line.shippingPaise);
+          const itemTax = group.items.map(line => line.item.taxPaise);
           const items = await Promise.all(group.items.map(async (line, itemIndex) => {
             const rule = await getFeeRule(line.item, group.fulfillmentMode);
             const calculation = calculateMarketplaceFees({

@@ -1,109 +1,106 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeAll, afterAll, beforeEach, describe, it, expect, vi } from 'vitest';
+import mongoose from 'mongoose';
+const provider = vi.hoisted(() => ({ create: vi.fn(), find: vi.fn(), fetch: vi.fn(), email: vi.fn() }));
+vi.mock('../../services/razorpay.service', () => ({ refundPayment: provider.create, findRefundByReceipt: provider.find, fetchRefund: provider.fetch }));
+vi.mock('../../services/email.service', () => ({ sendOrderStatusEmail: provider.email }));
+vi.mock('../../config/socket', () => ({ emitOrderStatusUpdate: vi.fn() }));
+import { Order } from '../../models/Order';
+import { Customer } from '../../models/Customer';
+import { RefundAttempt } from '../../models/RefundAttempt';
+import { MarketplaceLedgerEntry } from '../../models/MarketplaceLedgerEntry';
+import { requestFullRefund, reconcileRefundEvent } from '../../services/refund.service';
+import * as ledger from '../../services/marketplaceLedger.service';
+import { startReplicaTestDb, stopTestDb, clearCollections } from '../../test/helpers';
 
-// Audit §3.6: refund emails currently say "Order Cancelled" even when the
-// order is delivered/confirmed — the refund must be communicated as a refund.
-
-const orderFindById = vi.hoisted(() => vi.fn());
-const refundPayment = vi.hoisted(() => vi.fn());
-const emailSpy = vi.hoisted(() => vi.fn());
-const emitSpy = vi.hoisted(() => vi.fn());
-
-vi.mock('../../models/Order', () => ({
-  Order: { findById: (id: any) => orderFindById(id) },
-}));
-vi.mock('../../services/razorpay.service', () => ({
-  refundPayment: (...args: any[]) => refundPayment(...args),
-}));
-vi.mock('../../services/email.service', () => ({
-  sendOrderStatusEmail: async (...args: any[]) => emailSpy(...args),
-}));
-vi.mock('../../config/socket', () => ({
-  emitOrderStatusUpdate: (...args: any[]) => emitSpy(...args),
-}));
-vi.mock('../../config/redis', () => ({
-  upstashRedis: { get: async () => null, set: async () => undefined },
-}));
-vi.mock('../../utils/logger', () => ({
-  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-}));
-
-import { refundOrder } from '../../controllers/admin.controller';
-
-function makeOrder(overrides: Record<string, any> = {}) {
-  return {
-    _id: 'order-1',
-    orderId: 'ORD-TEST-1',
-    orderStatus: 'delivered',
-    paymentMethod: 'online',
-    paymentStatus: 'paid',
-    razorpayPaymentId: 'pay_test123',
-    customer: { _id: { toString: () => 'cust-1' }, name: 'C', email: 'c@x.test' },
-    statusHistory: [] as Array<{ status: string }>,
-    save: vi.fn(async function (this: any) { return this; }),
-    ...overrides,
-  };
+beforeAll(async () => {
+  await startReplicaTestDb('nexmart_refund_lifecycle');
+  await Promise.all([Order.init(), RefundAttempt.init(), MarketplaceLedgerEntry.init()]);
+}, 120000);
+afterAll(stopTestDb);
+beforeEach(async () => {
+  vi.restoreAllMocks(); vi.clearAllMocks(); await clearCollections();
+  provider.find.mockResolvedValue(undefined);
+  provider.create.mockResolvedValue(remote('created'));
+  provider.fetch.mockResolvedValue(remote('processed'));
+  provider.email.mockResolvedValue(undefined);
+});
+function remote(status: string) { return { id: 'rfnd_test', status, amount: 10000, payment_id: 'pay_test', currency: 'INR' }; }
+async function paidOrder() {
+  const customer = await Customer.create({ name: 'Refund Customer', email: 'refund@example.test', emailVerified: true });
+  return Order.create({
+    orderId: 'ORD-REFUND', customer: customer._id, items: [{ product: new mongoose.Types.ObjectId(), variant: 'TEST', quantity: 1, unitPrice: 100, totalPrice: 100 }],
+    shippingAddress: { fullName: 'Test Customer', phone: '9876543210', addressLine1: '12 Test Road', city: 'Pune', state: 'Maharashtra', pincode: '411001' },
+    paymentMethod: 'online', paymentStatus: 'paid', razorpayPaymentId: 'pay_test', orderStatus: 'delivered',
+    subtotal: 100, total: 100, totalPaise: 10000, statusHistory: [],
+  });
 }
-
-describe('refundOrder (audit §3.6: honest refund email)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    refundPayment.mockResolvedValue({ id: 'rfnd_1', status: 'processed', amount: 5900000 });
+describe('full refund lifecycle and durable idempotency', () => {
+  it('keeps a created refund pending, with no reversal or completion email', async () => {
+    const order = await paidOrder();
+    const result = await requestFullRefund(String(order._id));
+    expect(result.refundStatus).toBe('pending');
+    expect((await Order.findById(order._id))?.paymentStatus).toBe('paid');
+    expect(await MarketplaceLedgerEntry.countDocuments({ eventType: 'refund' })).toBe(0);
+    expect(provider.email).not.toHaveBeenCalled();
+    expect(provider.create).toHaveBeenCalledWith('pay_test', 10000, `nm_rf_${order._id}`);
   });
-
-  it('emails the customer about the REFUND, not a cancellation', async () => {
-    const order = makeOrder(); // delivered order
-    orderFindById.mockReturnValue((() => {
-      const doc: any = order;
-      return {
-        ...doc,
-        populate: () => Promise.resolve(doc),
-        then: (res: any, rej: any) => Promise.resolve(doc).then(res, rej),
-      };
-    })());
-
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as any;
-    await refundOrder({ params: { id: 'order-1' }, user: { userId: 'admin-1' } } as any, res);
-
-    expect(emailSpy).toHaveBeenCalled();
-    const emailStatusArg = emailSpy.mock.calls[0][3]; // (to, name, orderId, status)
-    expect(emailStatusArg).toBe('refunded');
-    expect(emailStatusArg).not.toBe('cancelled');
+  it('handles concurrent clicks with a single provider request', async () => {
+    const order = await paidOrder();
+    await Promise.all([requestFullRefund(String(order._id)), requestFullRefund(String(order._id))]);
+    expect(provider.create).toHaveBeenCalledTimes(1);
+    expect(await RefundAttempt.countDocuments()).toBe(1);
   });
-
-  it('does not change the fulfilment status on refund', async () => {
-    const order = makeOrder({ orderStatus: 'delivered' });
-    orderFindById.mockReturnValue((() => {
-      const doc: any = order;
-      return {
-        ...doc,
-        populate: () => Promise.resolve(doc),
-        then: (res: any, rej: any) => Promise.resolve(doc).then(res, rej),
-      };
-    })());
-
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as any;
-    await refundOrder({ params: { id: 'order-1' }, user: { userId: 'admin-1' } } as any, res);
-
-    expect(order.orderStatus).toBe('delivered');
-    expect(order.paymentStatus).toBe('refunded');
-    expect(order.statusHistory[order.statusHistory.length - 1].status).toBe('delivered'); // unchanged fulfilment status
+  it('recovers an ambiguous provider timeout by receipt without resending money', async () => {
+    const order = await paidOrder();
+    provider.create.mockRejectedValueOnce(new Error('Connection lost after provider accepted request'));
+    expect((await requestFullRefund(String(order._id))).refundStatus).toBe('needs_review');
+    provider.find.mockResolvedValue(remote('processed'));
+    expect((await requestFullRefund(String(order._id))).refundStatus).toBe('processed');
+    expect(provider.create).toHaveBeenCalledTimes(1);
+    expect((await Order.findById(order._id))?.paymentStatus).toBe('refunded');
   });
-
-  it('rejects COD orders cleanly', async () => {
-    const order = makeOrder({ paymentMethod: 'cod' });
-    orderFindById.mockReturnValue((() => {
-      const doc: any = order;
-      return {
-        ...doc,
-        populate: () => Promise.resolve(doc),
-        then: (res: any, rej: any) => Promise.resolve(doc).then(res, rej),
-      };
-    })());
-
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as any;
-    await refundOrder({ params: { id: 'order-1' }, user: { userId: 'admin-1' } } as any, res);
-
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(refundPayment).not.toHaveBeenCalled();
+  it('commits payment status and balanced reversal once while preserving fulfillment', async () => {
+    const order = await paidOrder();
+    provider.create.mockResolvedValue(remote('processed'));
+    await requestFullRefund(String(order._id));
+    await reconcileRefundEvent('rfnd_test');
+    await requestFullRefund(String(order._id));
+    const updated = await Order.findById(order._id);
+    expect(updated?.orderStatus).toBe('delivered');
+    expect(updated?.paymentStatus).toBe('refunded');
+    expect(updated?.statusHistory).toHaveLength(1);
+    const entries = await MarketplaceLedgerEntry.find({ eventType: 'refund' });
+    expect(entries).toHaveLength(2);
+    expect(entries.reduce((sum, e) => sum + (e.direction === 'debit' ? e.amountPaise : -e.amountPaise), 0)).toBe(0);
+    await vi.waitFor(() => expect(provider.email).toHaveBeenCalledWith('refund@example.test', 'Refund Customer', 'ORD-REFUND', 'refunded'));
+    expect(provider.create).toHaveBeenCalledTimes(1);
+  });
+  it('does not report completion if the reversal transaction fails', async () => {
+    const order = await paidOrder();
+    provider.create.mockResolvedValue(remote('processed'));
+    vi.spyOn(ledger, 'recordFullRefundLedger').mockRejectedValueOnce(new Error('Ledger write failed'));
+    expect((await requestFullRefund(String(order._id))).refundStatus).toBe('needs_review');
+    expect((await Order.findById(order._id))?.paymentStatus).toBe('paid');
+    expect(await MarketplaceLedgerEntry.countDocuments()).toBe(0);
+    provider.find.mockResolvedValue(remote('processed'));
+    expect((await requestFullRefund(String(order._id))).refundStatus).toBe('processed');
+    expect(provider.create).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a mismatched amount and a COD refund without changing money', async () => {
+    const order = await paidOrder();
+    provider.create.mockResolvedValue({ ...remote('processed'), amount: 1 });
+    expect((await requestFullRefund(String(order._id))).refundStatus).toBe('needs_review');
+    expect((await Order.findById(order._id))?.paymentStatus).toBe('paid');
+    await Order.updateOne({ _id: order._id }, { paymentMethod: 'cod' });
+    await expect(requestFullRefund(String(order._id))).rejects.toThrow('Cash-on-delivery');
+    expect(provider.create).toHaveBeenCalledTimes(1);
+  });
+  it('keeps provider failures visible and never creates a fresh attempt automatically', async () => {
+    const order = await paidOrder();
+    provider.create.mockResolvedValue(remote('failed'));
+    expect((await requestFullRefund(String(order._id))).refundStatus).toBe('failed');
+    await requestFullRefund(String(order._id));
+    expect(provider.create).toHaveBeenCalledTimes(1);
+    expect((await Order.findById(order._id))?.paymentStatus).toBe('paid');
   });
 });

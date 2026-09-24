@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { env } from '../config/env';
 import { Order } from '../models/Order';
 import { logger } from '../utils/logger';
+import { reconcileRefundEvent } from '../services/refund.service';
 import { recordCapturedPayment } from '../services/orderPayment.service';
 
 /**
@@ -56,7 +57,10 @@ export async function razorpayWebhook(req: Request, res: Response): Promise<void
     const payment = event?.payload?.payment?.entity;
     const rzpOrderId: string | undefined = payment?.order_id;
 
-    if (rzpOrderId && (type === 'payment.captured' || type === 'order.paid')) {
+    if (type && ['refund.created', 'refund.processed', 'refund.failed'].includes(type)) {
+      const refundId = event?.payload?.refund?.entity?.id;
+      if (typeof refundId === 'string') await reconcileRefundEvent(refundId);
+    } else if (rzpOrderId && (type === 'payment.captured' || type === 'order.paid')) {
       const order = await Order.findOne({ razorpayOrderId: rzpOrderId });
       if (order && typeof payment?.id === 'string') {
         await recordCapturedPayment(String(order._id), rzpOrderId, payment.id, 'payment_webhook', (req as Request & { requestId?: string }).requestId);

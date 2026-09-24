@@ -6,6 +6,7 @@ import api, { getApiError } from '@/lib/api';
 import { useUIStore } from '@/store/uiStore';
 import { Overlay } from '@/components/common/Overlay';
 import { OtpInput } from '@/components/auth/OtpInput';
+import { passwordSchema } from '@/lib/password';
 
 /**
  * First password for an account created through Google. There is no current
@@ -34,8 +35,9 @@ export function SetPasswordModal({ isOpen, onClose, onDone }: { isOpen: boolean;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (password.length < 8 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-      setError('Use at least 8 characters with uppercase, lowercase, and a number.');
+    const parsed = passwordSchema.safeParse(password);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0].message);
       return;
     }
     setBusy(true); setError('');

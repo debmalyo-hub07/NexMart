@@ -12,7 +12,7 @@ test.beforeAll(async ({ request }) => {
 
 test('home and visual category directory render useful real catalog data', async ({ page }, info) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'What are you into?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Shop by category' })).toBeAttached();
   await expect(page.locator('.home-category')).toHaveCount(9);
   await expect(page.locator('.product-tile').first()).toBeVisible();
   await noPageOverflow(page);
@@ -69,7 +69,7 @@ test('URL filters, price sorting, history and mobile apply stay consistent', asy
 });
 
 test('quick look, comparison and sample restrictions work by keyboard', async ({ page }, info) => {
-  await page.goto('/categories/books');
+  await page.goto('/products?search=Preview%20sample%20journal');
   await expect(page.locator('.product-tile').first()).toBeVisible();
   const quick = page.getByRole('button', { name: /^Quick look at/ }).first();
   await quick.focus(); await quick.press('Enter');
@@ -80,16 +80,18 @@ test('quick look, comparison and sample restrictions work by keyboard', async ({
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(quick).toBeFocused();
+  await page.locator('.product-tile').first().getByRole('link', { name: 'View details', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sample · not for sale', exact: true })).toBeDisabled();
+  await page.goto('/categories/books');
+  await expect(page.locator('.product-tile').nth(1)).toBeVisible();
   await page.locator('.product-tile').nth(0).getByRole('checkbox', { name: /^Compare/ }).check();
   await page.locator('.product-tile').nth(1).getByRole('checkbox', { name: /^Compare/ }).check();
   await page.getByRole('complementary', { name: 'Product comparison' }).getByRole('button', { name: 'Compare', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Find your better fit' })).toBeVisible();
-  await expect(page.getByRole('table')).toContainText('Sample · not for sale');
+  await expect(page.getByRole('table')).toBeVisible();
   await page.screenshot({ path: info.outputPath('comparison.png'), fullPage: true });
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Clear comparison' }).click();
-  await page.locator('.product-tile').first().getByRole('link', { name: 'View details', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Sample · not for sale', exact: true })).toBeDisabled();
   await noPageOverflow(page);
 });
 

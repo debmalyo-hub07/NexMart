@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const assignmentFindOne = vi.hoisted(() => vi.fn());
 const orderFindById = vi.hoisted(() => vi.fn());
-const restockSpy = vi.hoisted(() => vi.fn());
+const lifecycleSpy = vi.hoisted(() => vi.fn());
 const emitSpy = vi.hoisted(() => vi.fn());
 const invoiceSpy = vi.hoisted(() => vi.fn());
 
@@ -15,8 +15,11 @@ vi.mock('../../models/Order', () => ({
 vi.mock('../../models/DeliveryAssignment', () => ({
   DeliveryAssignment: { findOne: (q: any) => assignmentFindOne(q) },
 }));
-vi.mock('../../utils/orderRestock', () => ({
-  restockOrderItems: async (...args: any[]) => restockSpy(...args),
+vi.mock('../../services/orderLifecycle.service', () => ({
+  persistOrderLifecycle: async (order: any, related: (session: unknown) => Promise<unknown>) => {
+    lifecycleSpy(order);
+    if (related) await related({});
+  },
 }));
 vi.mock('../../config/socket', () => ({
   emitOrderStatusUpdate: (...args: any[]) => emitSpy(...args),
@@ -103,17 +106,17 @@ describe('updateDeliveryStatus (audit §3.3/§3.5, agent path)', () => {
     await updateDeliveryStatus(makeReq('returned'), makeRes());
 
     expect(order.orderStatus).toBe('returned');
-    expect(restockSpy).toHaveBeenCalledWith(order);
+    expect(lifecycleSpy).toHaveBeenCalledWith(order);
   });
 
-  it('does not restock on normal forward transitions', async () => {
+  it('persists forward transitions through the lifecycle service', async () => {
     const order = makeOrder({ orderStatus: 'shipped' });
     wireMocks(order, makeAssignment());
 
     await updateDeliveryStatus(makeReq('out_for_delivery'), makeRes());
 
     expect(order.orderStatus).toBe('out_for_delivery');
-    expect(restockSpy).not.toHaveBeenCalled();
+    expect(lifecycleSpy).toHaveBeenCalledWith(order);
   });
 
   it('does not touch online payment status on delivery', async () => {

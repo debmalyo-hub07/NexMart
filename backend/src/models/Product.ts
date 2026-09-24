@@ -33,6 +33,9 @@ const ProductSchema = new Schema<IProduct>(
     variants: [VariantSchema],
     tags: [String],
     brand: String,
+    taxRateBps: { type: Number, min: 0, max: 10000, validate: Number.isInteger },
+    hsnCode: { type: String, match: /^\d{4,8}$/ },
+    returnWindowDays: { type: Number, min: 0, max: 90, validate: Number.isInteger },
     specifications: { type: Map, of: String, default: {} },
     ratings: {
       average: { type: Number, default: 0, min: 0, max: 5 },

@@ -2,10 +2,10 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'storefront.spec.ts',
+  testMatch: ['storefront.spec.ts', 'marketplace.spec.ts'],
   timeout: 60_000,
   expect: { timeout: 15_000 },
-  workers: 2,
+  workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: { baseURL: 'http://localhost:3100', trace: 'retain-on-failure', screenshot: 'only-on-failure', contextOptions: { reducedMotion: 'reduce' } },
   projects: [

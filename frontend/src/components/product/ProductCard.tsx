@@ -40,15 +40,17 @@ export const ProductCard = memo(function ProductCard({ product, className }: { p
       {!admin && <button type="button" disabled={wishlistLoading} aria-label={`${saved ? 'Remove' : 'Save'} ${name}${saved ? ' from saved products' : ''}`} aria-pressed={saved} onClick={() => toggleWishlist(product._id)} className="product-save"><Heart size={18} className={saved ? 'fill-current text-red-500' : ''} aria-hidden /></button>}
       <button ref={previewTrigger} type="button" onClick={() => setPreview(true)} className="quick-look" aria-label={`Quick look at ${name}`}><Eye size={16} aria-hidden /><span>Quick look</span></button>
     </div>
-    <div className="flex flex-1 flex-col p-3 sm:p-5">
-      <p className="mb-1 truncate text-xs text-muted">{product.brand || product.category?.name || 'NexMart'}</p>
-      <h3 className="min-h-[2.8rem] text-sm leading-snug sm:text-base"><Link href={href} className="line-clamp-2 hover:text-[var(--accent-violet)]">{name}</Link></h3>
-      <p className="mt-2 line-clamp-2 min-h-8 text-xs leading-relaxed text-muted">{highlights.length ? highlights.map(([, value]) => value).join(' · ') : product.description}</p>
+    <div className="product-card-content">
+      <p className="product-card-brand truncate">{product.brand || product.category?.name || 'NexMart'}</p>
+      <h3><Link href={href} className="line-clamp-2 hover:text-[var(--accent-violet)]">{name}</Link></h3>
+      <p className="product-card-details line-clamp-2">{highlights.length ? highlights.map(([, value]) => value).join(' · ') : product.description}</p>
       {product.ratings?.count > 0 && <div className="mt-2 flex items-center gap-1.5 text-xs"><span className="inline-flex items-center gap-0.5 rounded bg-emerald-600 px-1.5 py-0.5 font-medium text-white" aria-label={`Rated ${product.ratings.average.toFixed(1)} out of 5`}><Star size={10} className="fill-current" aria-hidden />{product.ratings.average.toFixed(1)}</span><span className="text-muted">({product.ratings.count})</span></div>}
-      <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">{variant ? <span className="font-mono text-base font-medium tabular-nums sm:text-lg">{hasPriceRange(product) && <span className="mr-1 font-inter text-xs text-muted">From</span>}{formatPrice(variant.price)}</span> : <span className="text-sm text-muted">Unavailable</span>}{discount > 0 && <del className="text-xs text-muted"><span className="sr-only">MRP </span>{formatPrice(variant!.comparePrice!)}</del>}</div>
-      <p className="mb-4 mt-1.5 flex items-center gap-1 text-xs text-secondary">{product.isDemo ? 'Preview only · not for sale' : inStock ? <><Check size={13} className="text-emerald-600" aria-hidden />{hasOptions ? `${product.variants.length} options` : 'Available to order'}</> : hasOptions ? 'Selected option is out of stock' : 'Currently out of stock'}</p>
-      {admin || product.isDemo || hasOptions ? <Link href={href} className="btn-secondary mt-auto w-full gap-1 px-2 text-xs sm:text-sm">{hasOptions && !product.isDemo ? 'Choose options' : 'View details'}<ArrowUpRight size={15} aria-hidden /></Link> : <AddToCartButton product={product} variant={variant} className="mt-auto w-full px-2 text-xs sm:text-sm" />}
-      <label className="mt-3 flex min-h-11 cursor-pointer items-center justify-center gap-2 border-t border-[var(--border)] pt-2 text-xs text-secondary"><input type="checkbox" checked={compared} onChange={() => { if (!toggleCompare(product)) toast('Compare up to 3 products. Remove one to add another.', 'info'); }} aria-label={`Compare ${name}`} className="h-4 w-4 accent-[#123E75]" />{compared ? 'Added to compare' : 'Compare'}</label>
+      <div className="product-card-price">{variant ? <span>{hasPriceRange(product) && <small className="mr-1 text-xs font-normal text-muted">From</small>}{formatPrice(variant.price)}</span> : <span>Unavailable</span>}{discount > 0 && <del><span className="sr-only">MRP </span>{formatPrice(variant!.comparePrice!)}</del>}</div>
+      <p className="product-card-stock">{product.isDemo ? 'Sample · not for sale' : inStock ? <><Check size={13} className="text-emerald-700" aria-hidden />{hasOptions ? `${product.variants.length} options · Taxes included` : 'Taxes included'}</> : 'Currently out of stock'}</p>
+      <div className="product-card-actions">
+        <label className="product-card-compare cursor-pointer"><input type="checkbox" checked={compared} onChange={() => { if (!toggleCompare(product)) toast('Compare up to 3 products. Remove one to add another.', 'info'); }} aria-label={`Compare ${name}`} />{compared ? 'Comparing' : 'Compare'}</label>
+        {admin || product.isDemo || hasOptions ? <Link href={href} className="btn-secondary">{hasOptions && !product.isDemo ? 'Choose options' : 'View details'}<ArrowUpRight size={14} aria-hidden /></Link> : <AddToCartButton product={product} variant={variant} />}
+      </div>
     </div>
     {preview && <QuickView product={product} onClose={() => setPreview(false)} returnFocus={previewTrigger} />}
   </article>;

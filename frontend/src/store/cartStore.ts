@@ -15,7 +15,7 @@ interface CartState {
   synchronize: (owner: string) => Promise<void>;
   reset: () => void;
   fetchCart: () => Promise<void>;
-  addItem: (productId: string, variant: string, quantity?: number, listingId?: string) => Promise<void>;
+  addItem: (productId: string, variant: string, quantity?: number, listingId?: string, openDrawer?: boolean) => Promise<void>;
   updateItem: (itemId: string, quantity: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -31,19 +31,20 @@ let pending = 0;
 export const useCartStore = create<CartState>()(persist((set, get) => {
   // Serialize writes. A lost response is reconciled with the server instead of
   // rolling back a snapshot that may predate another successful operation.
-  const enqueue = (operation: (current: () => boolean) => Promise<void>) => {
+  const enqueue = (operation: (current: () => boolean) => Promise<void>, rejectIfStale = false) => {
     const epoch = generation;
     pending += 1;
     set({ isLoading: true });
     const task = queue.catch(() => undefined).then(async () => {
       const current = () => generation === epoch;
       if (current()) await operation(current);
+      else if (rejectIfStale) throw new Error('Your cart session changed. Review the current cart before trying again.');
     }).finally(() => { pending -= 1; set({ isLoading: pending > 0 }); });
     queue = task.catch(() => undefined);
     return task;
   };
   const accept = (payload: CartPayload) => set({ items: payload.data?.items ?? [], ready: true, notice: payload.data?.adjustments?.join(' ') || null });
-  const mutate = (request: () => Promise<{ data: CartPayload }>, open = false) => {
+  const mutate = (request: () => Promise<{ data: CartPayload }>, open = false, throwOnError = false) => {
     // Opening the drawer is a user-facing action, not data: do it optimistically
     // and epoch-independently. A CartSync owner transition (e.g. the first
     // 'unknown' → 'guest' synchronize) can bump the generation while a write is
@@ -54,6 +55,7 @@ export const useCartStore = create<CartState>()(persist((set, get) => {
       set({ error: null });
       try {
         const response = await request();
+        if (!current() && (open || throwOnError)) throw new Error('Your cart session changed. Review the current cart before trying again.');
         if (current()) accept(response.data);
       } catch (error) {
         if (current()) {
@@ -65,9 +67,9 @@ export const useCartStore = create<CartState>()(persist((set, get) => {
         }
         // Always rethrow to the initiating control so its toast fires even if a
         // generation bump made this epoch stale.
-        if (open) throw error;
+        if (open || throwOnError) throw error;
       }
-    });
+    }, open || throwOnError);
   };
   return {
     items: [], owner: 'unknown', ready: false, error: null, notice: null, isOpen: false, isLoading: false,
@@ -86,7 +88,7 @@ export const useCartStore = create<CartState>()(persist((set, get) => {
         if (current()) accept(response.data);
       } catch (error) { if (current()) set({ error: getApiError(error), ready: false }); }
     }),
-    addItem: (productId, variant, quantity = 1, listingId) => mutate(() => api.post<CartPayload>('/cart/items', { productId, variant, quantity, listingId }), true),
+    addItem: (productId, variant, quantity = 1, listingId, openDrawer = true) => mutate(() => api.post<CartPayload>('/cart/items', { productId, variant, quantity, listingId }), openDrawer, true),
     updateItem: (id, quantity) => mutate(() => api.put<CartPayload>(`/cart/items/${id}`, { quantity })),
     removeItem: id => mutate(() => api.delete<CartPayload>(`/cart/items/${id}`)),
     clearCart: () => mutate(() => api.delete<CartPayload>('/cart')),

@@ -1,9 +1,9 @@
 # Render blueprint — NexMart backend
 #
 # Free instance: spins down after 15 min idle and wakes in ~60s. The
-# keep-alive GitHub Action (.github/workflows/render-keepalive.yml) pings
-# /health every 10 minutes so real visitors never hit the cold start.
-# 24/7 uptime needs ~730 of the 750 free instance-hours — inside the cap.
+# scheduled GitHub Action is a best-effort probe, not an uptime guarantee.
+# GitHub schedules can be delayed or skipped. Use an always-on instance for
+# checkout traffic that must not wait for a cold start.
 services:
   - type: web
     name: nexmart-api
@@ -13,14 +13,13 @@ services:
     rootDir: backend
     # Pin the Node major we build/boot-test with locally (Render's default
     # drifted to a toolchain where old tsconfig options fail the build).
-    nodeVersion: "24.0" # resolved to the latest 24.x on Render
     # --include=dev is REQUIRED: NODE_ENV=production makes npm skip
     # devDependencies, which are build tools here (typescript + @types/*).
     # Without it the build ran a fallback TS 7 (removed old tsconfig options,
     # no @types) and failed twice. Lockfile pins typescript 5.9.3.
-    buildCommand: npm install --include=dev && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: node dist/server.js
-    healthCheckPath: /health
+    healthCheckPath: /health/ready
     autoDeploy: true
     envVars:
       # Set these in the Render dashboard (or `render secret set`) — NOT here.
@@ -39,7 +38,7 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false # REQUIRED in production — the server aborts without it
-      # Group: auth — three separate secrets, 32+ chars each
+      # Group: auth — four distinct secrets, 32+ chars each
       - key: JWT_SECRET_ADMIN
         sync: false
       - key: JWT_SECRET_CUSTOMER
@@ -55,9 +54,9 @@ services:
       - key: ADMIN_SEED_PASSWORD
         sync: false
       # Group: public URLs — fill after the first deploy, using the real
-      # *.onrender.com and *.pages.dev URLs, then redeploy:
+      # *.onrender.com and *.netlify.app URLs, then redeploy:
       - key: APP_URL
-        sync: false # e.g. https://nexmart.pages.dev
+        sync: false # e.g. https://nexmart-in.netlify.app
       - key: CORS_ORIGIN
         sync: false # same as APP_URL — the CSRF origin check requires an exact match
       - key: SOCKET_CORS_ORIGIN
@@ -86,6 +85,8 @@ services:
       - key: API_URL
         sync: false # e.g. https://nexmart-api.onrender.com/api/v1
       # Fixed values
+      - key: NODE_VERSION
+        value: "24.19.0"
       - key: NODE_ENV
         value: production
       - key: PORT

@@ -3,6 +3,7 @@ import { createOrder, verifyPayment, getMyOrders, getOrderById, updateOrderStatu
 import { protectCustomer, protectAdmin } from '../middleware/auth';
 import { paymentLimit } from '../middleware/rateLimiter';
 import { getCheckoutOrder, resumePayment } from '../controllers/checkout.controller';
+import { getOrderRequests, createOrderRequest } from '../controllers/orderRequest.controller';
 
 const router = Router();
 
@@ -16,6 +17,8 @@ router.get('/:id', protectCustomer, getOrderById);
 router.post('/:id/payment', protectCustomer, paymentLimit, resumePayment);
 router.post('/:id/payment/verify', protectCustomer, paymentLimit, verifyPayment);
 router.get('/:id/invoice', protectCustomer, getInvoice);
+router.get('/:id/requests', protectCustomer, getOrderRequests);
+router.post('/:id/requests', protectCustomer, paymentLimit, createOrderRequest);
 
 // Admin route — order status transitions
 router.patch('/:id/status', protectAdmin, updateOrderStatus);

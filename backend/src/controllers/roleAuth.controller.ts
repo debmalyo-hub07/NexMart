@@ -319,12 +319,10 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
   if (!matches || exhausted) {
     if (pending && !exhausted) {
-      const attempts = (customer!.otpAttempts ?? 0) + 1;
-      if (attempts >= RESET_CODE_MAX_ATTEMPTS) {
+      const attempted = await Customer.findOneAndUpdate({ _id: customer!._id, otp: customer!.otp, otpAttempts: { $lt: RESET_CODE_MAX_ATTEMPTS } }, { $inc: { otpAttempts: 1 } }, { new: true });
+      if (attempted && (attempted.otpAttempts ?? 0) >= RESET_CODE_MAX_ATTEMPTS) {
         // Burn the code: exactly five guesses per code, per account.
-        await Customer.updateOne({ _id: customer!._id }, { $unset: { otp: 1, otpExpiry: 1, otpAttempts: 1 } });
-      } else {
-        await Customer.updateOne({ _id: customer!._id }, { $set: { otpAttempts: attempts } });
+        await Customer.updateOne({ _id: customer!._id, otp: customer!.otp, otpAttempts: { $gte: RESET_CODE_MAX_ATTEMPTS } }, { $unset: { otp: 1, otpExpiry: 1, otpAttempts: 1 } });
       }
     }
     return res.status(400).json({ success: false, message: 'Unable to verify that code. Please request a new one.', data: null });
@@ -336,10 +334,13 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
   // Mark verified, clear OTP ($unset — $set with undefined is a mongoose
   // no-op, which previously left the OTP on the document forever)
-  await Customer.findByIdAndUpdate(customer!._id, {
+  const verified = await Customer.updateOne({ _id: customer!._id, emailVerified: false, isActive: true, otp: customer!.otp, otpExpiry: { $gt: new Date() }, otpAttempts: { $lt: RESET_CODE_MAX_ATTEMPTS } }, {
     $set: { emailVerified: true },
     $unset: { otp: 1, otpExpiry: 1, otpAttempts: 1 },
   });
+  if (verified.modifiedCount !== 1) {
+    return res.status(400).json({ success: false, message: 'Unable to verify that code. Please request a new one.', data: null });
+  }
 
   res.json({
     success: true,
@@ -754,13 +755,13 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   if ((customer.resetOtpAttempts ?? 0) >= RESET_CODE_MAX_ATTEMPTS) { fail(); return; }
 
   if (presented !== customer.resetOtpHash) {
-    await Customer.findByIdAndUpdate(customer._id, { $inc: { resetOtpAttempts: 1 } });
+    await Customer.updateOne({ _id: customer._id, resetOtpHash: customer.resetOtpHash, resetOtpAttempts: { $lt: RESET_CODE_MAX_ATTEMPTS } }, { $inc: { resetOtpAttempts: 1 } });
     fail();
     return;
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
-  await Customer.findByIdAndUpdate(customer._id, {
+  const changed = await Customer.updateOne({ _id: customer._id, isActive: true, resetOtpHash: presented, resetOtpExpiry: { $gt: new Date() }, resetOtpAttempts: { $lt: RESET_CODE_MAX_ATTEMPTS } }, {
     $set: {
       password: hashedPassword,
       // A reset proves control of the inbox, which is what verification asks.
@@ -770,6 +771,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     $unset: { resetOtpHash: 1, resetOtpExpiry: 1, resetOtpAttempts: 1 },
     $addToSet: { authProviders: 'email' },
   });
+  if (changed.modifiedCount !== 1) { fail(); return; }
 
   res.json({ success: true, message: 'Password updated. Sign in with your new password.', data: null });
 };

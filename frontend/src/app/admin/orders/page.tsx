@@ -99,6 +99,7 @@ export default function AdminOrdersPage() {
       render: (r) => (
         <div className="space-y-1">
           <StatusBadge status={(r.paymentStatus as string) || 'pending'} />
+          {!!r.refund && <p className="text-xs text-muted">Refund: {String((r.refund as { status: string }).status).replaceAll('_', ' ')}</p>}
           <p className="text-xs uppercase tracking-wider text-muted">{r.paymentMethod === 'cod' ? 'Cash on delivery' : 'Online'}</p>
         </div>
       ),
@@ -191,7 +192,7 @@ export default function AdminOrdersPage() {
                     onClick={() => setRefund({ id: row._id as string, orderId })}
                     className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-red-500/30 px-3 text-xs text-red-300 transition-colors hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
                   >
-                    <RotateCcw size={12} aria-hidden /> Refund payment
+                    <RotateCcw size={12} aria-hidden /> {row.refund ? 'Check refund' : 'Refund payment'}
                   </button>
                 )}
               </div>
@@ -252,7 +253,7 @@ export default function AdminOrdersPage() {
       <ConfirmDialog
         open={!!refund}
         title={refund ? `Refund ${refund.orderId}` : ''}
-        description="This sends a full refund for this order through Razorpay and marks the payment refunded. The order's fulfillment status does not change. It cannot be undone."
+        description="This requests a full refund through Razorpay. The payment is marked refunded only after the provider confirms it. Fulfillment is managed separately. A processed refund cannot be undone."
         confirmLabel="Refund payment"
         isLoading={refundMutation.isPending}
         onConfirm={() => refund && refundMutation.mutate(refund.id)}

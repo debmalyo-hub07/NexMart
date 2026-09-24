@@ -51,6 +51,8 @@ module.exports = {
         danger: '#EF4444',
       },
       fontFamily: {
+        display: ['var(--font-outfit)', 'sans-serif'],
+        body: ['var(--font-inter)', 'sans-serif'],
         // Legacy aliases kept so existing markup keeps working — CLAUDE.md v3 §2.2 renames them over time.
         syne: ['var(--font-outfit)', 'sans-serif'],
         dm: ['var(--font-inter)', 'sans-serif'],

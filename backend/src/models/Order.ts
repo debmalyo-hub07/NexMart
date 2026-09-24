@@ -28,8 +28,15 @@ const OrderItemSchema = new Schema({
   totalPrice: { type: Number, required: true },
   unitPricePaise: { type: Number, min: 0, validate: Number.isInteger },
   totalPricePaise: { type: Number, min: 0, validate: Number.isInteger },
+  taxRateBps: { type: Number, min: 0, max: 10000, validate: Number.isInteger },
+  taxPaise: { type: Number, min: 0, validate: Number.isInteger },
+  hsnCode: String,
   discountPaise: { type: Number, min: 0, default: 0, validate: Number.isInteger },
   inventoryState: { type: String, enum: ['reserved', 'committed', 'released', 'returned'] },
+  purchaseTerms: {
+    type: new Schema({ sellerName: String, returnWindowDays: Number, handlingTimeDays: Number, warrantyText: String }, { _id: false }),
+    default: undefined,
+  },
 });
 
 const StatusHistorySchema = new Schema({
@@ -61,6 +68,16 @@ const OrderSchema = new Schema<IOrder>(
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String, sparse: true, unique: true },
     razorpaySignature: String,
+    refund: {
+      type: new Schema({
+        status: { type: String, enum: ['requested', 'pending', 'processed', 'failed', 'needs_review'], required: true },
+        amountPaise: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+        refundId: String,
+        requestedAt: { type: Date, required: true },
+        processedAt: Date,
+      }, { _id: false }),
+      default: undefined,
+    },
     orderStatus: {
       type: String,
       enum: ['placed','confirmed','processing','shipped','out_for_delivery','delivered','cancelled','returned'],
@@ -80,6 +97,7 @@ const OrderSchema = new Schema<IOrder>(
     subtotalPaise: { type: Number, min: 0, validate: Number.isInteger },
     shippingFeePaise: { type: Number, min: 0, validate: Number.isInteger },
     taxPaise: { type: Number, min: 0, validate: Number.isInteger },
+    taxStatus: { type: String, enum: ['complete', 'incomplete'] },
     discountPaise: { type: Number, min: 0, validate: Number.isInteger },
     totalPaise: { type: Number, min: 0, validate: Number.isInteger },
     fulfillmentGroups: [{ type: Schema.Types.ObjectId, ref: 'FulfillmentGroup' }],

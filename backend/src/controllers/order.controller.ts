@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+import { generateInvoiceBuffer } from '../services/invoice.service';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Order } from '../models/Order';
@@ -8,7 +10,7 @@ import { sendSuccess, sendNotFound, sendBadRequest, sendPaginated } from '../uti
 import { AuthenticatedRequest } from '../types';
 import { parsePagination } from '../utils/helpers';
 import { ALLOWED_ORDER_TRANSITIONS } from '../utils/orderTransitions';
-import { restockOrderItems } from '../utils/orderRestock';
+import { persistOrderLifecycle } from '../services/orderLifecycle.service';
 
 export { createOrder, verifyPayment } from './checkout.controller';
 
@@ -53,7 +55,7 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
   const { userId } = (req as AuthenticatedRequest).user!;
   const { status, note } = z.object({
     status: z.enum(['placed','confirmed','processing','shipped','out_for_delivery','delivered','cancelled','returned']),
-    note: z.string().optional(),
+    note: z.string().trim().max(1000).optional(),
   }).parse(req.body);
 
   // Fetch first so the guard and the write act on the same read (no
@@ -81,8 +83,7 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
 
     // Terminal transitions and inventory release are committed together. A
     // failed seller-inventory mutation leaves the order transition retryable.
-    if (status === 'cancelled' || status === 'returned') await restockOrderItems(order);
-    else await order.save();
+    await persistOrderLifecycle(order);
   }
 
   const customer = order.customer as unknown as { _id: { toString(): string }; name?: string; email?: string };
@@ -106,17 +107,12 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
 
 // ── Get Invoice ───────────────────────────────────────────────
 export async function getInvoice(req: Request, res: Response): Promise<void> {
-  const { userId, role } = (req as AuthenticatedRequest).user!;
-  const filter: Record<string, unknown> = { _id: req.params.id };
-  if (role === 'customer') filter.customer = userId;
-
-  const order = await Order.findOne(filter);
+  const { userId } = (req as AuthenticatedRequest).user!;
+  if (!mongoose.isValidObjectId(req.params.id)) { sendNotFound(res, 'Order not found'); return; }
+  const order = await Order.findOne({ _id: req.params.id, customer: userId }).populate('items.product', 'name');
   if (!order) { sendNotFound(res, 'Order not found'); return; }
-  if (!order.invoiceUrl) {
-    // Queue generation if not yet done
-    await queueInvoiceGeneration(order._id.toString());
-    sendSuccess(res, null, 'Invoice is being generated. Please try again shortly.');
-    return;
-  }
-  sendSuccess(res, { invoiceUrl: order.invoiceUrl });
+  const buffer = await generateInvoiceBuffer(order);
+  const filename = `NexMart-${order.orderId.replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`;
+  res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${filename}"`, 'Cache-Control': 'private, no-store' });
+  res.send(buffer);
 }

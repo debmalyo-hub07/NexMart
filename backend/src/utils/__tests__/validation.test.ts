@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { cartMergeSchema, passwordChangeSchema } from '../validation';
+import { cartMergeSchema, passwordChangeSchema, passwordSchema, resetPasswordSchema, setPasswordSchema } from '../validation';
+
+describe('bcrypt input boundary', () => {
+  it('rejects new passwords beyond 72 UTF-8 bytes in every password path', () => {
+    const password = 'Aa1' + '\u20ac'.repeat(24);
+    expect(passwordSchema.safeParse(password).success).toBe(false);
+    expect(passwordChangeSchema.safeParse({ currentPassword: 'OldPass1', password }).success).toBe(false);
+    expect(resetPasswordSchema.safeParse({ email: 'test@example.test', otp: '123456', password }).success).toBe(false);
+    expect(setPasswordSchema.safeParse({ otp: '123456', password }).success).toBe(false);
+    expect(passwordSchema.safeParse('Aa1' + 'x'.repeat(69)).success).toBe(true);
+  });
+});
 
 describe('cartMergeSchema (B1: accepts the shape the frontend actually sends)', () => {
   it('parses { items: [...] } — the authStore.ts payload', () => {

@@ -45,7 +45,7 @@ export async function cartSnapshot(cart: ICartDoc | null) {
     }
   }
   await cart.populate([
-    { path: 'items.product', select: 'name images slug variants isPublished isDemo' },
+    { path: 'items.product', select: 'name images slug variants isPublished isDemo taxRateBps' },
     { path: 'items.seller', select: 'storefrontName' },
   ]);
   // toJSON, not toObject: populated product subdocuments keep their `attributes`

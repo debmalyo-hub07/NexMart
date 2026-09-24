@@ -30,11 +30,11 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   const isAuthPage = pathname === '/seller/login' || pathname === '/seller/register' || pathname?.startsWith('/seller/verify-otp');
 
   if (isAuthPage) {
-    return <div className="min-h-screen bg-space-950 text-white">{children}</div>;
+    return <div className="auth-shell">{children}</div>;
   }
 
   return (
-    <div className="min-h-screen bg-space-950 text-white">
+    <div className="workspace-shell min-h-screen">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex fixed inset-y-0 left-0 z-30">
         <SellerSidebar />
@@ -82,7 +82,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         >
           <Menu size={20} />
         </button>
-        <span className="font-outfit font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 flex-1">Seller Hub</span>
+        <span className="font-outfit font-bold text-[var(--brand)] flex-1">Seller Hub</span>
       </div>
 
       <div className="lg:pl-[260px]"><ConnectivityNotice /></div>

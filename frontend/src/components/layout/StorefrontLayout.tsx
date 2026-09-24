@@ -9,7 +9,7 @@ export function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   // Define paths where Navbar/Footer/cursor/smooth-scroll should NOT appear
-  const isAuth = pathname?.includes('/login') || pathname?.includes('/register') || pathname?.includes('/verify-otp');
+  const isAuth = pathname?.includes('/login') || pathname?.includes('/register') || pathname?.includes('/verify-otp') || pathname?.includes('/forgot-password') || pathname?.includes('/reset-password');
   const isAdmin = pathname?.startsWith('/admin');
   const isDelivery = pathname?.startsWith('/delivery');
   const isSeller = pathname === '/seller' || pathname?.startsWith('/seller/');
@@ -18,7 +18,7 @@ export function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const browseRoute = pathname === '/' || ['/products', '/categories', '/search', '/wishlist'].some(route => pathname === route || pathname?.startsWith(`${route}/`));
 
   return (
-    <div className={showNavAndFooter ? 'storefront-shell' : undefined}>
+    <div className={showNavAndFooter ? 'storefront-shell' : isAuth ? 'auth-shell' : undefined}>
       {showNavAndFooter && <Navbar />}
       {children}
       {showNavAndFooter && <Footer />}

@@ -151,6 +151,13 @@ export function ProductForm({ initialData, productId }: { initialData?: Product;
             <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" {...register('isPublished')} className="h-5 w-5 accent-violet-600" />Published in the store</label>
             <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" {...register('isFeatured')} className="h-5 w-5 accent-violet-600" />Featured on the homepage</label>
           </section>
+          <section className="card space-y-4" aria-labelledby="product-terms">
+            <h2 id="product-terms" className="text-xl">Tax & purchase terms</h2>
+            <p className="text-sm leading-6 text-secondary">Use the approved classification for this product. A blank GST rate means unconfigured; zero explicitly means no GST. Prices already include applicable tax.</p>
+            <div><label htmlFor="product-gst" className="field-label">GST rate (%)</label><input id="product-gst" type="number" min="0" max="100" step="0.01" {...register('gstRatePercent', { setValueAs: value => value === '' ? undefined : Number(value) })} className="input" />{errors.gstRatePercent && <p className="field-error">{errors.gstRatePercent.message}</p>}</div>
+            <div><label htmlFor="product-hsn" className="field-label">HSN code</label><input id="product-hsn" inputMode="numeric" {...register('hsnCode')} className="input" />{errors.hsnCode && <p className="field-error">{errors.hsnCode.message}</p>}</div>
+            <div><label htmlFor="product-return-days" className="field-label">Standard return window (days)</label><input id="product-return-days" type="number" min="0" max="90" step="1" {...register('returnWindowDays', { setValueAs: value => value === '' ? undefined : Number(value) })} className="input" />{errors.returnWindowDays && <p className="field-error">{errors.returnWindowDays.message}</p>}<p className="field-hint">For NexMart inventory. Seller offers use their own published terms. Blank requires support review; zero means no standard return window.</p></div>
+          </section>
           <section className="card space-y-4" aria-labelledby="product-media">
             <h2 id="product-media" className="text-xl">Product images</h2>
             <p className="text-sm text-secondary">Use clear, consistent product photos. The first image appears in the catalog.</p>

@@ -1,16 +1,18 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Outfit, JetBrains_Mono } from 'next/font/google';
+import { Outfit, Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import './marketplace.css';
 import { Providers } from './providers';
 import { StorefrontLayout } from '@/components/layout/StorefrontLayout';
 
+// Premium pairing: Outfit display + Inter body share the --font-* contract.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit', display: 'swap' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: {
-    default: 'NexMart - Considered everyday shopping',
+    default: 'NexMart — Find your kind of everyday',
     template: '%s | NexMart',
   },
   description: 'Browse useful products with clear pricing, reliable checkout, and delivery tracking at NexMart.',
@@ -29,7 +31,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0A0A0F',
+  themeColor: '#163E64',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -76,9 +76,11 @@ router.put('/password', async (req: any, res) => {
   // — a stolen cookie must not survive the victim's password change. The
   // caller's own device gets a freshly minted token here, so only OTHER
   // devices are signed out (mint time ≥ credentialsChangedAt survives).
-  await Customer.findByIdAndUpdate(req.user.id, {
+  const changed = await Customer.updateOne({ _id: req.user.id, password: customer.password, isActive: true }, {
     $set: { password: hashedPassword, credentialsChangedAt: new Date() },
+    $unset: { resetOtpHash: 1, resetOtpExpiry: 1, resetOtpAttempts: 1 },
   });
+  if (changed.modifiedCount !== 1) return res.status(409).json({ success: false, message: 'Your credentials changed. Sign in again before updating your password.' });
   const token = generateToken({ id: req.user.id, role: 'customer' }, env.JWT_SECRET_CUSTOMER, env.JWT_EXPIRES_IN);
   res.cookie('nexmart_customer_session', token, {
     httpOnly: true,
@@ -87,7 +89,7 @@ router.put('/password', async (req: any, res) => {
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
-  res.json({ success: true, message: 'Password updated successfully' });
+  res.json({ success: true, message: 'Password updated successfully', data: { token } });
 });
 
 /**
@@ -129,16 +131,17 @@ router.post('/set-password', async (req: any, res) => {
   if (customer.resetOtpExpiry.getTime() < Date.now()) return fail();
   if ((customer.resetOtpAttempts ?? 0) >= RESET_CODE_MAX_ATTEMPTS) return fail();
   if (hashResetCode(otp) !== customer.resetOtpHash) {
-    await Customer.findByIdAndUpdate(customer._id, { $inc: { resetOtpAttempts: 1 } });
+    await Customer.updateOne({ _id: customer._id, resetOtpHash: customer.resetOtpHash, resetOtpAttempts: { $lt: RESET_CODE_MAX_ATTEMPTS } }, { $inc: { resetOtpAttempts: 1 } });
     return fail();
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
-  await Customer.findByIdAndUpdate(customer._id, {
+  const changed = await Customer.updateOne({ _id: customer._id, isActive: true, password: { $exists: false }, resetOtpHash: customer.resetOtpHash, resetOtpExpiry: { $gt: new Date() }, resetOtpAttempts: { $lt: RESET_CODE_MAX_ATTEMPTS } }, {
     $set: { password: hashedPassword },
     $unset: { resetOtpHash: 1, resetOtpExpiry: 1, resetOtpAttempts: 1 },
     $addToSet: { authProviders: 'email' },
   });
+  if (changed.modifiedCount !== 1) return fail();
   res.json({ success: true, message: 'Password set. You can now sign in with your email too.', data: null });
 });
 

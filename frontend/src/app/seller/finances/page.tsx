@@ -41,8 +41,8 @@ export default function SellerFinancesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm text-violet-300">Revenue & Settlements</p>
-        <h1 className="mt-1 font-outfit text-3xl font-semibold">Finances & Payouts</h1>
+        <p className="text-sm text-violet-300">Your financial records</p>
+        <h1 className="mt-1 font-outfit text-3xl font-semibold">Finances & settlements</h1>
         <p className="mt-2 max-w-2xl text-sm text-secondary">
           Track earnings, platform commission deductions, return reserve escrows, and net settlement balances.
         </p>
@@ -65,14 +65,14 @@ export default function SellerFinancesPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-white/10 bg-space-900 p-5">
               <div className="flex items-center justify-between text-secondary">
-                <span className="text-xs font-medium uppercase tracking-wider text-muted">Available Payout</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-muted">Recorded payable</span>
                 <Wallet size={18} className="text-acid-400" />
               </div>
               <p className="mt-2 font-mono text-3xl font-semibold text-white">
                 {formatPrice(data?.payableBalanceRupees || 0)}
               </p>
               <p className="mt-2 text-xs text-muted">
-                Net payable balance cleared for automated bank transfer.
+                Accounting balance after fees and reversals. This page does not initiate bank transfers.
               </p>
             </div>
 

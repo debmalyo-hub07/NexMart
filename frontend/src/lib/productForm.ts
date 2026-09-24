@@ -20,6 +20,9 @@ export const productFormSchema = z.object({
   category: z.string().min(1, 'Choose a category'),
   subCategory: z.string().optional(),
   brand: z.string().optional(),
+  gstRatePercent: z.number().finite().min(0).max(100).optional(),
+  hsnCode: z.string().regex(/^\d{4,8}$/, 'Use 4 to 8 digits').or(z.literal('')).optional(),
+  returnWindowDays: z.number().int().min(0).max(90).optional(),
   tags: z.string(),
   specifications: detailsSchema,
   isPublished: z.boolean(),
@@ -49,6 +52,7 @@ export function productFormDefaults(product?: Product): ProductFormData {
     name: product?.name ?? '', description: product?.description ?? '', richDescription: product?.richDescription ?? '',
     category: typeof product?.category === 'string' ? product.category : product?.category?._id ?? '',
     subCategory: product?.subCategory ?? '', brand: product?.brand ?? '', tags: product?.tags?.join(', ') ?? '',
+    gstRatePercent: product?.taxRateBps === undefined ? undefined : product.taxRateBps / 100, hsnCode: product?.hsnCode || '', returnWindowDays: product?.returnWindowDays,
     specifications: pairs(product?.specifications), isPublished: product?.isPublished ?? false, isFeatured: product?.isFeatured ?? false,
     variants: product?.variants?.map(variant => ({ ...variant, attributes: pairs(variant.attributes), images: variant.images ?? [] }))
       ?? [{ sku: '', price: 0, stock: 0, attributes: [], images: [] }],
@@ -56,8 +60,11 @@ export function productFormDefaults(product?: Product): ProductFormData {
 }
 
 export function productFormPayload(data: ProductFormData) {
+  const { gstRatePercent, ...details } = data;
   return {
-    ...data,
+    ...details,
+    taxRateBps: gstRatePercent === undefined ? null : Math.round(gstRatePercent * 100),
+    returnWindowDays: data.returnWindowDays ?? null,
     tags: data.tags.split(',').map(tag => tag.trim()).filter(Boolean),
     specifications: Object.fromEntries(data.specifications.map(detail => [detail.key, detail.value])),
     variants: data.variants.map(variant => ({ ...variant, attributes: Object.fromEntries(variant.attributes.map(detail => [detail.key, detail.value])) })),

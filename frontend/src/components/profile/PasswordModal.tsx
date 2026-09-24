@@ -3,24 +3,37 @@
 import { useId, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { passwordSchema } from '@/lib/password';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import api, { getApiError } from '@/lib/api';
 import { useUIStore } from '@/store/uiStore';
 import { Overlay } from '@/components/common/Overlay';
+import { useSession } from 'next-auth/react';
+import { useAuthStore } from '@/store/authStore';
 
-const schema = z.object({ currentPassword: z.string().min(1, 'Enter your current password'), password: z.string().min(8, 'Use at least 8 characters').regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Include uppercase, lowercase, and a number'), confirmPassword: z.string() }).refine(value => value.password === value.confirmPassword, { path: ['confirmPassword'], message: 'Passwords must match' });
+const schema = z.object({ currentPassword: z.string().min(1, 'Enter your current password'), password: passwordSchema, confirmPassword: z.string() }).refine(value => value.password === value.confirmPassword, { path: ['confirmPassword'], message: 'Passwords must match' });
 type Values = z.infer<typeof schema>;
 export function PasswordModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const id = useId();
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState('');
   const toast = useUIStore(s => s.showToast);
+  const { update } = useSession();
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), mode: 'onTouched' });
   const close = () => { reset(); setError(''); setVisible(false); onClose(); };
   async function submit(values: Values) {
     setError('');
-    try { await api.put('/customer/password', { currentPassword: values.currentPassword, password: values.password }); toast('Password updated'); close(); }
+    try {
+      const response = await api.put('/customer/password', { currentPassword: values.currentPassword, password: values.password });
+      const token = response.data.data?.token;
+      if (typeof token === 'string') {
+        const user = useAuthStore.getState().user;
+        if (user) useAuthStore.getState().setUser(user, token);
+        await update({ accessToken: token });
+      }
+      toast('Password updated. Other devices have been signed out.'); close();
+    }
     catch (error) { setError(getApiError(error)); }
   }
   return <Overlay open={isOpen} onClose={close} title="Change password" description="Use at least 8 characters with uppercase, lowercase, and a number." busy={isSubmitting}>

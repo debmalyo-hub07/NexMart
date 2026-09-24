@@ -16,7 +16,7 @@ export default function CartPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const online = useOnline();
   const blocked = isLoading || !ready || !!error || !online || items.some(item => !getCartItemState(item).available);
-  const totals = calculateTotals(items.map(item => ({ price: getCartItemState(item).price, quantity: item.quantity })));
+  const totals = calculateTotals(items.map(item => ({ price: getCartItemState(item).price, quantity: item.quantity, taxRateBps: item.product?.taxRateBps })));
   return <main id="main-content" className="store-page"><div className="page-container">
     <PageHeader title="Your shopping cart" description="Review your options, quantities, and the complete total before checkout." />
     <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">

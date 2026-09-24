@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authLimit, otpLimit, registerLimit } from '../middleware/rateLimiter';
 import { protectSeller, requireActiveSeller } from '../middleware/auth';
+import { getSellerDashboard } from '../controllers/sellerDashboard.controller';
 import {
   loginSeller,
   registerSeller,
@@ -42,6 +43,7 @@ router.get('/storefront/:id', getPublicSellerStorefront);
 
 router.use(protectSeller);
 router.get('/profile', getSellerProfile);
+router.get('/dashboard', requireActiveSeller, getSellerDashboard);
 router.put('/profile', updateSellerProfile);
 router.post('/onboarding/submit', submitSellerOnboarding);
 

@@ -81,7 +81,7 @@ export function SearchBar({ id, onClose }: SearchBarProps) {
   }
 
   return <div ref={container} className="relative w-full" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false); }}>
-    <form role="search" onSubmit={event => { event.preventDefault(); submit(); }} className="flex min-h-12 items-center rounded-xl border border-[var(--border-control)] bg-[#F4F3EF] focus-within:border-violet-300 focus-within:bg-white">
+    <form role="search" onSubmit={event => { event.preventDefault(); submit(); }} className="search-form flex min-h-12 items-center rounded-xl border border-[var(--border-control)]">
       <Search size={18} className="ml-3 shrink-0 text-muted" aria-hidden />
       <input ref={input} id={id || `${uid}-search`} type="search" name="q" value={value} maxLength={200}
         placeholder="Search products, brands, and more…" autoComplete="off" enterKeyHint="search" aria-label="Search products or brands"
@@ -96,7 +96,7 @@ export function SearchBar({ id, onClose }: SearchBarProps) {
           }
         }} />
       {value && <button type="button" className="icon-button" aria-label="Clear search" onClick={() => { setValue(''); input.current?.focus(); }}><X size={17} aria-hidden /></button>}
-      <button type="submit" aria-label="Submit search" className="icon-button mr-1 text-navy"><ArrowUpRight size={19} aria-hidden /></button>
+      <button type="submit" aria-label="Submit search" className="search-submit icon-button"><Search size={19} aria-hidden /></button>
     </form>
     {open && <div className="search-panel absolute inset-x-0 top-full z-50 mt-2 max-h-[min(65dvh,480px)] overflow-y-auto overscroll-contain rounded-xl border border-[var(--border)] bg-white shadow-[0_18px_50px_rgba(15,23,42,.18)]">
       {trimmed.length < 2 && <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2"><p className="text-xs text-muted">{recent.length ? 'Recent searches & departments' : 'A few places to begin'}</p>{recent.length > 0 && <button type="button" className="min-h-11 px-2 text-xs text-secondary" onClick={() => { setRecent([]); try { localStorage.removeItem('nexmart_recent_searches'); } catch { /* optional */ } }}>Clear recent</button>}</div>}
@@ -106,7 +106,7 @@ export function SearchBar({ id, onClose }: SearchBarProps) {
       {!waiting && trimmed.length >= 2 && !query.isError && !products.length && !matchingCategories.length && <p role="status" className="p-4 text-sm text-secondary">No suggestions. Try a product name or another spelling.</p>}
       <ul id={`${uid}-results`} role="listbox" aria-label="Search suggestions">
         {options.map((option, index) => <li key={`${option.kind}-${option.href}`} role="presentation"><Link id={`${uid}-option-${index}`} role="option" aria-selected={active === index} tabIndex={-1} href={option.href} onMouseDown={event => event.preventDefault()} onClick={close} className={`flex min-h-12 items-center gap-3 p-3 text-sm hover:bg-[rgba(18,62,117,.06)] ${active === index ? 'bg-[rgba(18,62,117,.10)]' : ''}`}>
-          {option.product ? <span className="product-stage relative h-12 w-12 shrink-0 overflow-hidden rounded-md"><ProductImage src={displayVariant(option.product)?.images?.[0] || option.product.images?.[0]} alt="" sizes="48px" className="p-1" /></span> : option.kind === 'category' ? <CategoryIcon name={option.label} size={18} /> : option.kind === 'recent' ? <Clock size={17} className="shrink-0 text-muted" aria-hidden /> : <Search size={17} className="shrink-0 text-orange-500" aria-hidden />}
+          {option.product ? <span className="product-stage relative h-12 w-12 shrink-0 overflow-hidden rounded-md"><ProductImage src={displayVariant(option.product)?.images?.[0] || option.product.images?.[0]} alt="" sizes="48px" className="p-1" /></span> : option.kind === 'category' ? <CategoryIcon name={option.label} size={18} /> : option.kind === 'recent' ? <Clock size={17} className="shrink-0 text-muted" aria-hidden /> : <Search size={17} className="shrink-0 text-[var(--accent-violet)]" aria-hidden />}
           <span className="min-w-0 flex-1 break-words"><span className="line-clamp-2">{option.label}</span>{option.kind === 'category' && <span className="text-xs text-muted">Explore category</span>}{option.product && <span className="text-xs text-muted">{option.product.brand}{option.product.isDemo ? ' · Sample' : ''}</span>}</span>
           {option.product && displayVariant(option.product) && <span className="shrink-0 font-mono text-xs">{formatPrice(displayVariant(option.product)!.price)}</span>}
         </Link></li>)}

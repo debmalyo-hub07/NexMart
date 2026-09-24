@@ -2,22 +2,137 @@ import Link from 'next/link';
 import { ArrowUpRight, FileText, Info } from 'lucide-react';
 import { businessDetails, policyLinks } from '@/lib/businessDetails';
 import type { StorefrontPolicy } from '@/lib/storefrontPolicies';
+import { PolicyProgress } from './PolicyProgress';
+import { PolicyTOC } from './PolicyTOC';
+import { CopySectionLink } from './CopySectionLink';
+import { PolicyPrintButton } from './PolicyPrintButton';
 
 export function PolicyDraftNotice({ compact = false }: { compact?: boolean }) {
   if (businessDetails.policiesApproved) return null;
-  return <div className={`flex items-start gap-3 rounded-xl border border-amber-300/70 bg-amber-50 ${compact ? 'p-3' : 'p-5'}`}><Info size={19} className="mt-0.5 shrink-0 text-amber-600" aria-hidden /><div><p className="text-sm font-medium text-amber-800">Draft · pending business approval</p><p className="mt-1 text-xs leading-relaxed text-secondary">Legal identity, support contacts, and commercial delivery/return terms are not yet confirmed. These pages are not final policies; do not assume unlisted guarantees. <Link href="/contact" className="underline underline-offset-4">View publication status</Link>.</p></div></div>;
+  return (
+    <div
+      className={`policy-draft${compact ? ' is-compact' : ''}`}
+      role="note"
+      aria-label="Draft policy notice"
+    >
+      <Info size={19} className="mt-0.5 shrink-0" aria-hidden />
+      <div>
+        <p className="text-sm font-semibold">Draft · pending business approval</p>
+        <p className="mt-1 text-xs leading-relaxed text-secondary">
+          Legal identity, support contacts, and commercial delivery/return terms are not yet
+          confirmed. These pages are not final policies; do not assume unlisted guarantees.{' '}
+          <Link href="/contact" className="underline underline-offset-4">
+            View publication status
+          </Link>
+          .
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function PolicyLayout({ policy, path }: { policy: StorefrontPolicy; path: string }) {
-  return <main id="main-content" className="store-page"><div className="page-container">
-    <header className="mb-8 max-w-3xl"><p className="eyebrow mb-3 text-[var(--accent-violet)]">The small print, made clearer</p><h1 className="text-4xl font-medium sm:text-5xl">{policy.title}</h1><p className="mt-4 text-secondary">{policy.description}</p><p className="mt-4 text-xs text-muted">Draft updated {businessDetails.policyUpdated}</p></header>
-    <PolicyDraftNotice />
-    <div className="mt-9 grid gap-9 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-14">
-      <aside className="self-start lg:sticky lg:top-[calc(var(--navbar-height)+24px)]"><p className="eyebrow mb-3">On this page</p><nav aria-label="Policy sections"><ul>{policy.sections.map(section => <li key={section.id}><a href={`#${section.id}`} className="flex min-h-11 items-center py-2 text-sm text-secondary hover:text-[var(--text-primary)]">{section.title}</a></li>)}</ul></nav><nav className="mt-5 border-t border-[var(--border)] pt-5" aria-label="Shopping policies"><ul>{policyLinks.map(link => <li key={link.href}><Link href={link.href} aria-current={path === link.href ? 'page' : undefined} className={`flex min-h-11 items-center justify-between gap-2 text-sm ${path === link.href ? 'text-[var(--accent-violet)]' : 'text-muted hover:text-[var(--text-primary)]'}`}>{link.label}<ArrowUpRight size={13} aria-hidden /></Link></li>)}</ul></nav></aside>
-      <div className="max-w-3xl"><section className="mb-8 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 sm:p-6"><h2 className="mb-4 flex items-center gap-2 text-lg"><FileText size={19} className="text-[var(--accent-violet)]" aria-hidden />At a glance</h2><ul className="space-y-3">{policy.summary.map(item => <li key={item} className="flex gap-3 text-sm text-secondary"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--accent-violet)]" aria-hidden />{item}</li>)}</ul></section>
-        {policy.sections.map(section => <section key={section.id} id={section.id} className="policy-content border-b border-[var(--border)] py-7 first:pt-0"><h2 className="mb-4 text-2xl">{section.title}</h2>{section.paragraphs.map(paragraph => <p key={paragraph} className="mb-3 last:mb-0">{paragraph}</p>)}{section.points && <ul className="list-disc space-y-2 pl-5">{section.points.map(point => <li key={point}>{point}</li>)}</ul>}</section>)}
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5"><div><h2 className="text-lg">Need a little more clarity?</h2><p className="mt-1 text-sm text-muted">Start with shopping help or the contact information.</p></div><Link href="/help" className="btn-secondary">Shopping help <ArrowUpRight size={16} aria-hidden /></Link></div>
+  return (
+    <main id="main-content" className="store-page policy-page">
+      <PolicyProgress />
+      <div className="page-container">
+        <header className="policy-hero">
+          <div>
+            <p className="eyebrow">The small print, made clearer</p>
+            <h1>{policy.title}</h1>
+            <p className="policy-lede">{policy.description}</p>
+            <p className="policy-meta">
+              <span>Draft updated {businessDetails.policyUpdated}</span>
+              <span aria-hidden>·</span>
+              <span>{policy.sections.length} sections</span>
+              <span aria-hidden>·</span>
+              <span>~{Math.max(2, Math.round(policy.sections.length * 1.5))} min read</span>
+            </p>
+            <div className="policy-actions">
+              <PolicyPrintButton />
+              <Link href="/help" className="policy-action is-link">
+                Shopping help <ArrowUpRight size={14} aria-hidden />
+              </Link>
+            </div>
+          </div>
+          <div className="policy-hero-card" aria-label="At a glance">
+            <h2>
+              <FileText size={18} aria-hidden /> At a glance
+            </h2>
+            <ul>
+              {policy.summary.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </header>
+        <PolicyDraftNotice />
+        <div className="policy-body">
+          <aside className="policy-side">
+            <p className="eyebrow">On this page</p>
+            <PolicyTOC sections={policy.sections.map(({ id, title }) => ({ id, title }))} />
+            <nav className="policy-switcher" aria-label="Shopping policies">
+              <p className="eyebrow">Good to know</p>
+              <ul>
+                {policyLinks.map(link => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      aria-current={path === link.href ? 'page' : undefined}
+                      className={path === link.href ? 'is-current' : undefined}
+                    >
+                      {link.label}
+                      <ArrowUpRight size={13} aria-hidden />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </aside>
+          <div className="policy-article">
+            {policy.sections.map((section, index) => (
+              <section
+                key={section.id}
+                id={section.id}
+                className="policy-content"
+                aria-labelledby={`${section.id}-heading`}
+              >
+                <p className="policy-index" aria-hidden>
+                  {String(index + 1).padStart(2, '0')}
+                </p>
+                <div className="policy-heading-row">
+                  <h2 id={`${section.id}-heading`}>{section.title.replace(/^\d+\.\s*/, '')}</h2>
+                  <CopySectionLink id={section.id} title={section.title} />
+                </div>
+                {section.paragraphs.map(paragraph => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+                {section.points && (
+                  <ul className="policy-points">
+                    {section.points.map(point => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
+            <div className="policy-footer-card">
+              <div>
+                <h2>Need a little more clarity?</h2>
+                <p>Start with shopping help or check what contact details are published.</p>
+              </div>
+              <div className="policy-footer-actions">
+                <Link href="/help" className="btn-secondary">
+                  Shopping help <ArrowUpRight size={16} aria-hidden />
+                </Link>
+                <Link href="/contact" className="text-link">
+                  Contact status <ArrowUpRight size={14} aria-hidden />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div></main>;
+    </main>
+  );
 }

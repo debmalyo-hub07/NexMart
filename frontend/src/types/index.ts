@@ -76,6 +76,9 @@ export interface Product {
   variants: ProductVariant[];
   tags: string[];
   brand?: string;
+  taxRateBps?: number;
+  hsnCode?: string;
+  returnWindowDays?: number;
   specifications: Record<string, string>;
   ratings: { average: number; count: number };
   reviews: ProductReview[];

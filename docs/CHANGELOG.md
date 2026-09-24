@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 
 ---
 
+## Unreleased — Information-page premium rebuild + storefront trust pass
+
+- **Typography fixed:** `frontend/src/app/layout.tsx` loaded Manrope/DM_Sans under the
+  `--font-inter`/`--font-outfit` variable names; now loads true Outfit (display) +
+  Inter (body) with JetBrains Mono for prices/IDs. Same variable contract, so portal
+  markup is unaffected.
+- **Policy system rebuilt** (`PolicyLayout` + `PolicyProgress`/`PolicyTOC`/
+  `CopySectionLink`/`PolicyPrintButton`): editorial hero with read-time meta, reading
+  progress bar, scrollspy table of contents, per-section copy-link, print/save-PDF
+  stylesheet. Content unchanged — drafts stay honest, `policiesApproved:false` keeps
+  indexing off until operator facts are supplied.
+- **About** (`/about`): photo hero, live catalog stats via `publicCatalog`
+  (department/in-stock counts, never invented), photographic journey cards replacing
+  Lucide-icon tiles.
+- **Contact** (`/contact`): published/awaiting-operator status chips per field plus a
+  live published-count. No legal identity invented — all six fields remain null-bound.
+- **Help** (`/help`): same search/topic/FAQ logic under a photo hero card.
+- **Motion:** new `Reveal` scroll-reveal (IntersectionObserver, once, compositor-only,
+  reduced-motion instant) applied to homepage planner banner, editorial cards
+  (90ms stagger), and seller invitation; never on above-fold content.
+- **Trust copy:** PDP delivery/returns links no longer claim a universal "7-day
+  window" — copy now states the seller-stated window. Audit of all remaining
+  guarantee language confirms honest disclaimers only.
+- **Token unification:** last orange-600/500 literals in storefront surfaces
+  (PDP brand link, sample CTA, checkout payment radio, budget-tool hover, search
+  suggestion icon) moved to `--accent-violet` brand tokens.
+- **Deploy docs synced to `render.yaml`:** blueprint build `npm ci --include=dev`,
+  healthcheck `/health/ready`, `NODE_VERSION 24.19.0`; keep-alive secret and
+  workflow now target `/health/ready`; boot-log line mentions the refund reconciler.
+- **Verification:** frontend lint + typecheck clean, 56/56 Vitest tests pass
+  (13 suites), production build green (62/62 routes). Backend: 34 suites, 223/223
+  tests pass (incl. new `pricing.service` contract tests); lint + typecheck + build
+  clean. Replica-set suites flake on mongod startup contention under parallel load —
+  green solo and in isolation. Two lint errors in prior-wave files fixed
+  (`admin.controller` unused import, `refund.service` prefer-const).
+
 ---
 
 ## 2026-09-23 (3) — Render deploy fix: prod build no longer compiles test/QA sources

@@ -16,15 +16,12 @@ import {
   otpEmailRateLimiter,
 } from '../config/redis';
 import { sendEligibilityPending } from './roleAuth.controller';
-
-const PASSWORD = z.string()
-  .min(8, 'Password must be at least 8 characters')
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number');
+import { passwordSchema } from '../utils/validation';
 
 export const sellerRegistrationSchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.string().trim().toLowerCase().email(),
-  password: PASSWORD,
+  password: passwordSchema,
   confirmPassword: z.string().min(1),
   legalBusinessName: z.string().trim().min(2).max(160),
   storefrontName: z.string().trim().min(2).max(120),
@@ -172,14 +169,15 @@ export async function verifySellerEmail(req: Request, res: Response): Promise<vo
   if (!seller || seller.emailVerified || !seller.verificationCodeHash || !seller.verificationCodeExpiry) { fail(); return; }
   if (seller.verificationCodeExpiry.getTime() < Date.now() || seller.verificationCodeAttempts >= verificationCodeMaxAttempts) { fail(); return; }
   if (!codesMatch(parsed.data.otp, seller.verificationCodeHash)) {
-    await Seller.updateOne({ _id: seller._id, verificationCodeAttempts: { $lt: verificationCodeMaxAttempts } }, { $inc: { verificationCodeAttempts: 1 } });
+    await Seller.updateOne({ _id: seller._id, verificationCodeHash: seller.verificationCodeHash, verificationCodeAttempts: { $lt: verificationCodeMaxAttempts } }, { $inc: { verificationCodeAttempts: 1 } });
     fail();
     return;
   }
-  await Seller.updateOne({ _id: seller._id }, {
+  const verified = await Seller.updateOne({ _id: seller._id, emailVerified: false, isActive: true, verificationCodeHash: seller.verificationCodeHash, verificationCodeExpiry: { $gt: new Date() }, verificationCodeAttempts: { $lt: verificationCodeMaxAttempts } }, {
     $set: { emailVerified: true },
     $unset: { verificationCodeHash: 1, verificationCodeExpiry: 1, verificationCodeAttempts: 1 },
   });
+  if (verified.modifiedCount !== 1) { fail(); return; }
   res.json({ success: true, message: 'Seller email verified. Complete your store setup to apply.', data: null });
 }
 

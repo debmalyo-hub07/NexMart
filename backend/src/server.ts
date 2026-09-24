@@ -10,6 +10,7 @@ import { connectDatabase } from './config/database';
 import { initializeSocket } from './config/socket';
 import { seedAdmin } from './seed/adminSeed';
 import { startInvoiceWorker } from './queues/invoiceQueue';
+import { startRefundReconciler } from './services/refund.service';
 import { startOrderReaper } from './services/orderReaper';
 import { env } from './config/env';
 import { logger } from './utils/logger';
@@ -51,6 +52,7 @@ async function bootstrap(): Promise<void> {
     // 7. Start the stale-order reaper (cancels abandoned checkouts, restocks,
     //    reconciles paid-but-unconfirmed orders via the Razorpay API)
     startOrderReaper();
+    startRefundReconciler();
 
     // 7. Start listening
     server.listen(parseInt(env.PORT), () => {

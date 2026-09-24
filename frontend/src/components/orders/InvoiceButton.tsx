@@ -3,26 +3,24 @@
 import { useRef, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import api, { getApiError } from '@/lib/api';
-import type { ApiResponse } from '@/types';
 
-function safeInvoice(url?: string) {
-  try { const value = new URL(url || ''); return value.protocol === 'https:' && value.hostname === 'res.cloudinary.com' ? value.href : undefined; } catch { return undefined; }
-}
-export function InvoiceButton({ orderId, invoiceUrl, path }: { orderId: string; invoiceUrl?: string; path?: string }) {
-  const [url, setUrl] = useState(safeInvoice(invoiceUrl));
+export function InvoiceButton({ orderId, path }: { orderId: string; invoiceUrl?: string; path?: string }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
-  async function prepare() {
+  async function download() {
     if (pending.current) return;
     pending.current = true; setBusy(true); setMessage('');
     try {
-      const response = await api.get<ApiResponse<{ invoiceUrl?: string }>>(path || `/orders/${orderId}/invoice`);
-      const href = safeInvoice(response.data.data?.invoiceUrl);
-      if (href) setUrl(href);
-      else setMessage(response.data.message || 'The invoice is being prepared. Check again shortly.');
+      const response = await api.get<Blob>(path || `/orders/${orderId}/invoice`, { responseType: 'blob' });
+      if (!String(response.headers['content-type']).includes('application/pdf')) throw new Error('The receipt could not be prepared. Please try again.');
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url; link.download = `NexMart-${orderId}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (error) { setMessage(getApiError(error)); }
     finally { pending.current = false; setBusy(false); }
   }
-  return <div>{url ? <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary"><Download size={17} aria-hidden />Download invoice<span className="sr-only"> (opens a new tab)</span></a> : <button type="button" className="btn-secondary" disabled={busy} onClick={() => void prepare()}>{busy ? <Loader2 size={17} className="animate-spin" aria-hidden /> : <Download size={17} aria-hidden />}{busy ? 'Checking invoice…' : 'Get invoice'}</button>}{message && <p role="status" className="mt-2 max-w-md text-sm text-secondary">{message}</p>}</div>;
+  return <div><button type="button" className="btn-secondary" disabled={busy} onClick={() => void download()}>{busy ? <Loader2 size={17} className="animate-spin" aria-hidden /> : <Download size={17} aria-hidden />}{busy ? 'Preparing receipt…' : 'Download receipt'}</button>{message && <p role="status" className="mt-2 max-w-md text-sm text-secondary">{message}</p>}</div>;
 }

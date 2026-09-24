@@ -90,6 +90,13 @@ const envSchema = z.object({
 
   // Optional: pin each account to its first-seen IP (default off — see ipWhitelist.ts).
   IP_WHITELIST_ENABLED: z.string().default('false'),
+}).superRefine((value, context) => {
+  if (value.NODE_ENV !== 'production') return;
+  const keys = ['JWT_SECRET_ADMIN', 'JWT_SECRET_CUSTOMER', 'JWT_SECRET_AGENT', 'JWT_SECRET_SELLER'] as const;
+  for (const key of keys) {
+    if (value[key].length < 32) context.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Use a random secret of at least 32 characters in production' });
+  }
+  if (new Set(keys.map(key => value[key])).size !== keys.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_SECRET_SELLER'], message: 'Every role must use a different signing secret' });
 });
 
 const parsed = envSchema.safeParse(process.env);

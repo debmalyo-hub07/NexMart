@@ -55,7 +55,7 @@ export function BudgetTool() {
       {BANDS.map(band => {
         const active = band.max === max;
         return <Link key={band.max} href={`/budget?maxPrice=${band.max}`} aria-current={active ? 'true' : undefined}
-          className={`min-h-11 rounded-full border px-5 py-2 text-sm font-medium transition-colors ${active ? 'border-[var(--accent-violet)] bg-[var(--accent-violet)] text-white' : 'border-[var(--border-control)] bg-white text-secondary hover:border-orange-500 hover:text-orange-600'}`}
+          className={`min-h-11 rounded-full border px-5 py-2 text-sm font-medium transition-colors ${active ? 'border-[var(--accent-violet)] bg-[var(--accent-violet)] text-white' : 'border-[var(--border-control)] bg-white text-secondary hover:border-[var(--accent-violet)] hover:text-[var(--accent-violet)]'}`}
           onClick={event => {
             // Same URL as the current band: follow the native link instead of
             // letting the client router swallow a no-op navigation.

@@ -70,6 +70,9 @@ export interface IProduct extends Document {
   variants: IProductVariant[];
   tags: string[];
   brand?: string;
+  taxRateBps?: number;
+  hsnCode?: string;
+  returnWindowDays?: number;
   specifications: Record<string, string>;
   ratings: { average: number; count: number };
   reviews: IProductReview[];
@@ -123,6 +126,10 @@ export interface IOrder extends Document {
     totalPricePaise?: number;
     discountPaise?: number;
     inventoryState?: InventoryState;
+    purchaseTerms?: { sellerName?: string; returnWindowDays?: number; handlingTimeDays?: number; warrantyText?: string };
+    taxRateBps?: number;
+    taxPaise?: number;
+    hsnCode?: string;
   }[];
   shippingAddress: IAddress;
   paymentMethod: PaymentMethod;
@@ -137,6 +144,13 @@ export interface IOrder extends Document {
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  refund?: {
+    status: 'requested' | 'pending' | 'processed' | 'failed' | 'needs_review';
+    amountPaise: number;
+    refundId?: string;
+    requestedAt: Date;
+    processedAt?: Date;
+  };
   subtotal: number;
   shippingFee: number;
   tax: number;
@@ -146,6 +160,7 @@ export interface IOrder extends Document {
   subtotalPaise?: number;
   shippingFeePaise?: number;
   taxPaise?: number;
+  taxStatus?: 'complete' | 'incomplete';
   discountPaise?: number;
   totalPaise?: number;
   fulfillmentGroups?: Types.ObjectId[];

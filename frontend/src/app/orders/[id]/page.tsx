@@ -17,6 +17,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { OrderTotals } from '@/components/cart/OrderTotals';
 import { OrderItems } from '@/components/orders/OrderItems';
 import { PaymentPanel } from '@/components/orders/PaymentPanel';
+import { OrderSupport, RefundProgress, type RefundSummary } from '@/components/orders/OrderSupport';
 import { InvoiceButton } from '@/components/orders/InvoiceButton';
 
 export default function OrderDetailPage() {
@@ -31,8 +32,9 @@ export default function OrderDetailPage() {
       {!order ? !query.isError && <EmptyState title="Order not found" description="This order is unavailable for your account." action={<Link href="/orders" className="btn-primary">Your orders</Link>} /> : <>
         <PageHeader title={`Order ${order.orderId}`} description={`Placed ${formatDate(order.createdAt)}. Payment and fulfillment are tracked separately.`} actions={<button type="button" className="btn-secondary" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={17} aria-hidden />Refresh</button>} />
         <dl className="mb-6 flex flex-wrap gap-x-8 gap-y-4"><div><dt className="mb-2 text-sm text-muted">Fulfillment</dt><dd><StatusBadge status={order.orderStatus} /></dd></div><div><dt className="mb-2 text-sm text-muted">Payment</dt><dd><StatusBadge status={order.paymentStatus} /></dd></div><div><dt className="mb-2 text-sm text-muted">Method</dt><dd className="text-sm">{order.paymentMethod === 'cod' ? 'Cash on delivery' : 'Online payment'}</dd></div></dl>
-        {['cancelled', 'returned'].includes(order.orderStatus) && order.paymentStatus === 'paid' && <p role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">This order is {order.orderStatus}. Payment was received; a refund has not been recorded.</p>}
+        {['cancelled', 'returned'].includes(order.orderStatus) && order.paymentStatus === 'paid' && !(order as Order & { refund?: RefundSummary }).refund && <p role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">This order is {order.orderStatus}. Payment was received; a refund has not been recorded.</p>}
         {order.paymentMethod === 'cod' && order.paymentStatus === 'pending' && !['cancelled', 'returned'].includes(order.orderStatus) && <p className="mb-6 text-sm text-secondary">Payment is due on delivery. A placed order awaits store confirmation.</p>}
+        <RefundProgress refund={(order as Order & { refund?: RefundSummary }).refund} />
         <div className="mb-6">{!query.isError && <PaymentPanel order={order} />}</div>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]"><div className="min-w-0 space-y-6">
           {!!order.fulfillmentGroups?.length && (
@@ -70,6 +72,7 @@ export default function OrderDetailPage() {
             </section>
           )}
           <section className="card"><h2 className="mb-5 text-xl">Items ordered</h2><OrderItems items={order.items} /></section>
+          <OrderSupport orderId={order._id} />
           <section className="card"><h2 className="mb-5 text-xl">Order timeline</h2><ol className="space-y-5 border-l border-[var(--border-control)] pl-4">{order.statusHistory.map((entry, index) => <li key={`${entry.timestamp}-${index}`}><div className="flex flex-wrap items-center gap-3"><StatusBadge status={entry.status} /><time dateTime={entry.timestamp} className="text-xs text-muted">{formatDate(entry.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>{entry.note && <p className="mt-2 break-words text-sm text-secondary">{entry.note}</p>}</li>)}</ol><p className="mt-5 text-xs text-muted">Updates refresh automatically while this page is open.</p></section>
         </div><aside className="min-w-0 space-y-6"><section className="card"><h2 className="mb-5 text-xl">Order total</h2><OrderTotals totals={order} />{(order.invoiceUrl || order.paymentStatus === 'paid' || order.orderStatus === 'delivered') && <div className="mt-5"><InvoiceButton orderId={order._id} invoiceUrl={order.invoiceUrl} /></div>}</section>
           <section className="card"><h2 className="mb-4 flex items-center gap-2 text-xl"><MapPin size={20} aria-hidden />Delivery address</h2><address className="space-y-1 break-words text-sm not-italic text-secondary"><p className="font-medium text-[var(--text-primary)]">{order.shippingAddress.fullName}</p><p>{order.shippingAddress.phone}</p><p>{order.shippingAddress.addressLine1}</p>{order.shippingAddress.addressLine2 && <p>{order.shippingAddress.addressLine2}</p>}<p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p></address>{order.deliveryAgent && <p className="mt-4 text-sm text-secondary">Assigned to {order.deliveryAgent.name}</p>}</section>

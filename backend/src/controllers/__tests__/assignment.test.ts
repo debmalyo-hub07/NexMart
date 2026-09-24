@@ -33,6 +33,9 @@ vi.mock('../../config/socket', () => ({
 }));
 vi.mock('../../services/razorpay.service', () => ({ refundPayment: vi.fn() }));
 vi.mock('../../config/redis', () => ({ upstashRedis: { get: vi.fn(), set: vi.fn(), del: vi.fn() } }));
+vi.mock('../../services/orderLifecycle.service', () => ({
+  persistOrderLifecycle: async (_order: unknown, related: (session: unknown) => Promise<unknown>) => related({}),
+}));
 
 import { assignDeliveryAgent } from '../../controllers/admin.controller';
 
@@ -123,7 +126,7 @@ describe('assignDeliveryAgent', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('does not mark the order shipped when the assignment write fails', async () => {
+  it('does not announce dispatch when the transaction fails', async () => {
     const order = makeOrder({ orderStatus: 'confirmed' });
     wire(order);
     assignmentUpdate.mockRejectedValue(new Error('assignment write failed'));
@@ -131,9 +134,10 @@ describe('assignDeliveryAgent', () => {
 
     await expect(assignDeliveryAgent(makeReq(), res)).rejects.toThrow('assignment write failed');
 
-    // The agent has no assignment, so the order must not claim to be shipped.
-    expect(order.save).not.toHaveBeenCalled();
-    expect(order.orderStatus).toBe('confirmed');
+    // Database rollback is covered by the real replica-set integration test.
+    expect(emitAssigned).not.toHaveBeenCalled();
+    expect(emitOrderStatus).not.toHaveBeenCalled();
+    expect(res.body).toBeUndefined();
   });
 
   it('reports a missing agent without touching the order', async () => {

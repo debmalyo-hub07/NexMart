@@ -12,6 +12,7 @@ import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 import { env } from './env';
 import { logger } from '../utils/logger';
+import { RevokedSession } from '../models/RevokedSession';
 
 // ── Upstash Redis (REST over HTTPS — always works) ────────────
 // signal: every call is bounded at 2.5s — a dead/unresolvable Upstash host
@@ -151,10 +152,13 @@ export async function getFailedLoginAttempts(ip: string): Promise<number> {
 
 export async function incrementFailedLoginAttempts(ip: string): Promise<number> {
   try {
-    const count = await getFailedLoginAttempts(ip);
-    const newCount = count + 1;
-    await upstashRedis.set(`nexmart:login:failed:${ip}`, newCount, { ex: 900 }); // 15 minutes (900s)
-    return newCount;
+    // Count and expiry change atomically, so simultaneous failures cannot
+    // overwrite each other. The IP middleware also limits attempts during
+    // cache outages using a bounded in-process fallback.
+    return await upstashRedis.eval<[], number>(
+      "local n = redis.call('INCR', KEYS[1]); redis.call('EXPIRE', KEYS[1], 900); return n",
+      [`nexmart:login:failed:${ip}`], [],
+    );
   } catch (err) {
     logger.error('Redis unavailable in incrementFailedLoginAttempts (fail-open):', err instanceof Error ? err.message : err);
     return 0;
@@ -171,19 +175,17 @@ export async function clearFailedLoginAttempts(ip: string): Promise<void> {
 
 // ── JWT Blacklist helpers (revoke tokens on logout) ───────────
 export async function blacklistToken(jti: string, ttlSeconds: number): Promise<void> {
-  if (!jti || ttlSeconds <= 0) return;
-  await upstashRedis.set(`nexmart:jwt:blacklist:${jti}`, '1', { ex: ttlSeconds });
+  if (!jti || jti.length > 128 || !Number.isFinite(ttlSeconds) || ttlSeconds <= 0) return;
+  await RevokedSession.updateOne({ jti }, { $max: { expiresAt: new Date(Date.now() + ttlSeconds * 1000) } }, { upsert: true });
+  try { await upstashRedis.set(`nexmart:jwt:blacklist:${jti}`, '1', { ex: Math.ceil(ttlSeconds) }); }
+  catch { logger.warn('Session revoked in MongoDB; Redis revocation cache is unavailable.'); }
 }
 
 export async function isTokenBlacklisted(jti: string | undefined): Promise<boolean> {
   if (!jti) return false;
   try {
     const val = await upstashRedis.get(`nexmart:jwt:blacklist:${jti}`);
-    return val !== null;
-  } catch (err) {
-    // Fail OPEN: treat as not-blacklisted so an unreachable Redis cannot
-    // 401 every authenticated request. Revocation resumes when Redis returns.
-    logger.error('Redis unavailable in isTokenBlacklisted (fail-open):', err instanceof Error ? err.message : err);
-    return false;
-  }
+    if (val !== null) return true;
+  } catch { /* MongoDB is authoritative, including revocations written during an outage. */ }
+  return Boolean(await RevokedSession.exists({ jti, expiresAt: { $gt: new Date() } }));
 }

@@ -1,8 +1,10 @@
-import { Router, Request } from 'express';
-import jwt from 'jsonwebtoken';
+import { Router } from 'express';
 import { googleAuthCallback } from '../controllers/googleAuth.controller';
 import { authLimit, registerLimit, otpLimit } from '../middleware/rateLimiter';
 import { blacklistToken } from '../config/redis';
+import { readSessionCookie, sessionCookies } from '../middleware/auth';
+import { verifySessionClaims, type SessionRole } from '../services/sessionIdentity.service';
+import { env } from '../config/env';
 import {
   registerAdmin,
   loginAdmin,
@@ -55,30 +57,21 @@ router.post('/seller/resend-otp', otpLimit, resendSellerVerification);
  * Revokes the presented token(s) by blacklisting their jti in Redis until natural expiry,
  * so a stolen/replayed cookie is rejected immediately instead of staying valid for 7 days.
  */
-function readCookie(req: Request, name: string): string | null {
-  const raw = req.headers.cookie;
-  if (!raw) return null;
-  for (const c of raw.split('; ')) {
-    const idx = c.indexOf('=');
-    if (idx > -1 && c.slice(0, idx) === name) return c.slice(idx + 1);
-  }
-  return null;
-}
-
 router.post('/logout', async (req, res) => {
-  const cookieNames = ['nexmart_admin_session', 'nexmart_customer_session', 'nexmart_delivery_session', 'nexmart_seller_session'];
-  await Promise.all(cookieNames.map(async (name) => {
-    const token = readCookie(req, name);
-    if (!token) return;
-    try {
-      const decoded = jwt.decode(token) as { jti?: string; exp?: number } | null;
-      if (decoded?.jti && decoded.exp) {
-        const ttl = decoded.exp - Math.floor(Date.now() / 1000);
-        await blacklistToken(decoded.jti, ttl);
-      }
-    } catch { /* malformed token — nothing to revoke */ }
-    res.clearCookie(name, { path: '/' });
-  }));
+  const tokens = new Map<string, SessionRole | undefined>();
+  for (const [role, name] of Object.entries(sessionCookies)) {
+    const token = readSessionCookie(req, name);
+    if (token) tokens.set(token, role as SessionRole);
+    res.clearCookie(name, { path: '/', httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax' });
+  }
+  const bearer = req.headers.authorization?.match(/^Bearer (\S+)$/i)?.[1];
+  if (bearer) tokens.set(bearer, undefined);
+  for (const [token, role] of tokens) {
+    let claims;
+    try { claims = verifySessionClaims(token, role); }
+    catch { continue; }
+    if (claims.jti) await blacklistToken(claims.jti, claims.exp - Math.floor(Date.now() / 1000));
+  }
   res.json({ success: true, message: 'Logged out' });
 });
 

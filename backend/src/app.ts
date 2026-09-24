@@ -51,8 +51,8 @@ export function createApp(): express.Application {
     origin: env.CORS_ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'X-Request-Id'],
-    exposedHeaders: ['X-Request-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'X-Request-Id', 'Idempotency-Key'],
+    exposedHeaders: ['X-Request-Id', 'Retry-After', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
   }));
 
   // ── Razorpay Webhook (raw body — must run BEFORE json/CSRF/rate-limit) ──
