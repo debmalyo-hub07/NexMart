@@ -83,7 +83,9 @@
 .campaign-photo { object-position: 65% 55%; }
 .campaign-shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(92deg, #0A1F36F7 0%, #0D2A4AE8 28%, #123A61A6 52%, #123A6140 70%, transparent 86%), linear-gradient(0deg, #0A1F3659 0%, transparent 32%); }
 .campaign-copy { position: relative; z-index: 2; padding: 38px 42px; }
-.campaign-copy h1 { text-shadow: 0 2px 24px #0A1F3680; }
+.campaign-copy h1 { text-shadow: 0 2px 24px #0A1F3680; color: #FFF9F1; }
+.campaign-copy p { color: #EDE4D3; }
+.campaign-tech h2, .campaign-side-copy .campaign-link { color: #FFF9F1; }
 .campaign-kicker { display: block; font-size: 12px; letter-spacing: .17em; font-weight: 700; }
 .campaign-copy > .campaign-kicker { color: #F8D885; }
 .campaign-copy h1 { margin: 20px 0 17px; font-size: clamp(42px, 4.7vw, 67px); font-weight: 550; line-height: 1.01; letter-spacing: -.045em; color: white; }
