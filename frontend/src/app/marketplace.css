@@ -4,7 +4,7 @@
   --brand: #163E64;
   --brand-deep: #102D49;
   --marigold: #F3C44E;
-  --bg-primary: #F5F6F8;
+  --bg-primary: #F6F4EF;
   --bg-secondary: #FFFFFF;
   --bg-card: #FFFFFF;
   --bg-raised: #F0F3F6;
@@ -81,8 +81,9 @@
 .campaign { position: relative; isolation: isolate; overflow: hidden; border-radius: 14px; }
 .campaign-home { min-height: 452px; background: var(--brand-deep); color: white; }
 .campaign-photo { object-position: 65% 55%; }
-.campaign-shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, #102D49F2 0%, #102D49DF 26%, #102D49A3 48%, #102D4910 85%); }
+.campaign-shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(92deg, #0A1F36F7 0%, #0D2A4AE8 28%, #123A61A6 52%, #123A6140 70%, transparent 86%), linear-gradient(0deg, #0A1F3659 0%, transparent 32%); }
 .campaign-copy { position: relative; z-index: 2; padding: 38px 42px; }
+.campaign-copy h1 { text-shadow: 0 2px 24px #0A1F3680; }
 .campaign-kicker { display: block; font-size: 12px; letter-spacing: .17em; font-weight: 700; }
 .campaign-copy > .campaign-kicker { color: #F8D885; }
 .campaign-copy h1 { margin: 20px 0 17px; font-size: clamp(42px, 4.7vw, 67px); font-weight: 550; line-height: 1.01; letter-spacing: -.045em; color: white; }

@@ -34,6 +34,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); work is grouped 
 - **Deploy docs synced to `render.yaml`:** blueprint build `npm ci --include=dev`,
   healthcheck `/health/ready`, `NODE_VERSION 24.19.0`; keep-alive secret and
   workflow now target `/health/ready`; boot-log line mentions the refund reconciler.
+- **Hero color grading:** richer two-layer campaign shade (deep-navy core that melts
+  out by 86% plus a bottom vignette), soft text-shadow on the hero headline, and a
+  warm-paper page base (`#F6F4EF`) so the cool-gray gutters stop fighting the warm
+  collection photography.
 - **Verification:** frontend lint + typecheck clean, 56/56 Vitest tests pass
   (13 suites), production build green (62/62 routes). Backend: 34 suites, 223/223
   tests pass (incl. new `pricing.service` contract tests); lint + typecheck + build
